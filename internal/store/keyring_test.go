@@ -4,6 +4,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 
 	"github.com/zalando/go-keyring"
@@ -191,6 +192,9 @@ func TestCorruptMetadataIsNotOverwritten(t *testing.T) {
 }
 
 func TestMetadataFileMode(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Windows has no POSIX file modes")
+	}
 	setup(t)
 	mustSave(t, "a", "X", "one")
 	file, _ := metadataPath()

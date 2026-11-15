@@ -82,7 +82,7 @@ sequenceDiagram
 
 ## Persisted data
 
-`<os.UserConfigDir()>/pandora/metadata.json` (directory `0700`, file `0600`) holds a JSON array of `store.SecretMeta`:
+`<os.UserConfigDir()>/pandora/metadata.json` (directory `0700`, file `0600` on Unix; Windows has no POSIX modes and relies on the user profile ACLs) holds a JSON array of `store.SecretMeta`:
 
 ```json
 [

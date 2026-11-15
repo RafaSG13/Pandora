@@ -132,7 +132,7 @@ Pandora is designed to reduce accidental exposure, not to defend against a compr
 - keep values in the OS keyring instead of files;
 - mask values on screen until revealed, and clear the clipboard 15 seconds after copying;
 - never log, print or transmit values, and never open network connections;
-- write metadata atomically with owner-only permissions.
+- write metadata atomically with owner-only permissions (`0600`/`0700` on macOS and Linux; Windows relies on the per-user profile directory's ACLs).
 
 **It does not**
 
