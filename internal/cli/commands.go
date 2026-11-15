@@ -144,19 +144,24 @@ func (a *app) cmdAdd(args []string) error {
 	return nil
 }
 
-// readValue takes the secret from a hidden terminal prompt, or from piped
-// stdin with one trailing newline removed.
+// readValue takes the secret from a hidden terminal prompt (one line), or from
+// piped stdin (any number of lines, e.g. a private key) with one trailing
+// newline removed. At most store.MaxValueBytes are accepted.
 func (a *app) readValue(title string) (string, error) {
 	if a.isTTY() {
 		return a.readHidden(fmt.Sprintf("Value for %q (hidden): ", title))
 	}
-	data, err := io.ReadAll(a.in)
+	// Room for a trailing "\r\n" plus one byte, so an oversized value is detected.
+	data, err := io.ReadAll(io.LimitReader(a.in, store.MaxValueBytes+3))
 	if err != nil {
 		return "", err
 	}
 	v := string(data)
 	if s, ok := strings.CutSuffix(v, "\n"); ok {
 		v = strings.TrimSuffix(s, "\r")
+	}
+	if len(v) > store.MaxValueBytes {
+		return "", store.ErrValueTooLarge
 	}
 	return v, nil
 }

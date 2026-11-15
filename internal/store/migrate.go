@@ -124,10 +124,10 @@ func MigrateLegacy(password string) error {
 	}
 	defer zero(key)
 
-	var created []string
+	var created []storedValue
 	undo := func() {
-		for _, id := range created {
-			_ = keyring.Delete(ServiceName, id)
+		for _, s := range created {
+			_ = dropValue(s.id, s.n)
 		}
 	}
 	recs := make([]record, 0, len(items))
@@ -137,9 +137,10 @@ func MigrateLegacy(password string) error {
 			undo()
 			return err
 		}
-		recs = append(recs, record{ID: id, SecretMeta: it.meta})
+		rec := record{ID: id, SecretMeta: it.meta}
 		value, err := keyring.Get(ServiceName, it.account)
 		if errors.Is(err, keyring.ErrNotFound) {
+			recs = append(recs, rec)
 			continue
 		} else if err != nil {
 			undo()
@@ -150,11 +151,14 @@ func MigrateLegacy(password string) error {
 			undo()
 			return err
 		}
-		if err := keyring.Set(ServiceName, id, sealed); err != nil {
+		n, err := putSealed(id, sealed)
+		if err != nil {
 			undo()
 			return err
 		}
-		created = append(created, id)
+		created = append(created, storedValue{id, n})
+		rec.Chunks = chunksField(n)
+		recs = append(recs, rec)
 	}
 
 	if err := vf.setRecords(key, recs); err != nil {

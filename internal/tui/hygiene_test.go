@@ -241,7 +241,7 @@ func TestNoColorExpiredAndSoonDifferByGlyphInCompactRows(t *testing.T) {
 
 	soon := time.Now().AddDate(0, 0, 3).Format(store.DateLayout)
 	for _, s := range []struct{ name, expires string }{{"soonie", soon}, {"stale", "2000-01-01"}} {
-		m = press(m, "n", s.name, "enter", "X", "enter", "v", "enter", s.expires, "enter", "", "enter")
+		m = press(m, "n", s.name, "enter", "X", "enter", "v", "tab", s.expires, "enter", "", "enter")
 	}
 	m = press(m, "t") // compact rows
 

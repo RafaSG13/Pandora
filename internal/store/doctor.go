@@ -1,11 +1,6 @@
 package store
 
-import (
-	"errors"
-	"fmt"
-
-	"github.com/zalando/go-keyring"
-)
+import "fmt"
 
 // MissingValues returns the titles of vault entries whose value is not in
 // the keyring (for example after the keyring was reset or an entry was deleted
@@ -20,12 +15,12 @@ func MissingValues() ([]string, error) {
 	}
 	var missing []string
 	for _, r := range recs {
-		if _, err := keyring.Get(ServiceName, r.ID); err != nil {
-			if errors.Is(err, keyring.ErrNotFound) {
-				missing = append(missing, r.Title)
-				continue
-			}
+		ok, err := hasValue(r)
+		if err != nil {
 			return nil, fmt.Errorf("reading %q from the keyring: %w", r.Title, err)
+		}
+		if !ok {
+			missing = append(missing, r.Title)
 		}
 	}
 	return missing, nil

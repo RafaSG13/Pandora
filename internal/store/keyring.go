@@ -77,10 +77,15 @@ func openValue(id, stored string) (string, error) {
 	return string(plain), nil
 }
 
-// SaveSecret stores value (encrypted) in the OS keyring under a new random ID and records meta in the vault.
-// It returns ErrExists if a secret with the same title is already recorded.
+// SaveSecret stores value (encrypted, split across keyring entries when it is
+// long) under a new random ID and records meta in the vault. It returns
+// ErrExists if a secret with the same title is already recorded and
+// ErrValueTooLarge above MaxValueBytes.
 func SaveSecret(meta SecretMeta, value string) error {
 	if err := validateMeta(meta); err != nil {
+		return err
+	}
+	if err := checkValueSize(value); err != nil {
 		return err
 	}
 	recs, err := loadRecords()
@@ -94,15 +99,12 @@ func SaveSecret(meta SecretMeta, value string) error {
 	if err != nil {
 		return err
 	}
-	sealed, err := sealValue(id, value)
+	n, err := putValue(id, value)
 	if err != nil {
 		return err
 	}
-	if err := keyring.Set(ServiceName, id, sealed); err != nil {
-		return err
-	}
-	if err := saveRecords(append(recs, record{ID: id, SecretMeta: meta})); err != nil {
-		_ = keyring.Delete(ServiceName, id)
+	if err := saveRecords(append(recs, record{ID: id, Chunks: chunksField(n), SecretMeta: meta})); err != nil {
+		_ = dropValue(id, n)
 		return err
 	}
 	return nil
@@ -119,11 +121,7 @@ func GetSecretValue(title string) (string, error) {
 	if i < 0 {
 		return "", keyring.ErrNotFound
 	}
-	stored, err := keyring.Get(ServiceName, recs[i].ID)
-	if err != nil {
-		return "", err
-	}
-	return openValue(recs[i].ID, stored)
+	return getValue(recs[i])
 }
 
 // UpdateSecret changes the secret recorded as oldTitle. meta.Title,
@@ -131,10 +129,17 @@ func GetSecretValue(title string) (string, error) {
 // meta.Created is ignored and the original date is kept, and Updated is set to
 // today. A non-nil newValue replaces the stored value; nil keeps it. Renaming
 // to a title that is already in use returns ErrExists. A rename only touches
-// the vault: the keyring entry keeps its ID.
+// the vault: the keyring entries keep their ID. A new value is written under
+// a fresh ID and the old entries are removed only after the vault points at
+// the new ones, so a failure never leaves a half-replaced value.
 func UpdateSecret(oldTitle string, meta SecretMeta, newValue *string) error {
 	if err := validateMeta(meta); err != nil {
 		return err
+	}
+	if newValue != nil {
+		if err := checkValueSize(*newValue); err != nil {
+			return err
+		}
 	}
 	recs, err := loadRecords()
 	if err != nil {
@@ -148,21 +153,34 @@ func UpdateSecret(oldTitle string, meta SecretMeta, newValue *string) error {
 		return ErrExists
 	}
 
-	id := recs[idx].ID
+	old := storedValue{recs[idx].ID, recs[idx].chunkCount()}
+	var fresh *storedValue
 	if newValue != nil {
-		sealed, err := sealValue(id, *newValue)
+		id, err := newID()
 		if err != nil {
 			return err
 		}
-		if err := keyring.Set(ServiceName, id, sealed); err != nil {
+		n, err := putValue(id, *newValue)
+		if err != nil {
 			return err
 		}
+		fresh = &storedValue{id, n}
+		recs[idx].ID, recs[idx].Chunks = id, chunksField(n)
 	}
 
 	meta.Created = recs[idx].Created
 	meta.Updated = time.Now().Format(DateLayout)
 	recs[idx].SecretMeta = meta
-	return saveRecords(recs)
+	if err := saveRecords(recs); err != nil {
+		if fresh != nil {
+			_ = dropValue(fresh.id, fresh.n)
+		}
+		return err
+	}
+	if fresh != nil {
+		_ = dropValue(old.id, old.n) // best effort: the vault no longer refers to them
+	}
+	return nil
 }
 
 // DeleteSecret removes the secret's value from the keyring and its vault entry.
@@ -177,7 +195,7 @@ func DeleteSecret(title string) error {
 	if idx < 0 {
 		return ErrNotFound
 	}
-	if err := keyring.Delete(ServiceName, recs[idx].ID); err != nil && !errors.Is(err, keyring.ErrNotFound) {
+	if err := dropValue(recs[idx].ID, recs[idx].chunkCount()); err != nil {
 		return err
 	}
 	return saveRecords(append(recs[:idx], recs[idx+1:]...))

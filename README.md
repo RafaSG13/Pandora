@@ -127,14 +127,15 @@ Mouse input is ignored while a dialog, the form or the filter prompt is open. Be
 | --------------------- | ----------------------------------------------------------- |
 | `tab` / `↓`           | Next field                                                  |
 | `shift+tab` / `↑`     | Previous field                                              |
-| `enter`               | Next field; on the last field, save                         |
+| `enter`               | Next field; on the last field, save. In **Secret**: new line |
 | `ctrl+s`              | Save from any field                                         |
+| `ctrl+r`              | Show or hide the secret you are typing                      |
 | `→`                   | Accept the suggested category                               |
 | `ctrl+g`              | Generate a random secret (shown so you can see it)          |
 | `ctrl+l` / `ctrl+t`   | Cycle the generated length (16–64) / charset (letters+digits, +symbols, hex) |
 | `esc`                 | Cancel                                                      |
 
-Fields: **Name**, **Category**, **Secret**, **Expires** (`YYYY-MM-DD`, optional) and **Notes** (optional, e.g. a URL). When editing, leave **Secret** empty to keep the current value. Renaming a secret moves its value to the new name. Names must be unique. A secret that expires within 14 days, or already has, shows a `◷` badge in the list, the detail card and the header.
+Fields: **Name**, **Category**, **Secret**, **Expires** (`YYYY-MM-DD`, optional) and **Notes** (optional, e.g. a URL). The **Secret** can have several lines (SSH keys, certificates, JSON credentials; up to 32 KB): paste it, or type `enter` for a new line. It is shown as bullets until you press `ctrl+r`; `↑`/`↓` move through its lines and leave it from the first or last line, and `tab` moves on. When editing, leave **Secret** empty to keep the current value. Renaming a secret keeps its value. Names must be unique. A secret that expires within 14 days, or already has, shows a `◷` badge in the list, the detail card and the header. Revealing a long value in the detail card shows its first lines and says how many more there are; `c` always copies all of it.
 
 ### Configuration
 
@@ -157,7 +158,7 @@ The interface needs at least 60×18 characters and shows `Terminal too small` be
 
 | Data                            | Where                                                              |
 | ------------------------------- | ------------------------------------------------------------------ |
-| Secret values                   | OS keyring, service `pandora-cli`, account = a random 32-hex ID; the stored value is itself encrypted with the vault key |
+| Secret values                   | OS keyring, service `pandora-cli`, account = a random 32-hex ID; the stored value is itself encrypted with the vault key. Values over about 1.5 KB are split across several entries (`<id>`, `<id>.1`, …) to stay under the OS limits |
 | Name, category, dates, expiry, notes | `<user config dir>/pandora/vault.json` (file `0600`, directory `0700`): XChaCha20-Poly1305 under a random data key that is wrapped with your master password (Argon2id). The previous version is kept as `vault.json.bak`, also ciphertext |
 
 The user config dir is `~/Library/Application Support` on macOS, `$XDG_CONFIG_HOME` or `~/.config` on Linux and `%AppData%` on Windows. Neither the vault nor the keyring reveals the **names** or values of your secrets without the master password. The first run asks you to create one (at least 10 characters, cannot be recovered). Older plain-text stores (`metadata.json` and keyring entries named after the secrets) are migrated automatically on first start and the old data is removed.
@@ -173,8 +174,8 @@ See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the vault format and data f
 | Command | What it does |
 | ------- | ------------ |
 | `pandora list [--category C] [--json]` | Titles, categories, creation and expiry dates. Never shows values. |
-| `pandora get <title>` | Prints the value followed by a newline. Exit `1` if the secret does not exist. |
-| `pandora add <title> [-c CATEGORY] [--notes TEXT] [--expires YYYY-MM-DD]` | Stores a new secret. The value is read from stdin when piped (one trailing newline removed) or typed at a hidden prompt on a terminal. Empty values, duplicate titles and invalid dates are rejected. |
+| `pandora get <title>` | Prints the value followed by a newline, so `add` then `get` reproduces the file you piped in. Exit `1` if the secret does not exist. |
+| `pandora add <title> [-c CATEGORY] [--notes TEXT] [--expires YYYY-MM-DD]` | Stores a new secret. The value is read from stdin when piped (any number of lines, one trailing newline removed; `pandora add key < id_ed25519`) or typed at a hidden prompt on a terminal (one line). Empty values, values over 32 KB, duplicate titles and invalid dates are rejected. |
 | `pandora rm <title> [-y]` | Deletes a secret. Asks on a terminal; without a terminal it refuses unless `-y` is given. |
 | `pandora run -s TITLE[=ENV_NAME] [-s ...] -- cmd args...` | Runs `cmd` with each secret in an environment variable that exists only for that process. `ENV_NAME` defaults to the title upper-cased with other characters replaced by `_`. Fails before running anything if a secret is missing; exits with the command's exit code. |
 | `pandora export [--values] [-o FILE] [--force]` | Writes the metadata as JSON. With `--values` the values are included and the whole file is encrypted. |

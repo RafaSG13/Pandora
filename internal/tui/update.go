@@ -10,7 +10,6 @@ import (
 	"github.com/atotto/clipboard"
 	"github.com/charmbracelet/bubbles/list"
 	"github.com/charmbracelet/bubbles/spinner"
-	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/RafaSG13/Pandora/internal/gen"
@@ -46,7 +45,7 @@ func (m *model) syncReveal() {
 		return
 	}
 	if sel, ok := m.list.SelectedItem().(item); !ok || sel.meta.Title != m.revealTitle {
-		m.revealTitle = ""
+		m.hideReveal()
 	}
 }
 
@@ -59,6 +58,8 @@ func (m model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		for i := range m.inputs {
 			m.inputs[i].Width = inputW
 		}
+		m.secret.SetWidth(inputW)
+		m.secret.SetHeight(m.secretRows())
 		authW := max(10, m.modalWidth()-8-15) // label, marker, brackets and cursor take 15 columns
 		m.pwInput.Width, m.pwConfirm.Width = authW, authW
 		return m, nil
@@ -154,9 +155,9 @@ func (m model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, nil
 			}
 			if m.revealed(sel.meta.Title) {
-				m.revealTitle = ""
+				m.hideReveal()
 			} else {
-				m.revealTitle, m.revealUntil = sel.meta.Title, m.nowOr().Add(revealTTL)
+				m.revealSelected(sel.meta.Title)
 			}
 			return m, nil
 		case "x":
@@ -205,7 +206,7 @@ func (m model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 func (m model) tick() (tea.Model, tea.Cmd) {
 	now := m.nowOr()
 	if m.revealTitle != "" && !now.Before(m.revealUntil) {
-		m.revealTitle = ""
+		m.hideReveal()
 	}
 	if !m.clipUntil.IsZero() && !now.Before(m.clipUntil) {
 		m.clearClipboard(false)
@@ -267,7 +268,7 @@ func (m *model) clearClipboard(manual bool) {
 // the master-password screen is shown. Nothing but a correct password brings
 // the secrets back; an unsaved form is discarded.
 func (m *model) lock() {
-	m.revealTitle = ""
+	m.hideReveal()
 	m.statusMsg = ""
 	if !m.clipUntil.IsZero() {
 		_, _ = m.wipeClipboard()
@@ -283,6 +284,8 @@ func (m *model) lock() {
 		m.inputs[i].SetValue("")
 		m.inputs[i].SetSuggestions(nil)
 	}
+	m.secret.Reset()
+	m.secretShown = false
 	m.pwInput.SetValue("")
 	m.pwConfirm.SetValue("")
 	m.unlocking, m.unlockErr = false, ""
@@ -482,38 +485,57 @@ func (m model) pickCategory(n int) model {
 }
 
 // openForm shows the form. editTitle is the secret being edited, or "" to add;
-// meta prefills the fields. The secret field always starts empty.
+// meta prefills the fields. The secret field always starts empty and masked.
 func (m *model) openForm(editTitle string, meta store.SecretMeta) {
 	m.mode, m.editing = modeForm, editTitle
 	m.inputs[fieldName].SetValue(meta.Title)
 	m.inputs[fieldCategory].SetValue(meta.Category)
 	m.inputs[fieldCategory].SetSuggestions(m.categories)
-	m.inputs[fieldSecret].SetValue("")
-	m.inputs[fieldSecret].EchoMode = textinput.EchoPassword
-	m.inputs[fieldSecret].Placeholder = secretPlaceholder
+	m.secret.Reset()
+	m.secretShown = false
+	m.secret.Placeholder = secretPlaceholder
 	if editTitle != "" {
-		m.inputs[fieldSecret].Placeholder = secretKeepPlaceholder
+		m.secret.Placeholder = secretKeepPlaceholder
 	}
 	m.inputs[fieldExpires].SetValue(meta.Expires)
 	m.inputs[fieldNotes].SetValue(meta.Notes)
 	m.setFocus(fieldName)
 }
 
-// updateForm handles key presses while the add/edit form is open.
+// updateForm handles key presses while the add/edit form is open. In the
+// secret field enter inserts a newline and up/down move through its lines;
+// tab and shift+tab move between fields, ctrl+s saves, ctrl+r shows or hides
+// the text.
 func (m model) updateForm(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	last := len(m.inputs) - 1
+	inSecret := m.focusIndex == fieldSecret
 
 	switch msg.String() {
 	case "esc":
 		m.mode = modeBrowse
 		return m, nil
-	case "up", "shift+tab":
+	case "up":
+		if inSecret && m.secret.Line() > 0 {
+			break
+		}
 		m.setFocus((m.focusIndex - 1 + len(m.inputs)) % len(m.inputs))
 		return m, nil
-	case "down", "tab":
+	case "shift+tab":
+		m.setFocus((m.focusIndex - 1 + len(m.inputs)) % len(m.inputs))
+		return m, nil
+	case "down":
+		if inSecret && m.secret.Line() < strings.Count(m.secret.Value(), "\n") {
+			break
+		}
+		m.setFocus((m.focusIndex + 1) % len(m.inputs))
+		return m, nil
+	case "tab":
 		m.setFocus((m.focusIndex + 1) % len(m.inputs))
 		return m, nil
 	case "enter":
+		if inSecret {
+			break // a newline in the value
+		}
 		if m.focusIndex < last {
 			m.setFocus(m.focusIndex + 1)
 			return m, nil
@@ -521,14 +543,17 @@ func (m model) updateForm(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m.saveForm()
 	case "ctrl+s":
 		return m.saveForm()
+	case "ctrl+r":
+		m.secretShown = !m.secretShown
+		return m, nil
 	case "ctrl+g":
 		val, err := gen.Generate(gen.Charsets[m.genSet], gen.Lengths[m.genLen])
 		if err != nil {
 			m.notify(fmt.Sprintf("✗ %v", err), true)
 			return m, nil
 		}
-		m.inputs[fieldSecret].SetValue(val)
-		m.inputs[fieldSecret].EchoMode = textinput.EchoNormal // show what was generated
+		m.secret.SetValue(val)
+		m.secretShown = true // show what was generated
 		m.setFocus(fieldSecret)
 		return m, nil
 	case "ctrl+l":
@@ -540,7 +565,15 @@ func (m model) updateForm(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	}
 
 	var cmd tea.Cmd
-	m.inputs[m.focusIndex], cmd = m.inputs[m.focusIndex].Update(msg)
+	if inSecret {
+		m.secret, cmd = m.secret.Update(msg)
+		// textarea scrolls to the cursor during Update using the lines its last
+		// View rendered, so render once and update again to follow a paste at once.
+		_ = m.secret.View()
+		m.secret, _ = m.secret.Update(nil)
+	} else {
+		m.inputs[m.focusIndex], cmd = m.inputs[m.focusIndex].Update(msg)
+	}
 	return m, cmd
 }
 
@@ -548,7 +581,7 @@ func (m model) updateForm(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 // On failure the form stays open so nothing typed is lost.
 func (m model) saveForm() (tea.Model, tea.Cmd) {
 	name := strings.TrimSpace(m.inputs[fieldName].Value())
-	val := m.inputs[fieldSecret].Value()
+	val := m.secret.Value()
 	adding := m.editing == ""
 	if name == "" || (adding && val == "") {
 		m.notify("✗ Name and secret are required", true)
@@ -614,6 +647,7 @@ func (m model) updateConfirmDelete(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 
+	m.hideReveal()
 	if err := store.DeleteSecret(title); err != nil {
 		m.notify(fmt.Sprintf("✗ Could not delete: %v", err), true)
 		return m, nil
@@ -656,10 +690,14 @@ func (m model) updateMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-// setFocus focuses input i and blurs the rest.
+// setFocus focuses input i and blurs the rest. The secret is a textarea, not
+// one of the inputs.
 func (m *model) setFocus(i int) {
 	m.focusIndex = i
 	for j := range m.inputs {
+		if j == fieldSecret {
+			continue
+		}
 		if j == i {
 			m.inputs[j].Focus()
 			m.inputs[j].TextStyle = textStyle
@@ -667,6 +705,11 @@ func (m *model) setFocus(i int) {
 			m.inputs[j].Blur()
 			m.inputs[j].TextStyle = subtleStyle
 		}
+	}
+	if i == fieldSecret {
+		m.secret.Focus()
+	} else {
+		m.secret.Blur()
 	}
 }
 

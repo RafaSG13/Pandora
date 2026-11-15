@@ -13,6 +13,7 @@ import (
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/list"
 	"github.com/charmbracelet/bubbles/spinner"
+	"github.com/charmbracelet/bubbles/textarea"
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -91,7 +92,11 @@ type model struct {
 	toastUntil time.Time
 
 	// Per-item reveal: only revealTitle's value is shown, until revealUntil.
+	// revealValue is read once when revealing and dropped on hide, so a long
+	// value is not fetched from the keyring on every frame.
 	revealTitle string
+	revealValue string
+	revealErr   error
 	revealUntil time.Time
 
 	// Clipboard auto-clear deadline; zero when nothing is pending. clipHash is
@@ -119,12 +124,15 @@ type model struct {
 	checking bool
 	spinner  spinner.Model
 
-	// Form.
-	inputs     []textinput.Model
-	focusIndex int
-	editing    string // title of the secret being edited; empty when adding
-	genLen     int    // index into genLengths
-	genSet     int    // index into genCharsets
+	// Form. inputs[fieldSecret] is unused: the secret is a multi-line textarea
+	// (secret), masked unless secretShown, because textinput cannot hold newlines.
+	inputs      []textinput.Model
+	secret      textarea.Model
+	secretShown bool
+	focusIndex  int
+	editing     string // title of the secret being edited; empty when adding
+	genLen      int    // index into genLengths
+	genSet      int    // index into genCharsets
 
 	deleting string // title awaiting delete confirmation
 
@@ -151,9 +159,7 @@ func New() tea.Model {
 	inputs[fieldCategory].ShowSuggestions = true
 	// tab moves between fields, so accept a category suggestion with →.
 	inputs[fieldCategory].KeyMap.AcceptSuggestion = key.NewBinding(key.WithKeys("right"))
-	inputs[fieldSecret].Placeholder = secretPlaceholder
-	inputs[fieldSecret].EchoMode = textinput.EchoPassword
-	inputs[fieldSecret].EchoCharacter = []rune(g.mask)[0]
+	// inputs[fieldSecret] stays a bare textinput that is never shown.
 	inputs[fieldExpires].Placeholder = "YYYY-MM-DD (optional)"
 	inputs[fieldExpires].CharLimit = 10
 	inputs[fieldNotes].Placeholder = "URL, account… (optional)"
@@ -165,6 +171,7 @@ func New() tea.Model {
 	m := model{
 		list:       l,
 		inputs:     inputs,
+		secret:     newSecretArea(),
 		now:        time.Now,
 		lockAfter:  lockTimeout(os.Getenv("PANDORA_LOCK_MINUTES")),
 		spinner:    sp,

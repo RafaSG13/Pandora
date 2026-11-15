@@ -248,3 +248,81 @@ func TestExportWithoutValuesSaysTitlesArePlainText(t *testing.T) {
 		t.Errorf("stderr %q", stderr)
 	}
 }
+
+const sshKey = "-----BEGIN OPENSSH PRIVATE KEY-----\nb3BlbnNzaC1rZXktdjEAAAAABG5vbmUAAAAEbm9uZQAAAAAAAAABAAAAMwAAAAtzc2gtZW\nQyNTUxOQAAACD9Zk8z\n-----END OPENSSH PRIVATE KEY-----\n"
+
+func TestMultilineValueRoundTripsThroughAddGetRunAndExport(t *testing.T) {
+	skipWithoutSh(t)
+	isolate(t)
+	// The key is piped as a file would be; add removes one trailing newline and get adds one back.
+	if code, _, e := (harness{stdin: sshKey}).run(t, "add", "ssh", "-c", "Keys"); code != 0 {
+		t.Fatalf("add: %s", e)
+	}
+	if v, _ := store.GetSecretValue("ssh"); v != strings.TrimSuffix(sshKey, "\n") {
+		t.Fatalf("stored %q", v)
+	}
+	code, stdout, e := harness{}.run(t, "get", "ssh")
+	if code != 0 || stdout != sshKey {
+		t.Fatalf("get = %d %q (%s); want the exact file content back", code, stdout, e)
+	}
+
+	code, stdout, _ = harness{}.run(t, "run", "-s", "ssh=KEY", "--", "sh", "-c", `printf '%s' "$KEY"`)
+	if code != 0 || stdout != strings.TrimSuffix(sshKey, "\n") {
+		t.Errorf("run passed %q to the child", stdout)
+	}
+
+	file := filepath.Join(t.TempDir(), "b.age")
+	if code, _, e := withPass(pass).run(t, "export", "--values", "-o", file); code != 0 {
+		t.Fatal(e)
+	}
+	if code, _, e := (harness{}).run(t, "rm", "ssh", "-y"); code != 0 {
+		t.Fatal(e)
+	}
+	if code, _, e := withPass(pass).run(t, "import", file, "--values"); code != 0 {
+		t.Fatal(e)
+	}
+	if v, _ := store.GetSecretValue("ssh"); v != strings.TrimSuffix(sshKey, "\n") {
+		t.Errorf("after export/import: %q", v)
+	}
+}
+
+func TestLargeValueIsAcceptedUpToTheLimitAndRejectedAbove(t *testing.T) {
+	isolate(t)
+	atLimit := strings.Repeat("k", store.MaxValueBytes)
+	if code, _, e := (harness{stdin: atLimit + "\n"}).run(t, "add", "max"); code != 0 {
+		t.Fatalf("a value of exactly the limit: %s", e)
+	}
+	if v, _ := store.GetSecretValue("max"); v != atLimit {
+		t.Error("limit-sized value changed")
+	}
+
+	code, _, stderr := harness{stdin: atLimit + "x\n"}.run(t, "add", "big")
+	if code != 1 || !strings.Contains(stderr, "larger than 32 KB") {
+		t.Errorf("above the limit: exit %d, stderr %q", code, stderr)
+	}
+	// Far above the limit must also be refused without reading it all.
+	if code, _, _ := (harness{stdin: strings.Repeat("z", 5*store.MaxValueBytes)}).run(t, "add", "huge"); code != 1 {
+		t.Errorf("huge stdin: exit %d, want 1", code)
+	}
+	if got := titlesOf(t); !reflect.DeepEqual(got, []string{"max"}) {
+		t.Errorf("titles = %v; rejected values must store nothing", got)
+	}
+}
+
+func TestImportRejectsOversizedValuesNamingTheSecretAndWritesNothing(t *testing.T) {
+	isolate(t)
+	file := filepath.Join(t.TempDir(), "big.json")
+	doc := `{"format":"pandora-export","version":1,"values_included":true,"secrets":[` +
+		`{"title":"fine","category":"X","created":"2026-01-01","value":"v"},` +
+		`{"title":"toolarge","category":"X","created":"2026-01-01","value":"` + strings.Repeat("a", store.MaxValueBytes+1) + `"}]}`
+	if err := os.WriteFile(file, []byte(doc), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	code, _, stderr := harness{}.run(t, "import", file, "--values")
+	if code != 1 || !strings.Contains(stderr, "toolarge") || !strings.Contains(stderr, "larger than 32 KB") {
+		t.Errorf("exit %d, stderr %q", code, stderr)
+	}
+	if got := titlesOf(t); len(got) != 0 {
+		t.Errorf("titles = %v, want nothing written", got)
+	}
+}

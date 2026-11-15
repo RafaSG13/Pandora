@@ -245,6 +245,18 @@ func (m model) renderDetail(w, h int) string {
 		rows = append(rows, row("Expires", textStyle.Render(meta.Expires)+"  "+style.Render(g.clock+" "+label)))
 	}
 
+	// The notes decide how many lines the value box may use.
+	var tail []string
+	if meta.Notes != "" {
+		wrapped := strings.Split(textStyle.Width(w).Render(meta.Notes), "\n")
+		if len(wrapped) > 3 {
+			wrapped = append(wrapped[:2], truncate(strings.TrimSpace(ansi.Strip(wrapped[2])), w-1)+g.ellipsis)
+		}
+		tail = append([]string{"", subtleStyle.Bold(true).Render("Notes")}, wrapped...)
+	}
+	// header, blank, rows, blank, label, the box's two borders, then the notes.
+	valueRows := max(2, h-(2+len(rows)+2+2+len(tail)))
+
 	icon, hint, borderColor := g.lock, "v to reveal", subtle
 	value := subtleStyle.Render(maskedValue)
 	switch {
@@ -253,14 +265,13 @@ func (m model) renderDetail(w, h int) string {
 		value = lipgloss.NewStyle().Foreground(danger).Render("Value missing from the keyring — press e to set it")
 		hint = ""
 	case m.revealed(meta.Title):
-		real, err := store.GetSecretValue(meta.Title)
-		if err != nil {
-			value = lipgloss.NewStyle().Foreground(danger).Render(fmt.Sprintf("✗ %v", err))
+		if m.revealErr != nil {
+			value = lipgloss.NewStyle().Foreground(danger).Render(fmt.Sprintf("✗ %v", m.revealErr))
 			break
 		}
 		left := int(m.revealUntil.Sub(now).Round(time.Second) / time.Second)
 		icon, hint, borderColor = g.unlock, fmt.Sprintf("v to hide %s %ds", g.sep, max(0, left)), accent
-		value = textStyle.Render(real)
+		value = revealBlock(m.revealValue, w-4, valueRows)
 	}
 	box := lipgloss.NewStyle().
 		Border(g.border).
@@ -277,14 +288,7 @@ func (m model) renderDetail(w, h int) string {
 	parts := []string{header, ""}
 	parts = append(parts, rows...)
 	parts = append(parts, "", label, box)
-	if meta.Notes != "" {
-		wrapped := strings.Split(textStyle.Width(w).Render(meta.Notes), "\n")
-		if len(wrapped) > 3 {
-			wrapped = append(wrapped[:2], truncate(strings.TrimSpace(ansi.Strip(wrapped[2])), w-1)+g.ellipsis)
-		}
-		parts = append(parts, "", subtleStyle.Bold(true).Render("Notes"))
-		parts = append(parts, wrapped...)
-	}
+	parts = append(parts, tail...)
 
 	out := strings.Split(lipgloss.JoinVertical(lipgloss.Left, parts...), "\n")
 	if len(out) > h {
@@ -425,10 +429,19 @@ func (m model) renderForm() string {
 			b.WriteString("  ")
 			b.WriteString(label.Foreground(subtle).Render(labels[i]))
 		}
+		if i == fieldSecret {
+			rows := m.secretLines()
+			b.WriteString(rows[0])
+			indent := strings.Repeat(" ", 2+formLabelW)
+			for _, r := range rows[1:] {
+				b.WriteString("\n" + indent + r)
+			}
+			continue
+		}
 		b.WriteString(in.View())
 	}
 	b.WriteString("\n\n")
-	b.WriteString(subtleStyle.Render(keyStyle.Render("ctrl+g") + " generate a random secret"))
+	b.WriteString(subtleStyle.Render(keyStyle.Render("ctrl+g") + " generate " + g.sep + " " + keyStyle.Render("ctrl+r") + " show/hide"))
 	b.WriteString("\n")
 	b.WriteString(subtleStyle.Render(fmt.Sprintf("%s %d chars %s %s %s", keyStyle.Render("ctrl+l"), gen.Lengths[m.genLen], g.sep, keyStyle.Render("ctrl+t"), gen.Charsets[m.genSet].Name)))
 	b.WriteString("\n\n")
@@ -480,8 +493,9 @@ var helpColumns = [][]helpGroup{
 		{"Form", [][2]string{
 			{"tab/↓", "next field"},
 			{"shift+tab/↑", "previous field"},
-			{"enter", "next / save"},
+			{"enter", "next / save (new line in Secret)"},
 			{"ctrl+s", "save"},
+			{"ctrl+r", "show / hide the secret"},
 			{"→", "accept category"},
 			{"ctrl+g", "generate secret"},
 			{"ctrl+l", "secret length"},
@@ -582,6 +596,9 @@ func (m model) renderHelp() string {
 	switch m.mode {
 	case modeForm:
 		keys = [][2]string{{"tab", "next"}, {"shift+tab", "prev"}, {"enter", "save"}, {"esc", "cancel"}}
+		if m.focusIndex == fieldSecret {
+			keys = [][2]string{{"enter", "new line"}, {"tab", "next"}, {"ctrl+s", "save"}, {"esc", "cancel"}}
+		}
 	case modeConfirmDelete:
 		keys = [][2]string{{"y", "delete"}, {"any other key", "cancel"}}
 	case modeHelp:

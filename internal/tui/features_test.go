@@ -170,7 +170,7 @@ func TestCategoryFilterResetsWhenCategoryDisappears(t *testing.T) {
 }
 
 func TestFormSavesExpiresAndNotesAndEditSetsUpdated(t *testing.T) {
-	m := press(newTestModel(t), "n", "a", "enter", "X", "enter", "v", "enter", "2030-01-31", "enter", "see https://x.example", "enter")
+	m := press(newTestModel(t), "n", "a", "enter", "X", "enter", "v", "tab", "2030-01-31", "enter", "see https://x.example", "enter")
 
 	metas, _ := store.LoadMetadata()
 	if len(metas) != 1 || metas[0].Expires != "2030-01-31" || metas[0].Notes != "see https://x.example" || metas[0].Updated != "" {
@@ -193,7 +193,7 @@ func TestFormSavesExpiresAndNotesAndEditSetsUpdated(t *testing.T) {
 }
 
 func TestInvalidExpiresKeepsFormOpen(t *testing.T) {
-	m := press(newTestModel(t), "n", "a", "enter", "X", "enter", "v", "enter", "tomorrow", "enter", "", "enter")
+	m := press(newTestModel(t), "n", "a", "enter", "X", "enter", "v", "tab", "tomorrow", "enter", "", "enter")
 	mm := m.(model)
 	if mm.mode != modeForm || !mm.statusErr || !strings.Contains(mm.statusMsg, "Expires") {
 		t.Errorf("mode=%v status=%q, want open form with an Expires error", mm.mode, mm.statusMsg)
@@ -224,7 +224,7 @@ func TestUpdateSecretStampsUpdatedAndKeepsBackup(t *testing.T) {
 func TestFormGenerateUsesSelectedLengthAndShowsValue(t *testing.T) {
 	m := press(newTestModel(t), "n")
 	m = ctrl(m, tea.KeyCtrlG)
-	in := m.(model).inputs[fieldSecret]
+	in := m.(model).secret
 	if len(in.Value()) != gen.Lengths[1] {
 		t.Fatalf("default generated length = %d, want %d", len(in.Value()), gen.Lengths[1])
 	}
@@ -234,7 +234,7 @@ func TestFormGenerateUsesSelectedLengthAndShowsValue(t *testing.T) {
 
 	m = ctrl(m, tea.KeyCtrlL) // next length
 	m = ctrl(m, tea.KeyCtrlG)
-	if got := len(m.(model).inputs[fieldSecret].Value()); got != gen.Lengths[2] {
+	if got := len(m.(model).secret.Value()); got != gen.Lengths[2] {
 		t.Errorf("after ctrl+l generated length = %d, want %d", got, gen.Lengths[2])
 	}
 }
@@ -264,7 +264,7 @@ func TestExpiryInfo(t *testing.T) {
 
 func TestExpiryShownInListHeaderAndDetail(t *testing.T) {
 	soon := time.Now().AddDate(0, 0, 3).Format(store.DateLayout)
-	m := press(newTestModel(t), "n", "a", "enter", "X", "enter", "v", "enter", soon, "enter", "", "enter")
+	m := press(newTestModel(t), "n", "a", "enter", "X", "enter", "v", "tab", soon, "enter", "", "enter")
 
 	out := m.View()
 	if !strings.Contains(out, "1 expiring") {

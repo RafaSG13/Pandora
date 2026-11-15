@@ -90,7 +90,7 @@ func press(m tea.Model, keys ...string) tea.Model {
 
 // add fills name, category and secret, skips Expires and Notes, and saves.
 func add(m tea.Model, name, category, secret string) tea.Model {
-	return press(m, "n", name, "enter", category, "enter", secret, "enter", "enter", "enter")
+	return press(m, "n", name, "enter", category, "enter", secret, "tab", "enter", "enter")
 }
 
 func titles(m tea.Model) []string {
@@ -151,7 +151,7 @@ func TestEditPrefillsAndEmptySecretKeepsValue(t *testing.T) {
 
 	// Replace the one-character name, change category; leave secret empty.
 	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyBackspace})
-	m = press(m, "renamed", "enter", "Z", "enter", "enter", "enter", "enter")
+	m = press(m, "renamed", "enter", "Z", "enter", "tab", "enter", "enter")
 
 	if got := titles(m); len(got) != 1 || got[0] != "renamed" {
 		t.Fatalf("titles = %v, want [renamed]", got)
@@ -169,7 +169,7 @@ func TestOpeningAddFormAfterEditStartsClean(t *testing.T) {
 	m = press(m, "e", "esc", "n")
 
 	mm := m.(model)
-	if mm.editing != "" || mm.inputs[0].Value() != "" || mm.inputs[1].Value() != "" || mm.inputs[2].Placeholder != secretPlaceholder {
+	if mm.editing != "" || mm.inputs[0].Value() != "" || mm.inputs[1].Value() != "" || mm.secret.Placeholder != secretPlaceholder {
 		t.Errorf("stale edit state in add form: editing=%q name=%q", mm.editing, mm.inputs[0].Value())
 	}
 }
