@@ -82,6 +82,9 @@ var gradientStops = [2][2]string{
 
 // gradientText renders s with a left-to-right colour gradient.
 func gradientText(s string) string {
+	if noColor {
+		return s
+	}
 	runes := []rune(s)
 	stops := gradientStops[1]
 	if !lipgloss.HasDarkBackground() {

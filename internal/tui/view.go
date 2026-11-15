@@ -10,7 +10,9 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/ansi"
 
-	"pandora/internal/store"
+	"github.com/RafaSG13/Pandora/internal/gen"
+	"github.com/RafaSG13/Pandora/internal/store"
+	"github.com/RafaSG13/Pandora/internal/version"
 )
 
 var maskedValue = strings.Repeat(g.mask, 12)
@@ -397,7 +399,7 @@ func (m model) renderForm() string {
 	b.WriteString("\n\n")
 	b.WriteString(subtleStyle.Render(keyStyle.Render("ctrl+g") + " generate a random secret"))
 	b.WriteString("\n")
-	b.WriteString(subtleStyle.Render(fmt.Sprintf("%s %d chars %s %s %s", keyStyle.Render("ctrl+l"), genLengths[m.genLen], g.sep, keyStyle.Render("ctrl+t"), genCharsets[m.genSet].name)))
+	b.WriteString(subtleStyle.Render(fmt.Sprintf("%s %d chars %s %s %s", keyStyle.Render("ctrl+l"), gen.Lengths[m.genLen], g.sep, keyStyle.Render("ctrl+t"), gen.Charsets[m.genSet].Name)))
 	b.WriteString("\n\n")
 	b.WriteString(m.renderStatus())
 
@@ -462,7 +464,19 @@ var helpColumns = [][]helpGroup{
 	},
 }
 
-func (m model) renderHelpOverlay() string {
+// helpChrome is the rows around the help overlay's text: its border and
+// padding (4), plus the blank line and key hints placed beneath it (2).
+const helpChrome = 6
+
+// helpLayout is the overlay's outer width and how many text rows fit above
+// the chrome at the current terminal height.
+func (m model) helpLayout() (width, view int) {
+	return min(70, m.width-4), max(1, m.height-helpChrome)
+}
+
+// helpLines is the overlay's full text, one entry per row: the title, the key
+// reference (two columns when there is room) and the build version.
+func (m model) helpLines() []string {
 	keyCol := lipgloss.NewStyle().Width(12)
 	render := func(groups []helpGroup) string {
 		var b strings.Builder
@@ -479,7 +493,7 @@ func (m model) renderHelpOverlay() string {
 		return b.String()
 	}
 
-	width := min(70, m.width-4)
+	width, _ := m.helpLayout()
 	cols := []string{render(helpColumns[0]), render(helpColumns[1])}
 	var body string
 	if width >= 70 { // two columns when there is room
@@ -487,8 +501,38 @@ func (m model) renderHelpOverlay() string {
 	} else {
 		body = cols[0] + "\n\n" + cols[1]
 	}
-	content := titleStyle.Render("Keyboard & mouse") + "\n\n" + body
-	return modalStyle.Width(width).Render(lipgloss.NewStyle().MaxWidth(width - 8).Render(content))
+	content := titleStyle.Render("Keyboard & mouse") + "\n\n" + body + "\n\n" +
+		subtleStyle.Render("pandora "+version.Get().Version)
+	return strings.Split(lipgloss.NewStyle().MaxWidth(width-8).Render(content), "\n")
+}
+
+// helpScrollable reports whether the overlay is taller than the terminal
+// allows, in which case it scrolls and spends its last row on a position hint.
+func (m model) helpScrollable() bool {
+	_, view := m.helpLayout()
+	return len(m.helpLines()) > view
+}
+
+// clampHelpScroll keeps the first shown help row within the text. When the
+// text does not fit in view rows, the last of them is the position hint.
+func clampHelpScroll(scroll, total, view int) int {
+	if total <= view {
+		return 0
+	}
+	return max(0, min(scroll, total-(view-1)))
+}
+
+func (m model) renderHelpOverlay() string {
+	width, view := m.helpLayout()
+	lines := m.helpLines()
+	if total := len(lines); total > view {
+		rows := view - 1
+		off := clampHelpScroll(m.helpScroll, total, view)
+		shown := make([]string, 0, view)
+		shown = append(shown, lines[off:off+rows]...)
+		lines = append(shown, subtleStyle.Render(fmt.Sprintf("%d-%d/%d  ↑/↓ scroll", off+1, off+rows, total)))
+	}
+	return modalStyle.Width(width).Render(strings.Join(lines, "\n"))
 }
 
 func (m model) renderStatus() string {
@@ -511,6 +555,9 @@ func (m model) renderHelp() string {
 		keys = [][2]string{{"y", "delete"}, {"any other key", "cancel"}}
 	case modeHelp:
 		keys = [][2]string{{"any key", "close"}}
+		if m.helpScrollable() {
+			keys = [][2]string{{"↑/↓ pgup/pgdn", "scroll"}, {"esc", "close"}}
+		}
 	case modeLocked:
 		keys = [][2]string{{"any key", "unlock"}}
 	default:

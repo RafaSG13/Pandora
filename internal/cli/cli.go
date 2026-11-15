@@ -1,5 +1,7 @@
 // Package cli implements Pandora's non-interactive command-line mode
-// (list, get, add, rm, run, export, import, doctor). Run never calls os.Exit
+// (list, get, add, rm, run, export, import, doctor, gen, version, completion).
+// The commands are declared once in the table returned by commands; usage,
+// dispatch and shell completions all derive from it. Run never calls os.Exit
 // and takes its streams as arguments so it can be tested.
 package cli
 
@@ -13,6 +15,8 @@ import (
 	"strings"
 
 	"golang.org/x/term"
+
+	"github.com/RafaSG13/Pandora/internal/version"
 )
 
 // Exit codes.
@@ -25,24 +29,6 @@ const (
 // passphraseEnv names the environment variable that supplies the export
 // passphrase when no terminal is available.
 const passphraseEnv = "PANDORA_PASSPHRASE"
-
-const topUsage = `Usage: pandora [command]
-
-Without a command Pandora opens the interactive interface.
-
-Commands:
-  list      List secrets (metadata only)
-  get       Print a secret's value
-  add       Add a secret (value from stdin or a hidden prompt)
-  rm        Delete a secret
-  run       Run a command with secrets injected as environment variables
-  export    Export metadata, or encrypted metadata and values
-  import    Import an export file
-  doctor    Check metadata against the keyring
-  help      Show this help
-
-Run 'pandora <command> -h' for the flags of a command.
-`
 
 // exitError carries the exit code for Run. An empty msg means the message was
 // already printed.
@@ -99,33 +85,15 @@ func newApp(stdin io.Reader, stdout, stderr io.Writer) *app {
 
 func (a *app) run(args []string) int {
 	if len(args) == 0 {
-		fmt.Fprint(a.out, topUsage)
+		fmt.Fprint(a.out, topUsage())
 		return exitOK
 	}
-	var err error
-	switch cmd, rest := args[0], args[1:]; cmd {
-	case "help", "-h", "-help", "--help":
-		fmt.Fprint(a.out, topUsage)
-	case "list":
-		err = a.cmdList(rest)
-	case "get":
-		err = a.cmdGet(rest)
-	case "add":
-		err = a.cmdAdd(rest)
-	case "rm":
-		err = a.cmdRm(rest)
-	case "run":
-		err = a.cmdRun(rest)
-	case "export":
-		err = a.cmdExport(rest)
-	case "import":
-		err = a.cmdImport(rest)
-	case "doctor":
-		err = a.cmdDoctor(rest)
-	default:
-		fmt.Fprintf(a.err, "pandora: unknown command %q\n\n%s", cmd, topUsage)
+	cmd, ok := lookup(args[0])
+	if !ok {
+		fmt.Fprintf(a.err, "pandora: unknown command %q\n\n%s", args[0], topUsage())
 		return exitUsage
 	}
+	err := cmd.run(a, args[1:])
 
 	var ee *exitError
 	switch {
@@ -140,6 +108,19 @@ func (a *app) run(args []string) int {
 		fmt.Fprintf(a.err, "pandora: %v\n", err)
 		return exitRuntime
 	}
+}
+
+func (a *app) cmdHelp([]string) error {
+	_, err := fmt.Fprint(a.out, topUsage())
+	return err
+}
+
+func (a *app) cmdVersion(args []string) error {
+	if _, err := a.parse("version", "version", flag.NewFlagSet("version", flag.ContinueOnError), args, 0, 0); err != nil {
+		return err
+	}
+	_, err := fmt.Fprintln(a.out, version.String())
+	return err
 }
 
 // parse parses flags that may appear before, between or after positional

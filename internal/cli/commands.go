@@ -12,7 +12,7 @@ import (
 
 	"github.com/zalando/go-keyring"
 
-	"pandora/internal/store"
+	"github.com/RafaSG13/Pandora/internal/store"
 )
 
 type listEntry struct {

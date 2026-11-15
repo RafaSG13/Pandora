@@ -1,0 +1,61 @@
+# GoReleaser configuration. The release workflow (.github/workflows/release.yml)
+# runs it on `v*` tags; `goreleaser release --snapshot --clean` is a local dry run.
+version: 2
+project_name: pandora
+
+builds:
+  - id: pandora
+    main: ./cmd/pandora
+    binary: pandora
+    env:
+      - CGO_ENABLED=0
+    goos: [linux, darwin, windows]
+    goarch: [amd64, arm64]
+    flags:
+      - -trimpath
+    ldflags:
+      - -s -w
+      - -X github.com/RafaSG13/Pandora/internal/version.Version={{ .Version }}
+      - -X github.com/RafaSG13/Pandora/internal/version.Commit={{ .ShortCommit }}
+      - -X github.com/RafaSG13/Pandora/internal/version.Date={{ .CommitDate }}
+
+archives:
+  - id: pandora
+    formats: [tar.gz]
+    format_overrides:
+      - goos: windows
+        formats: [zip]
+    name_template: "pandora_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    files:
+      - README.md
+      - LICENSE
+      - CHANGELOG.md
+
+checksum:
+  name_template: checksums.txt
+  algorithm: sha256
+
+# Homebrew formula (`brews` is deprecated in GoReleaser in favour of casks, but only a
+# formula installs a plain CLI on both macOS and Linux), pushed to RafaSG13/homebrew-tap. Skipped (nothing is pushed)
+# when HOMEBREW_TAP_TOKEN is empty, so a release works before the token exists.
+brews:
+  - name: pandora
+    repository:
+      owner: RafaSG13
+      name: homebrew-tap
+      token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"
+    directory: Formula
+    homepage: https://github.com/RafaSG13/Pandora
+    description: Keyboard-driven terminal vault for secrets, backed by the OS keyring
+    license: MIT
+    skip_upload: '{{ if .Env.HOMEBREW_TAP_TOKEN }}false{{ else }}true{{ end }}'
+    test: |
+      assert_match "pandora", shell_output("#{bin}/pandora --version")
+
+# Release notes come from CHANGELOG.md (scripts/release-notes.sh), not from commits.
+changelog:
+  disable: true
+
+release:
+  draft: false
+  prerelease: auto

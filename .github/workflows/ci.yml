@@ -22,3 +22,38 @@ jobs:
       - run: go vet ./...
       - run: go test ./...
       - run: go build ./cmd/pandora
+
+  # Runs the store against a real Secret Service (gnome-keyring) in a throwaway
+  # D-Bus session (see internal/store/integration_test.go).
+  keyring-linux:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - name: Install gnome-keyring
+        run: sudo apt-get update && sudo apt-get install -y gnome-keyring dbus-x11
+      - name: Test against the real keyring
+        run: |
+          dbus-run-session -- sh -c '
+            eval "$(printf "ci" | gnome-keyring-daemon --unlock --components=secrets)"
+            PANDORA_INTEGRATION=1 go test -tags integration -run TestRealKeyring -v ./internal/store
+          '
+
+  # Dry run of the release build so a broken .goreleaser.yaml is caught in PRs.
+  release-snapshot:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - uses: goreleaser/goreleaser-action@v6
+        with:
+          version: "~> v2"
+          args: release --snapshot --clean --skip=publish
+        env:
+          HOMEBREW_TAP_TOKEN: ""

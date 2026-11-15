@@ -38,29 +38,41 @@ Pandora keeps API keys, tokens and passwords out of dotfiles, shell history and 
 - **Fast lookup** — fuzzy filter over name and category, quick category filters (`1`–`9`), and sorting by name, category or date.
 - **Safe copying** — copy to the clipboard, cleared automatically after 15 seconds (or right away with `x`), with a visible countdown.
 - **Masked by default** — the value is revealed one secret at a time and hides again after 10 seconds or when you move.
-- **Secret generator** — `ctrl+g` in the form fills a random password or token (length and charset selectable).
+- **Secret generator** — `ctrl+g` in the form fills a random password or token (length and charset selectable); `pandora gen` does the same from the shell.
 - **Idle lock** — after 5 idle minutes everything is masked and a pending clipboard is cleared.
 - **Orphan detection** — secrets whose keyring value is missing are flagged `!`.
-- **Polished interface** — per-category colours, full-row selection, bordered detail card, toasts, compact mode (`t`), mouse support, and an ASCII fallback.
-- **Command-line mode** — `list`, `get`, `add`, `rm`, `run`, encrypted `export`/`import` and `doctor`.
+- **Polished interface** — per-category colours (or none, with `NO_COLOR`), full-row selection, bordered detail card, toasts, compact mode (`t`), mouse support, and an ASCII fallback.
+- **Command-line mode** — `list`, `get`, `add`, `rm`, `run`, `gen`, encrypted `export`/`import`, `doctor` and shell completions.
 - **Safe metadata handling** — atomic writes with a `metadata.json.bak` backup; a corrupt file is reported, never overwritten.
 - **Single binary, no network, no telemetry.**
 
 ## Installation
 
-Pandora needs Go (the version in the `go` directive of [`go.mod`](go.mod)).
+**Pre-built binary.** Download the archive for your OS and CPU from the [Releases page](https://github.com/RafaSG13/Pandora/releases), check it against `checksums.txt`, and put `pandora` on your `PATH`:
 
 ```sh
-git clone <repository-url> pandora
-cd pandora
-make build          # builds bin/pandora
+shasum -a 256 -c checksums.txt --ignore-missing
+tar -xzf pandora_<version>_<os>_<arch>.tar.gz
+install -m 0755 pandora /usr/local/bin/pandora
 ```
 
-Put the binary on your `PATH`, for example:
+Binaries are not code-signed or notarised yet. On macOS, Gatekeeper may block a downloaded binary: run `xattr -d com.apple.quarantine pandora` once, or build from source.
+
+**With Go** (the version in the `go` directive of [`go.mod`](go.mod)):
 
 ```sh
-install -m 0755 bin/pandora /usr/local/bin/pandora
+go install github.com/RafaSG13/Pandora/cmd/pandora@latest
 ```
+
+**From a checkout:**
+
+```sh
+git clone https://github.com/RafaSG13/Pandora.git
+cd Pandora
+make build          # builds bin/pandora with the version embedded
+```
+
+Check the install with `pandora --version`.
 
 ### Platform requirements
 
@@ -99,7 +111,7 @@ pandora
 | `e`               | Edit the selected secret                               |
 | `d`               | Delete the selected secret (asks for confirmation)     |
 | `r`               | Reload the list from disk and re-check the keyring     |
-| `?`               | Show the full key list (any key closes it)             |
+| `?`               | Show the full key list; on small terminals it scrolls (`↑/↓`, `PgUp/PgDn`, `Home/End`), `esc` / `?` / `q` closes it |
 | `q` / `ctrl+c`    | Quit                                                   |
 
 ### Mouse
@@ -132,6 +144,7 @@ Fields: **Name**, **Category**, **Secret**, **Expires** (`YYYY-MM-DD`, optional)
 | ------------------------ | ------------------------------------------------------------------- |
 | `PANDORA_LOCK_MINUTES`   | Idle minutes before the screen locks (default `5`, `0` disables)    |
 | `PANDORA_ASCII=1`        | Draw with plain ASCII; also used automatically when the locale is not UTF-8 |
+| `NO_COLOR`               | Any non-empty value turns colour off (also `TERM=dumb`); the selected row is then marked with `▌` (`>` in ASCII mode) and expired secrets show `◷!` in compact rows |
 
 ### Terminal size
 
@@ -172,6 +185,9 @@ See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the metadata schema and dat
 | `pandora export [--values] [-o FILE] [--force]` | Writes the metadata as JSON. With `--values` the values are included and the whole file is encrypted. |
 | `pandora import FILE [--values] [--overwrite]` | Reads an export (`-` for stdin). Existing titles are skipped unless `--overwrite`; values are restored only with `--values`. The whole file is validated before anything is written. |
 | `pandora doctor [--fix] [-y]` | Lists metadata entries whose value is missing from the keyring; `--fix` removes them (asks unless `-y`). Exits `1` while problems remain. |
+| `pandora version` | Prints the version, commit and build date (also `pandora --version`). |
+| `pandora gen [--length 8-128] [--charset alnum\|symbols\|hex] [--count 1-100]` | Prints random secrets (default: one of 24 letters and digits) using `crypto/rand`. Stores nothing. |
+| `pandora completion bash\|zsh\|fish\|powershell` | Prints a shell completion script (see below). |
 
 ```sh
 printf '%s' "$TOKEN" | pandora add github-token -c Tokens --expires 2027-01-31
@@ -186,6 +202,19 @@ PANDORA_PASSPHRASE=... pandora import backup.age --values --overwrite
 
 **Doctor limitation.** `doctor` can only find metadata entries without a value. The keyring API Pandora uses cannot list entries, so values that exist in the keyring without a metadata entry cannot be detected.
 
+**Shell completion.** Completion offers commands, flags, secret titles (`get`, `rm`, `run -s`), categories (`-c`) and file names. Titles come from the local metadata file; values are never read and nothing prompts.
+
+```sh
+# bash    (add to ~/.bashrc)
+source <(pandora completion bash)
+# zsh     (add to ~/.zshrc, after compinit)
+source <(pandora completion zsh)
+# fish
+pandora completion fish > ~/.config/fish/completions/pandora.fish
+# PowerShell
+pandora completion powershell | Out-String | Invoke-Expression
+```
+
 ## Security model
 
 Pandora is designed to reduce accidental exposure, not to defend against a compromised account.
@@ -193,7 +222,7 @@ Pandora is designed to reduce accidental exposure, not to defend against a compr
 **It does**
 
 - keep values in the OS keyring instead of files;
-- mask values on screen until revealed, and clear the clipboard 15 seconds after copying;
+- mask values on screen until revealed, and clear the clipboard 15 seconds after copying — but only if the clipboard still holds what Pandora copied (it compares a SHA-256 and keeps no plaintext), so something you copied meanwhile is left alone;
 - never log, print or transmit values, and never open network connections;
 - write metadata atomically with owner-only permissions (`0600`/`0700` on macOS and Linux; Windows relies on the per-user profile directory's ACLs).
 
@@ -204,22 +233,31 @@ Pandora is designed to reduce accidental exposure, not to defend against a compr
 - hide secret names (they are stored in the metadata file) or wipe memory after use;
 - sync or back up for you — [`pandora export`](#command-line-mode) is manual, and an export made with `--values` is only as safe as its passphrase.
 
+**Things that surprise people**
+
+- **`pandora run` uses the environment.** Values reach the child process (and everything it starts) as environment variables; on some systems other processes of the same user can read them (`ps eww`, `/proc/<pid>/environ`). Use it for commands you trust.
+- **The idle lock only hides the screen.** Any key unlocks it, because the keyring is already open for your session; it protects against someone glancing at an unattended terminal, not against someone who can use it. Stopping that needs a passphrase gate, which is [on the roadmap](docs/ROADMAP.md).
+- **Names are plain text on disk.** Titles, categories, notes and expiry dates live in `metadata.json` and its `.bak`, and `pandora export` without `--values` writes them to the file you choose. Never put a secret in the notes.
+- **The threat model** is accidental exposure: shoulder surfing, screen sharing, shell history, dotfiles and notes apps. Malware running as you is out of scope.
+
 To report a vulnerability, see [SECURITY.md](SECURITY.md).
 
 ## Project layout
 
 ```
 cmd/pandora/     program entry point
-internal/cli/    command-line mode (list, get, add, rm, run, export, import, doctor)
+internal/cli/    command-line mode (list, get, add, rm, run, gen, export, import, doctor, completion)
 internal/store/  keyring access and metadata persistence
+internal/gen/    random secret generator (crypto/rand)
 internal/tui/    Bubble Tea model, update logic, views and styles
+internal/version/ build version, commit and date
 docs/            architecture notes and roadmap
 ```
 
 ## Documentation
 
 - [Architecture](docs/ARCHITECTURE.md) — packages, data flow, persisted schema
-- [Roadmap](docs/ROADMAP.md) — what has shipped and what is deliberately left out
+- [Roadmap](docs/ROADMAP.md) — what comes next, with the decisions each item needs
 - [Contributing](CONTRIBUTING.md) — development setup and guidelines
 - [Changelog](CHANGELOG.md)
 - [Security policy](SECURITY.md)
@@ -227,7 +265,7 @@ docs/            architecture notes and roadmap
 ## Development
 
 ```sh
-make build   # build bin/pandora
+make build   # build bin/pandora with the version embedded
 make run     # run without building a binary
 make vet     # go vet ./...
 make test    # go test ./...

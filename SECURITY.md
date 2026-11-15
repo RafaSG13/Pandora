@@ -14,8 +14,8 @@ Never include real secret values in a report.
 
 In scope: ways Pandora could leak or corrupt secret values or metadata, bypass the OS keyring, leave values in the clipboard longer than documented, or write files with unsafe permissions.
 
-Out of scope: threats Pandora does not claim to handle (see *Security model* in the [README](README.md)) — malware running as the same user, clipboard history tools, and weaknesses in the OS keyring itself.
+Out of scope: threats Pandora does not claim to handle (see *Security model* in the [README](README.md)) — malware running as the same user, clipboard history tools, secret values visible to a program started with `pandora run` (it receives them in its environment), the idle lock being only a screen mask, and weaknesses in the OS keyring itself.
 
 ## Supported versions
 
-Pandora has no tagged releases yet; fixes are made on the main branch.
+Pandora is pre-1.0 (`v0.x`): only the latest tagged release and the `main` branch receive fixes, and the command line or data format may change between minor versions (noted in the [changelog](CHANGELOG.md)).

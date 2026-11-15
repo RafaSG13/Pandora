@@ -5,9 +5,11 @@
 | Package          | Responsibility |
 | ---------------- | -------------- |
 | `cmd/pandora`    | Entry point. With arguments it runs `cli.Run`; without, it starts the Bubble Tea program (alternate screen, mouse cell motion) with `tui.New()`. Errors go to stderr, exit code 1. |
-| `internal/cli`   | Non-interactive subcommands (`list`, `get`, `add`, `rm`, `run`, `export`, `import`, `doctor`). Takes its streams as arguments and returns an exit code; never calls `os.Exit`. |
+| `internal/cli`   | Non-interactive subcommands (`list`, `get`, `add`, `rm`, `run`, `gen`, `export`, `import`, `doctor`, `version`, `completion`). Takes its streams as arguments and returns an exit code; never calls `os.Exit`. |
 | `internal/tui`   | The interface, split by Bubble Tea role (below). Talks to storage only through `store`. |
 | `internal/store` | Keyring access and the metadata file. No UI dependencies. |
+| `internal/gen`   | Random secrets (`crypto/rand`): charsets, preset lengths, `Generate`. Used by the form and `pandora gen`. |
+| `internal/version` | Version, commit and date: set with `-ldflags -X` by the release build, falling back to `runtime/debug.ReadBuildInfo` (pseudo-versions of untagged builds report `dev`). |
 
 ### `internal/store`
 
@@ -26,7 +28,7 @@ Metadata writes go through a temp file in the same directory and `os.Rename`, so
 
 ### `internal/cli`
 
-`cli.Run(args, stdin, stdout, stderr) int` dispatches to one handler per subcommand, each with its own `flag.FlagSet`. Exit codes: `0` ok, `1` runtime error, `2` usage error. `export --values` encrypts with age (scrypt passphrase recipient, armored); `export` without `--values` is plain JSON without values. `run` injects secrets into the child's environment only and forwards signals. Secret values are printed only by `get`.
+`cli.Run(args, stdin, stdout, stderr) int` looks the command up in one table (`registry.go`: name, summary, flags with value hints, positional kind) and calls its handler, each with its own `flag.FlagSet`. The same table builds the usage text and the bash/zsh/fish/PowerShell completion scripts (`completion.go`); a test runs `<cmd> -h` for every command and fails if the table's flags drift from the real ones. The hidden `__complete titles|categories` helper feeds completions and prints names only, never values, and stays silent on any error. Exit codes: `0` ok, `1` runtime error, `2` usage error. `export --values` encrypts with age (scrypt passphrase recipient, armored); `export` without `--values` is plain JSON without values. `run` injects secrets into the child's environment only and forwards signals. Secret values are printed only by `get` (and generated ones by `gen`, which stores nothing).
 
 ### `internal/tui`
 
@@ -37,9 +39,8 @@ Metadata writes go through a temp file in the same directory and `os.Rename`, so
 | `view.go`     | `View` and the `render*` helpers: header, panes, list crop + scrollbar, detail card, toast overlay, countdowns, form, help overlay, welcome / error state, footer |
 | `delegate.go` | `rowDelegate`: roomy (3-line) and compact (1-line) list rows, selection fill, orphan / expiry markers |
 | `styles.go`   | Adaptive palette, per-category colours (`categoryColor`), gradient, pane tag border |
-| `icons.go`    | `glyphSet`: Unicode glyphs and the ASCII fallback (`PANDORA_ASCII=1` or a non-UTF-8 locale) |
+| `icons.go`    | `glyphSet`: Unicode glyphs and the ASCII fallback (`PANDORA_ASCII=1` or a non-UTF-8 locale); `detectNoColor` / `applyColorMode` (`NO_COLOR` or `TERM=dumb`: forces the Ascii colour profile and adds a selection marker) |
 | `expiry.go`   | `expiryInfo`: label and level (`far` / `soon` ≤14 days / `expired`) for a secret |
-| `generate.go` | `generateSecret` with `crypto/rand`, lengths and charsets |
 
 **Modes.** `model.mode` decides what the keyboard drives:
 
@@ -65,7 +66,7 @@ While the list filter is active, browse-mode keys go to the list unchanged. Any 
 
 **Reveal.** Only `revealTitle` is shown, until `revealUntil`. `Update` clears it whenever the selected title differs.
 
-**Clipboard.** `writeClipboard` (a variable, stubbed in tests) is the only clipboard writer. Failures are reported instead of showing `✓ Copied`. The lock screen clears a pending clipboard.
+**Clipboard.** `writeClipboard` and `readClipboard` (variables, stubbed in tests) are the only clipboard access. Failures are reported instead of showing `✓ Copied`. Copying stores a SHA-256 of the value (`clipHash`), never the value. Clearing (deadline, `x`, lock) reads the clipboard first and clears only when it still matches (trailing newlines ignored); a read error clears anyway, and content that no longer matches is left alone (`x` says so; the automatic paths are silent). The lock screen clears a pending clipboard the same way.
 
 **Orphans.** `Init` and `r` run `checkOrphans` off the UI thread (some keyring backends are slow or prompt); the result (`orphanMsg`) marks rows and the detail card of secrets whose value is missing. A spinner shows in the header meanwhile.
 
@@ -101,7 +102,7 @@ sequenceDiagram
 
 ### Copy
 
-`enter`/`c` → `store.GetSecretValue(title)` → `writeClipboard(value)`; on success `clipUntil = now + 15 s` and a countdown bar appears. The tick clears the clipboard when the deadline passes; `x` clears it immediately. A new copy simply moves the deadline.
+`enter`/`c` → `store.GetSecretValue(title)` → `writeClipboard(value)`; on success `clipUntil = now + 15 s`, `clipHash` records the value's hash and a countdown bar appears. The tick clears the clipboard when the deadline passes (see *Clipboard* above); `x` clears it immediately. A new copy simply moves the deadline and the hash.
 
 ## Persisted data
 
@@ -133,7 +134,7 @@ Secret values are stored only in the OS keyring, service `pandora-cli`. The JSON
 
 ## Testing
 
-Tests replace the keyring with `keyring.MockInit()`, point `HOME`, `XDG_CONFIG_HOME` and `AppData` at a temp dir, and stub `writeClipboard`, so nothing touches the real keychain, config or clipboard. `internal/tui` tests drive `Update` with key, mouse and tick messages (with an injected clock) and assert on model state, store contents and the rendered view.
+Tests replace the keyring with `keyring.MockInit()`, point `HOME`, `XDG_CONFIG_HOME` and `AppData` at a temp dir, and stub `writeClipboard` / `readClipboard`, so nothing touches the real keychain, config or clipboard. `internal/tui` tests drive `Update` with key, mouse and tick messages (with an injected clock) and assert on model state, store contents and the rendered view. The single exception is `internal/store/integration_test.go` (build tag `integration`, and it also needs `PANDORA_INTEGRATION=1`): it talks to the real OS keyring and only runs in the Linux CI job, inside a throwaway D-Bus session. Release QA on real keychains and terminals is a manual checklist: [QA.md](QA.md).
 
 ## Known limitations
 
@@ -141,4 +142,3 @@ Tests replace the keyring with `keyring.MockInit()`, point `HOME`, `XDG_CONFIG_H
 - Two concurrent instances can race on `metadata.json` (last writer wins).
 - go-keyring cannot enumerate entries, so `doctor` finds metadata without a value but not keyring entries without metadata.
 - Selecting text with the mouse needs `Shift` (`Alt` in some terminals) because Pandora captures the mouse.
-- The help overlay is taller than very small terminals in single-column layout (below 74 columns).
