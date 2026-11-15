@@ -1,7 +1,11 @@
-<h1 align="center">Pandora</h1>
 
 <p align="center">
-  A keyboard-driven terminal vault for your secrets, backed by your operating system's keyring.
+  <img src="assets/pandora-logo.svg" alt="Pandora - The Mythological Vault">
+</p>
+
+
+<p align="center">
+  A terminal user interface vault for your secrets, backed by your operating system's keyring.
 </p>
 
 <p align="center">
@@ -13,23 +17,7 @@
 <p align="center">
   <video src="assets/demo.mp4" autoplay loop muted playsinline width="100%"></video>
 </p>
-```
-▌PANDORA · OS keychain vault                                               3 secrets
-────────────────────────────────────────────────────────────────────────────────────
-╭──────────────────────────────────────╮  ╭────────────────────────────────────────╮
-│                                      │  │                                        │
-│  Secrets                             │  │  stripe-live                           │
-│                                      │  │                                        │
-│    githubToken                       │  │  Category   INFRA                      │
-│    TOKENS · 2026-11-15               │  │  Created    2026-11-16                 │
-│  │ stripe-live                       │  │  Value      ••••••••••••               │
-│  │ INFRA · 2026-11-16                │  │                                        │
-│    npm-publish                       │  │                                        │
-│    TOKENS · 2026-11-20               │  │                                        │
-╰──────────────────────────────────────╯  ╰────────────────────────────────────────╯
-✓ Copied to clipboard (clears in 15s)
-↑/↓ move · / filter · enter/c copy · v reveal · n new · e edit · d delete · s sort · ? help · q quit
-```
+
 
 Pandora keeps API keys, tokens and passwords out of dotfiles, shell history and plain-text notes. Secret **values** are stored by the OS (macOS Keychain, Windows Credential Manager, Linux Secret Service); Pandora only adds a fast interface for browsing, copying and managing them. It makes no network connections.
 

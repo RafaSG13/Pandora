@@ -1,0 +1,79 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 820 130" width="100%" height="130">
+  <defs>
+    <!-- Gradiente Púrpura -> Amarillo para el texto ASCII -->
+    <linearGradient id="pandora-grad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#a855f7" />
+      <stop offset="55%" stop-color="#d946ef" />
+      <stop offset="100%" stop-color="#facc15" />
+    </linearGradient>
+
+    <!-- Gradiente para el Pot (Ánfora/Jarra) -->
+    <linearGradient id="pot-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#c084fc" />
+      <stop offset="100%" stop-color="#7e22ce" />
+    </linearGradient>
+
+    <!-- Gradiente Dorado para la Llave y Destellos -->
+    <linearGradient id="key-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#fef08a" />
+      <stop offset="50%" stop-color="#facc15" />
+      <stop offset="100%" stop-color="#ca8a04" />
+    </linearGradient>
+  </defs>
+
+  <style>
+    .ascii {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+      font-size: 16px;
+      font-weight: 700;
+      fill: url(#pandora-grad);
+      white-space: pre;
+    }
+  </style>
+
+  <!-- Grupo del Icono: Jarra/Pot de Pandora + Llave emergiendo (Izquierda) -->
+  <g transform="translate(20, 12)">
+    <!-- Destello / Aura mágica saliendo del interior -->
+    <path d="M 38 32 Q 52 10 68 18 Q 58 28 52 34 Z" fill="#facc15" opacity="0.35" />
+    
+    <!-- Llave dorada emergiendo inclinada de la boca del pot -->
+    <g transform="translate(52, 8) rotate(32)">
+      <!-- Anillo de la llave -->
+      <circle cx="10" cy="10" r="7" fill="none" stroke="url(#key-grad)" stroke-width="3" />
+      <circle cx="10" cy="10" r="2" fill="#facc15" />
+      <!-- Eje y dientes de la llave -->
+      <path d="M 17 10 L 36 10 M 28 10 L 28 16 M 34 10 L 34 15" stroke="url(#key-grad)" stroke-width="3" stroke-linecap="round" />
+    </g>
+
+    <!-- Tapa del Pot entreabierta e inclinada -->
+    <g transform="translate(16, 18) rotate(-18)">
+      <rect x="4" y="4" width="44" height="6" rx="3" fill="url(#pot-grad)" stroke="#facc15" stroke-width="1" />
+      <path d="M 21 4 C 21 0, 31 0, 31 4" fill="none" stroke="#facc15" stroke-width="2" />
+    </g>
+
+    <!-- Cuerpo del Pot (Pithos / Ánfora griega) -->
+    <path d="M 22 36 L 62 36 L 59 42 C 72 52, 72 82, 56 96 L 28 96 C 12 82, 12 52, 25 42 Z" fill="url(#pot-grad)" stroke="#e9d5ff" stroke-width="1.5" />
+
+    <!-- Asas laterales -->
+    <path d="M 21 48 C 11 48, 11 64, 18 66" fill="none" stroke="#c084fc" stroke-width="3" stroke-linecap="round" />
+    <path d="M 63 48 C 73 48, 73 64, 66 66" fill="none" stroke="#c084fc" stroke-width="3" stroke-linecap="round" />
+
+    <!-- Detalle ornamental griego (Greca / Franja dorada) -->
+    <line x1="21" y1="47" x2="63" y2="47" stroke="#facc15" stroke-width="1.5" stroke-dasharray="3,2" />
+    <line x1="23" y1="88" x2="61" y2="88" stroke="#facc15" stroke-width="1.5" />
+
+    <!-- Ojo de cerradura central en el pot -->
+    <circle cx="42" cy="64" r="4.5" fill="#1e1b4b" stroke="#facc15" stroke-width="1.5" />
+    <path d="M 40.5 67 L 39.5 76 L 44.5 76 L 43.5 67 Z" fill="#facc15" />
+  </g>
+
+  <!-- Texto ASCII "PANDORA" alineado a la derecha del icono -->
+  <g transform="translate(125, 0)">
+    <text x="0" y="28" class="ascii">██████╗   █████╗ ███╗   ██╗██████╗  ██████╗ ██████╗  █████╗ </text>
+    <text x="0" y="45" class="ascii">██╔══██╗ ██╔══██╗████╗  ██║██╔══██╗██╔═══██╗██╔══██╗██╔══██╗</text>
+    <text x="0" y="62" class="ascii">██████╔╝ ███████║██╔██╗ ██║██║  ██║██║   ██║██████╔╝███████║</text>
+    <text x="0" y="79" class="ascii">██╔═══╝  ██╔══██║██║╚██╗██║██║  ██║██║   ██║██╔══██╗██╔══██║</text>
+    <text x="0" y="96" class="ascii">██║      ██║  ██║██║ ╚████║██████╔╝╚██████╔╝██║  ██║██║  ██║</text>
+    <text x="0" y="113" class="ascii">╚═╝      ╚═╝  ╚═╝╚═╝  ╚═══╝╚═════╝  ╚═════╝ ╚═╝  ╚═╝╚═╝  ╚═╝</text>
+  </g>
+</svg>
