@@ -4,9 +4,14 @@ All notable changes are documented here. The format follows [Keep a Changelog](h
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-11-15
+
+**Upgrade note.** The data format changes and cannot be downgraded. Before upgrading, back up with `pandora export --values -o backup.age` using the old version. The first start of this version asks you to choose a master password and migrates your secrets automatically; the password cannot be recovered.
+
 ### Added
 - **Master password.** Names, categories, notes, expiry dates and values are encrypted (Argon2id key derivation, XChaCha20-Poly1305) in `vault.json`; the keyring holds only encrypted values under random IDs, so `security dump-keychain` no longer lists your titles. The first start asks for a password (at least 10 characters, not recoverable); the TUI and every CLI command that reads secrets ask for it.
 - `pandora passwd` changes the master password without touching the stored values.
+- In the password screens, `ctrl+r` shows or hides what you type, and the inputs are drawn as boxes with hints; passwords pasted with a trailing newline still match.
 - `PANDORA_MASTER_PASSWORD` supplies the password to the CLI when there is no terminal (a warning is printed; `pandora run` hides it from the child). Shell completion lists titles and categories only when it is set.
 - `PANDORA_PASSPHRASE` use now prints a warning, and export passphrases must be at least 10 characters.
 
