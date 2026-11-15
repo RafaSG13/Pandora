@@ -20,6 +20,8 @@ func (m model) View() string {
 		return m.placeModal(m.renderForm())
 	case modeConfirmDelete:
 		return m.placeModal(m.renderConfirmDelete())
+	case modeHelp:
+		return m.placeModal(m.renderHelpOverlay())
 	}
 
 	rule := subtleStyle.Render(strings.Repeat("─", m.width))
@@ -123,6 +125,55 @@ func (m model) renderConfirmDelete() string {
 	return modalStyle.BorderForeground(danger).Width(m.modalWidth()).Render(body)
 }
 
+// helpGroups is the full key reference shown by the help overlay.
+var helpGroups = []struct {
+	title string
+	rows  [][2]string
+}{
+	{"Browse", [][2]string{
+		{"↑/↓ j/k", "move"},
+		{"g/G", "first / last"},
+		{"pgup/pgdn", "page"},
+		{"/", "filter"},
+		{"esc", "clear filter"},
+		{"enter/c", "copy to clipboard"},
+		{"v", "reveal / hide value"},
+		{"n", "new"},
+		{"e", "edit"},
+		{"d", "delete"},
+		{"r", "reload"},
+		{"?", "this help"},
+		{"q", "quit"},
+	}},
+	{"Form", [][2]string{
+		{"tab/↓", "next field"},
+		{"shift+tab/↑", "previous field"},
+		{"enter", "next / save"},
+		{"esc", "cancel"},
+	}},
+	{"Mouse", [][2]string{
+		{"click", "select secret"},
+		{"wheel", "move selection"},
+	}},
+}
+
+func (m model) renderHelpOverlay() string {
+	inner := m.modalWidth() - 8
+	keyCol := lipgloss.NewStyle().Width(14)
+
+	var b strings.Builder
+	b.WriteString(titleStyle.Render("Keyboard & mouse"))
+	for _, g := range helpGroups {
+		b.WriteString("\n\n")
+		b.WriteString(subtleStyle.Bold(true).Render(g.title))
+		for _, r := range g.rows {
+			b.WriteString("\n")
+			b.WriteString(keyStyle.Inherit(keyCol).Render(r[0]) + subtleStyle.Render(r[1]))
+		}
+	}
+	return modalStyle.Width(m.modalWidth()).Render(lipgloss.NewStyle().MaxWidth(inner).Render(b.String()))
+}
+
 func (m model) renderStatus() string {
 	if m.statusMsg == "" {
 		return ""
@@ -137,13 +188,15 @@ func (m model) renderStatus() string {
 func (m model) renderHelp() string {
 	keys := [][2]string{
 		{"↑/↓", "move"}, {"/", "filter"}, {"enter/c", "copy"}, {"v", "reveal"},
-		{"n", "new"}, {"e", "edit"}, {"d", "delete"}, {"r", "reload"}, {"q", "quit"},
+		{"n", "new"}, {"e", "edit"}, {"d", "delete"}, {"r", "reload"}, {"?", "help"}, {"q", "quit"},
 	}
 	switch m.mode {
 	case modeForm:
 		keys = [][2]string{{"tab", "next"}, {"shift+tab", "prev"}, {"enter", "save"}, {"esc", "cancel"}}
 	case modeConfirmDelete:
 		keys = [][2]string{{"y", "delete"}, {"any other key", "cancel"}}
+	case modeHelp:
+		keys = [][2]string{{"any key", "close"}}
 	}
 
 	// On narrow terminals drop the least essential hints until the line fits.

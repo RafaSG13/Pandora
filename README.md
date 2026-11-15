@@ -25,7 +25,7 @@
 │    TOKENS · 2026-11-20               │  │                                        │
 ╰──────────────────────────────────────╯  ╰────────────────────────────────────────╯
 ✓ Copied to clipboard (clears in 15s)
-↑/↓ move · / filter · enter/c copy · v reveal · n new · e edit · d delete · r reload · q quit
+↑/↓ move · / filter · enter/c copy · v reveal · n new · e edit · d delete · r reload · ? help · q quit
 ```
 
 Pandora keeps API keys, tokens and passwords out of dotfiles, shell history and plain-text notes. Secret **values** are stored by the OS (macOS Keychain, Windows Credential Manager, Linux Secret Service); Pandora only adds a fast interface for browsing, copying and managing them. It makes no network connections.
@@ -89,7 +89,17 @@ pandora
 | `e`               | Edit the selected secret                               |
 | `d`               | Delete the selected secret (asks for confirmation)     |
 | `r`               | Reload the list from disk                              |
+| `?`               | Show the full key list (any key closes it)             |
 | `q` / `ctrl+c`    | Quit                                                   |
+
+### Mouse
+
+| Input        | Action                                      |
+| ------------ | ------------------------------------------- |
+| Click        | Select the secret under the pointer         |
+| Wheel        | Move the selection up or down               |
+
+Mouse input is ignored while a dialog, the form or the filter prompt is open. Because Pandora captures the mouse, select terminal text with `Shift` held (`Alt` in some terminals).
 
 ### Forms
 

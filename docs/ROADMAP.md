@@ -9,6 +9,8 @@ Features that fit Pandora's scope (local, keyring-backed, keyboard-driven) and c
 - **Reload** (`r`): re-reads `metadata.json`, keeping the selection when the secret still exists.
 - **Duplicate titles**: adding or renaming onto an existing name is rejected with `✗ "<name>" already exists` and the form stays open. Entries duplicated by older versions are collapsed on load.
 - **Safer persistence**: metadata is written atomically; a corrupt `metadata.json` is reported instead of being overwritten.
+- **Help overlay** (`?`): full key and mouse reference; any key closes it. The footer stays short.
+- **Mouse support**: click a list row to select it, scroll wheel moves the selection (`tea.WithMouseCellMotion`). Ignored while a modal, the form or the filter prompt is active. While mouse capture is on, selecting terminal text needs Shift (Alt on some terminals).
 
 ## Priority 2 — day-to-day usability
 
@@ -23,7 +25,6 @@ Features that fit Pandora's scope (local, keyring-backed, keyboard-driven) and c
 | Notes / URL field | — | Optional non-secret text in metadata (e.g. account, URL, expiry reason). Schema addition, backwards compatible. |
 | Generate secret | `ctrl+g` in the form | Random password/token with selectable length and charset (`crypto/rand`). |
 | Expiry / rotation reminder | — | Optional `expires` date; show a warning badge in the list and header when near or past. |
-| Help overlay | `?` | Full key list; footer stays short. |
 | Minimum terminal size guard | — | Show `Terminal too small` below ~60×18 instead of an overflowing list pane (known limitation). |
 
 ## Visual improvements to the TUI
@@ -55,7 +56,6 @@ Assessment from running the current build at 100×30: the layout is correct but 
 - **Modals for confirmations** (delete) with a danger-coloured border and the secret's name highlighted.
 - **Contextual footer**: show only the keys that apply in the current mode (e.g. no `v`/`c` when the list is empty), with `?` for the full list.
 - **Welcome screen** on first run (no metadata): one-paragraph explanation of where values are stored and a `press n` call to action.
-- **Mouse support**: click to select, scroll wheel in the list (`tea.WithMouseCellMotion`).
 
 ### Suggested visual order
 1. Per-category colours + full-row selection highlight (biggest visible gain, small change).

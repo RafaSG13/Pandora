@@ -11,7 +11,7 @@ import (
 )
 
 func main() {
-	if _, err := tea.NewProgram(tui.New(), tea.WithAltScreen()).Run(); err != nil {
+	if _, err := tea.NewProgram(tui.New(), tea.WithAltScreen(), tea.WithMouseCellMotion()).Run(); err != nil {
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 		os.Exit(1)
 	}
