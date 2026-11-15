@@ -16,7 +16,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
-	"pandora/internal/store"
+	"github.com/RafaSG13/Pandora/internal/store"
 )
 
 type item struct {

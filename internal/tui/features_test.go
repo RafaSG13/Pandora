@@ -12,7 +12,8 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/zalando/go-keyring"
 
-	"pandora/internal/store"
+	"github.com/RafaSG13/Pandora/internal/gen"
+	"github.com/RafaSG13/Pandora/internal/store"
 )
 
 // withClock makes the model read time from *now so tests can advance it.
@@ -219,32 +220,12 @@ func TestUpdateSecretStampsUpdatedAndKeepsBackup(t *testing.T) {
 	}
 }
 
-func TestGenerateSecret(t *testing.T) {
-	for _, cs := range genCharsets {
-		for _, n := range genLengths {
-			a, err := generateSecret(cs, n)
-			if err != nil || len(a) != n {
-				t.Fatalf("%s/%d: %q err=%v", cs.name, n, a, err)
-			}
-			if !hasEveryClass(a, cs.classes) {
-				t.Errorf("%s/%d: %q misses a character class", cs.name, n, a)
-			}
-			if strings.Trim(a, strings.Join(cs.classes, "")) != "" {
-				t.Errorf("%s/%d: %q has characters outside the charset", cs.name, n, a)
-			}
-			if b, _ := generateSecret(cs, n); a == b {
-				t.Errorf("%s/%d generated the same secret twice", cs.name, n)
-			}
-		}
-	}
-}
-
 func TestFormGenerateUsesSelectedLengthAndShowsValue(t *testing.T) {
 	m := press(newTestModel(t), "n")
 	m = ctrl(m, tea.KeyCtrlG)
 	in := m.(model).inputs[fieldSecret]
-	if len(in.Value()) != genLengths[1] {
-		t.Fatalf("default generated length = %d, want %d", len(in.Value()), genLengths[1])
+	if len(in.Value()) != gen.Lengths[1] {
+		t.Fatalf("default generated length = %d, want %d", len(in.Value()), gen.Lengths[1])
 	}
 	if !strings.Contains(m.View(), in.Value()) {
 		t.Error("generated secret is not visible in the form")
@@ -252,8 +233,8 @@ func TestFormGenerateUsesSelectedLengthAndShowsValue(t *testing.T) {
 
 	m = ctrl(m, tea.KeyCtrlL) // next length
 	m = ctrl(m, tea.KeyCtrlG)
-	if got := len(m.(model).inputs[fieldSecret].Value()); got != genLengths[2] {
-		t.Errorf("after ctrl+l generated length = %d, want %d", got, genLengths[2])
+	if got := len(m.(model).inputs[fieldSecret].Value()); got != gen.Lengths[2] {
+		t.Errorf("after ctrl+l generated length = %d, want %d", got, gen.Lengths[2])
 	}
 }
 

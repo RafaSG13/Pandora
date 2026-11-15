@@ -12,7 +12,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/zalando/go-keyring"
 
-	"pandora/internal/store"
+	"github.com/RafaSG13/Pandora/internal/store"
 )
 
 // clipboardLog records what the app wrote to the (stubbed) system clipboard.

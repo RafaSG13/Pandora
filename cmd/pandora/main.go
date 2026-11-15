@@ -7,8 +7,8 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
-	"pandora/internal/cli"
-	"pandora/internal/tui"
+	"github.com/RafaSG13/Pandora/internal/cli"
+	"github.com/RafaSG13/Pandora/internal/tui"
 )
 
 func main() {

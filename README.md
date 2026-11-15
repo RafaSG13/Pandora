@@ -219,7 +219,7 @@ docs/            architecture notes and roadmap
 ## Documentation
 
 - [Architecture](docs/ARCHITECTURE.md) — packages, data flow, persisted schema
-- [Roadmap](docs/ROADMAP.md) — what has shipped and what is deliberately left out
+- [Roadmap](docs/ROADMAP.md) — what comes next, with the decisions each item needs
 - [Contributing](CONTRIBUTING.md) — development setup and guidelines
 - [Changelog](CHANGELOG.md)
 - [Security policy](SECURITY.md)

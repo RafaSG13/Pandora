@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"time"
 
-	"pandora/internal/store"
+	"github.com/RafaSG13/Pandora/internal/store"
 )
 
 // expiryLevel says how urgent a secret's expiry is.

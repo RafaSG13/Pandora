@@ -10,7 +10,8 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/ansi"
 
-	"pandora/internal/store"
+	"github.com/RafaSG13/Pandora/internal/gen"
+	"github.com/RafaSG13/Pandora/internal/store"
 )
 
 var maskedValue = strings.Repeat(g.mask, 12)
@@ -397,7 +398,7 @@ func (m model) renderForm() string {
 	b.WriteString("\n\n")
 	b.WriteString(subtleStyle.Render(keyStyle.Render("ctrl+g") + " generate a random secret"))
 	b.WriteString("\n")
-	b.WriteString(subtleStyle.Render(fmt.Sprintf("%s %d chars %s %s %s", keyStyle.Render("ctrl+l"), genLengths[m.genLen], g.sep, keyStyle.Render("ctrl+t"), genCharsets[m.genSet].name)))
+	b.WriteString(subtleStyle.Render(fmt.Sprintf("%s %d chars %s %s %s", keyStyle.Render("ctrl+l"), gen.Lengths[m.genLen], g.sep, keyStyle.Render("ctrl+t"), gen.Charsets[m.genSet].Name)))
 	b.WriteString("\n\n")
 	b.WriteString(m.renderStatus())
 

@@ -1,4 +1,4 @@
-module pandora
+module github.com/RafaSG13/Pandora
 
 go 1.27.4
 

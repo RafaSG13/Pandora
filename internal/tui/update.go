@@ -11,7 +11,8 @@ import (
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 
-	"pandora/internal/store"
+	"github.com/RafaSG13/Pandora/internal/gen"
+	"github.com/RafaSG13/Pandora/internal/store"
 )
 
 // writeClipboard is the system clipboard writer; a variable so tests never
@@ -302,7 +303,7 @@ func (m model) updateForm(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "ctrl+s":
 		return m.saveForm()
 	case "ctrl+g":
-		val, err := generateSecret(genCharsets[m.genSet], genLengths[m.genLen])
+		val, err := gen.Generate(gen.Charsets[m.genSet], gen.Lengths[m.genLen])
 		if err != nil {
 			m.notify(fmt.Sprintf("✗ %v", err), true)
 			return m, nil
@@ -312,10 +313,10 @@ func (m model) updateForm(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.setFocus(fieldSecret)
 		return m, nil
 	case "ctrl+l":
-		m.genLen = (m.genLen + 1) % len(genLengths)
+		m.genLen = (m.genLen + 1) % len(gen.Lengths)
 		return m, nil
 	case "ctrl+t":
-		m.genSet = (m.genSet + 1) % len(genCharsets)
+		m.genSet = (m.genSet + 1) % len(gen.Charsets)
 		return m, nil
 	}
 
