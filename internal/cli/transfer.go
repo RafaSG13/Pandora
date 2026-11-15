@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"filippo.io/age"
 	"filippo.io/age/armor"
@@ -62,6 +63,9 @@ func (a *app) cmdExport(args []string) error {
 		}
 	}
 
+	if err := a.unlock(); err != nil {
+		return err
+	}
 	items, err := store.LoadMetadata()
 	if err != nil {
 		return err
@@ -115,7 +119,7 @@ func (a *app) cmdExport(args []string) error {
 	if err := writeFile(output, data, force); err != nil {
 		return err
 	}
-	kind := "metadata"
+	kind := "plain-text metadata (titles are not encrypted)"
 	if withValues {
 		kind = "encrypted metadata and values"
 	}
@@ -161,6 +165,12 @@ func writeFile(path string, data []byte, force bool) error {
 // terminal, from a hidden prompt (asked twice when confirm is set).
 func (a *app) passphrase(confirm bool) (string, error) {
 	if p := a.getenv(passphraseEnv); p != "" {
+		if confirm {
+			if err := checkPassphraseLen(p); err != nil {
+				return "", err
+			}
+			a.warnEnv(passphraseEnv)
+		}
 		return p, nil
 	}
 	if !a.isTTY() {
@@ -174,6 +184,9 @@ func (a *app) passphrase(confirm bool) (string, error) {
 		return "", errors.New("the passphrase must not be empty")
 	}
 	if confirm {
+		if err := checkPassphraseLen(p); err != nil {
+			return "", err
+		}
 		again, err := a.readHidden("Confirm passphrase: ")
 		if err != nil {
 			return "", err
@@ -183,6 +196,14 @@ func (a *app) passphrase(confirm bool) (string, error) {
 		}
 	}
 	return p, nil
+}
+
+// checkPassphraseLen enforces the minimum length of a new export passphrase.
+func checkPassphraseLen(p string) error {
+	if utf8.RuneCountInString(p) < store.MinPasswordLen {
+		return fmt.Errorf("passphrase must be at least %d characters", store.MinPasswordLen)
+	}
+	return nil
 }
 
 // encrypt returns the ASCII-armored age file for data, protected by pass.
@@ -249,6 +270,9 @@ func (a *app) cmdImport(args []string) error {
 	fs.BoolVar(&overwrite, "overwrite", false, "replace secrets that already exist instead of skipping them")
 	pos, err := a.parse("import", usage, fs, args, 1, 1)
 	if err != nil {
+		return err
+	}
+	if err := a.unlock(); err != nil {
 		return err
 	}
 
@@ -345,6 +369,11 @@ func parseExport(data []byte) (*exportFile, error) {
 		s := &doc.Secrets[i]
 		if strings.TrimSpace(s.Title) == "" {
 			return nil, fmt.Errorf("secret #%d has an empty title", i+1)
+		}
+		for _, text := range []string{s.Title, s.Category, s.Notes} {
+			if err := store.ValidateText(text); err != nil {
+				return nil, fmt.Errorf("secret #%d: %w", i+1, err)
+			}
 		}
 		if seen[s.Title] {
 			return nil, fmt.Errorf("secret %q appears more than once", s.Title)

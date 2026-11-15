@@ -4,6 +4,22 @@ All notable changes are documented here. The format follows [Keep a Changelog](h
 
 ## [Unreleased]
 
+### Added
+- **Master password.** Names, categories, notes, expiry dates and values are encrypted (Argon2id key derivation, XChaCha20-Poly1305) in `vault.json`; the keyring holds only encrypted values under random IDs, so `security dump-keychain` no longer lists your titles. The first start asks for a password (at least 10 characters, not recoverable); the TUI and every CLI command that reads secrets ask for it.
+- `pandora passwd` changes the master password without touching the stored values.
+- `PANDORA_MASTER_PASSWORD` supplies the password to the CLI when there is no terminal (a warning is printed; `pandora run` hides it from the child). Shell completion lists titles and categories only when it is set.
+- `PANDORA_PASSPHRASE` use now prints a warning, and export passphrases must be at least 10 characters.
+
+### Changed
+- **Persisted format.** `metadata.json` and keyring accounts named after the titles are replaced by `vault.json`. Older data is migrated on first start and the old files and keyring entries are deleted (not securely erased). Downgrading to an older version afterwards is not possible without restoring from an export.
+- The idle lock now drops the key from memory, empties the list and asks for the master password again; an unsaved form is discarded. Any key no longer unlocks it.
+- Renaming a secret no longer touches the keyring.
+- `pandora export` without `--values` says that titles are not encrypted.
+
+### Security
+- Titles, categories and notes may not contain control characters, so a crafted import file cannot inject terminal escape sequences into `list` or the interface.
+- Keyring values are bound to their entry (AEAD associated data), so swapped or tampered entries are rejected; a corrupt or tampered vault is reported and never overwritten.
+
 ## [0.1.1] - 2026-11-15
 
 ### Added

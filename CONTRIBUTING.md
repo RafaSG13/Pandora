@@ -29,14 +29,15 @@ Run the app and exercise the path you changed. For UI changes, try the smallest 
 - **One test touches the real keyring, and only in CI.** `internal/store/integration_test.go` (build tag `integration`, also gated on `PANDORA_INTEGRATION=1`) runs in the Linux job inside a throwaway D-Bus session. Don't run it on a machine whose keychain you care about.
 - **Test behaviour, not wiring.** Cover boundaries, error paths and state transitions that a user could observe.
 - **Never log or print secret values**, including in error messages.
-- **Persisted format is an API.** `store.SecretMeta` JSON field names live in users' `metadata.json` files; additions must be backwards compatible (missing field = default).
-- **Order keyring and metadata writes so a failure cannot lose a value** (write the new thing, then remove the old one).
+- **Persisted format is an API.** `vault.json` (version 2, encrypted) holds `store.SecretMeta` records; additions must be backwards compatible (missing field = default), and a format change needs a new `version` and a migration.
+- **Order keyring and vault writes so a failure cannot lose a value** (write the new thing, then remove the old one).
+- **Plaintext titles, categories and notes never reach disk, the keyring or logs**; control characters are rejected in them (`store.ValidateText`).
 - Keep exported identifiers documented and run `gofmt`.
 - Match the existing UI conventions: palette in `internal/tui/styles.go`, `✓`/`✗` status messages, English text.
 
 ## Reporting bugs
 
-Include your OS, terminal, Pandora version (`pandora --version`), what you did and what you expected. **Do not paste secret values or the contents of `metadata.json`** — redact names if they are sensitive.
+Include your OS, terminal, Pandora version (`pandora --version`), what you did and what you expected. **Do not paste secret values**; `vault.json` is encrypted, but redact names if they are sensitive.
 
 Security issues: see [SECURITY.md](SECURITY.md); do not open a public issue.
 

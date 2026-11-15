@@ -1,12 +1,13 @@
-// Package store persists secrets: values in the OS keyring, non-sensitive
-// metadata in a JSON file in the user's config directory.
+// Package store persists secrets: names and metadata in an encrypted vault
+// file in the user's config directory, values (encrypted under the same key)
+// in the OS keyring under opaque random account IDs. Everything requires the
+// master password: see Unlock.
 package store
 
 import (
-	"encoding/json"
+	"encoding/base64"
 	"errors"
-	"os"
-	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/zalando/go-keyring"
@@ -22,7 +23,7 @@ var (
 	ErrNotFound = errors.New("secret not found")
 )
 
-// SecretMeta is the non-sensitive description of a secret. It is persisted as JSON; never put values here.
+// SecretMeta is the non-sensitive description of a secret. It is persisted as JSON (encrypted); never put values here.
 // Dates are YYYY-MM-DD. Updated, Notes and Expires are optional.
 type SecretMeta struct {
 	Title    string `json:"title"`
@@ -33,173 +34,172 @@ type SecretMeta struct {
 	Notes    string `json:"notes,omitempty"`
 }
 
-// SaveSecret stores value in the OS keyring under meta.Title and records meta in the metadata file.
+var errCorruptValue = errors.New("stored value is corrupt or was not written by Pandora")
+
+// sealValue encrypts value under the data key, binding it to the record id so
+// ciphertexts cannot be swapped between entries.
+func sealValue(id, value string) (string, error) {
+	key, err := currentKey()
+	if err != nil {
+		return "", err
+	}
+	defer zero(key)
+	return sealValueWith(key, id, value)
+}
+
+func sealValueWith(key []byte, id, value string) (string, error) {
+	blob, err := seal(key, []byte(value), []byte(id))
+	if err != nil {
+		return "", err
+	}
+	return valuePrefix + base64.StdEncoding.EncodeToString(blob), nil
+}
+
+// openValue reverses sealValue.
+func openValue(id, stored string) (string, error) {
+	key, err := currentKey()
+	if err != nil {
+		return "", err
+	}
+	defer zero(key)
+	rest, ok := strings.CutPrefix(stored, valuePrefix)
+	if !ok {
+		return "", errCorruptValue
+	}
+	blob, err := base64.StdEncoding.DecodeString(rest)
+	if err != nil {
+		return "", errCorruptValue
+	}
+	plain, err := open(key, blob, []byte(id))
+	if err != nil {
+		return "", errCorruptValue
+	}
+	return string(plain), nil
+}
+
+// SaveSecret stores value (encrypted) in the OS keyring under a new random ID and records meta in the vault.
 // It returns ErrExists if a secret with the same title is already recorded.
 func SaveSecret(meta SecretMeta, value string) error {
-	items, err := LoadMetadata()
+	if err := validateMeta(meta); err != nil {
+		return err
+	}
+	recs, err := loadRecords()
 	if err != nil {
 		return err
 	}
-	if indexOf(items, meta.Title) >= 0 {
+	if recordIndex(recs, meta.Title) >= 0 {
 		return ErrExists
 	}
-	if err := keyring.Set(ServiceName, meta.Title, value); err != nil {
+	id, err := newID()
+	if err != nil {
 		return err
 	}
-	if err := writeMetadata(append(items, meta)); err != nil {
-		_ = keyring.Delete(ServiceName, meta.Title)
+	sealed, err := sealValue(id, value)
+	if err != nil {
+		return err
+	}
+	if err := keyring.Set(ServiceName, id, sealed); err != nil {
+		return err
+	}
+	if err := saveRecords(append(recs, record{ID: id, SecretMeta: meta})); err != nil {
+		_ = keyring.Delete(ServiceName, id)
 		return err
 	}
 	return nil
 }
 
-// GetSecretValue returns the secret value stored under title.
+// GetSecretValue returns the secret value stored under title. An unknown
+// title returns keyring.ErrNotFound, like a value missing from the keyring.
 func GetSecretValue(title string) (string, error) {
-	return keyring.Get(ServiceName, title)
+	recs, err := loadRecords()
+	if err != nil {
+		return "", err
+	}
+	i := recordIndex(recs, title)
+	if i < 0 {
+		return "", keyring.ErrNotFound
+	}
+	stored, err := keyring.Get(ServiceName, recs[i].ID)
+	if err != nil {
+		return "", err
+	}
+	return openValue(recs[i].ID, stored)
 }
 
 // UpdateSecret changes the secret recorded as oldTitle. meta.Title,
 // meta.Category, meta.Expires and meta.Notes replace the stored fields;
 // meta.Created is ignored and the original date is kept, and Updated is set to
 // today. A non-nil newValue replaces the stored value; nil keeps it. Renaming
-// to a title that is already in use returns ErrExists.
+// to a title that is already in use returns ErrExists. A rename only touches
+// the vault: the keyring entry keeps its ID.
 func UpdateSecret(oldTitle string, meta SecretMeta, newValue *string) error {
-	items, err := LoadMetadata()
+	if err := validateMeta(meta); err != nil {
+		return err
+	}
+	recs, err := loadRecords()
 	if err != nil {
 		return err
 	}
-	idx := indexOf(items, oldTitle)
+	idx := recordIndex(recs, oldTitle)
 	if idx < 0 {
 		return ErrNotFound
 	}
-	renamed := meta.Title != oldTitle
-	if renamed && indexOf(items, meta.Title) >= 0 {
+	if meta.Title != oldTitle && recordIndex(recs, meta.Title) >= 0 {
 		return ErrExists
 	}
 
-	value := ""
-	switch {
-	case newValue != nil:
-		value = *newValue
-	case renamed:
-		if value, err = keyring.Get(ServiceName, oldTitle); err != nil {
+	id := recs[idx].ID
+	if newValue != nil {
+		sealed, err := sealValue(id, *newValue)
+		if err != nil {
 			return err
 		}
-	}
-	if newValue != nil || renamed {
-		if err := keyring.Set(ServiceName, meta.Title, value); err != nil {
+		if err := keyring.Set(ServiceName, id, sealed); err != nil {
 			return err
 		}
 	}
 
-	meta.Created = items[idx].Created
+	meta.Created = recs[idx].Created
 	meta.Updated = time.Now().Format(DateLayout)
-	items[idx] = meta
-	if err := writeMetadata(items); err != nil {
-		if renamed {
-			_ = keyring.Delete(ServiceName, meta.Title)
-		}
-		return err
-	}
-	if renamed {
-		if err := keyring.Delete(ServiceName, oldTitle); err != nil && !errors.Is(err, keyring.ErrNotFound) {
-			return err
-		}
-	}
-	return nil
+	recs[idx].SecretMeta = meta
+	return saveRecords(recs)
 }
 
-// DeleteSecret removes the secret's value from the keyring and its metadata entry.
+// DeleteSecret removes the secret's value from the keyring and its vault entry.
 // A value already missing from the keyring is not an error, so half-deleted
 // secrets can still be cleaned up.
 func DeleteSecret(title string) error {
-	items, err := LoadMetadata()
+	recs, err := loadRecords()
 	if err != nil {
 		return err
 	}
-	idx := indexOf(items, title)
+	idx := recordIndex(recs, title)
 	if idx < 0 {
 		return ErrNotFound
 	}
-	if err := keyring.Delete(ServiceName, title); err != nil && !errors.Is(err, keyring.ErrNotFound) {
+	if err := keyring.Delete(ServiceName, recs[idx].ID); err != nil && !errors.Is(err, keyring.ErrNotFound) {
 		return err
 	}
-	return writeMetadata(append(items[:idx], items[idx+1:]...))
+	return saveRecords(append(recs[:idx], recs[idx+1:]...))
 }
 
-// LoadMetadata reads all secret metadata. A missing file yields an empty slice.
-// Entries sharing a title (possible in files written by older versions) are
-// collapsed to the most recent one.
+// LoadMetadata reads all secret metadata. An empty vault yields an empty
+// slice; a locked one ErrLocked. Entries sharing a title are collapsed to the
+// most recent one.
 func LoadMetadata() ([]SecretMeta, error) {
-	file, err := metadataPath()
+	recs, err := loadRecords()
 	if err != nil {
 		return nil, err
 	}
-
-	data, err := os.ReadFile(file)
-	if os.IsNotExist(err) {
-		return []SecretMeta{}, nil
-	} else if err != nil {
-		return nil, err
-	}
-
-	var raw []SecretMeta
-	if err := json.Unmarshal(data, &raw); err != nil {
-		return nil, err
-	}
-	items := make([]SecretMeta, 0, len(raw))
-	for _, m := range raw {
-		if i := indexOf(items, m.Title); i >= 0 {
-			items[i] = m
+	items := make([]SecretMeta, 0, len(recs))
+	for _, r := range recs {
+		if i := indexOf(items, r.Title); i >= 0 {
+			items[i] = r.SecretMeta
 		} else {
-			items = append(items, m)
+			items = append(items, r.SecretMeta)
 		}
 	}
 	return items, nil
-}
-
-func metadataPath() (string, error) {
-	dir, err := os.UserConfigDir()
-	if err != nil {
-		return "", err
-	}
-	return filepath.Join(dir, "pandora", "metadata.json"), nil
-}
-
-// writeMetadata replaces the metadata file atomically (temp file + rename),
-// first keeping the previous contents as metadata.json.bak.
-func writeMetadata(items []SecretMeta) error {
-	file, err := metadataPath()
-	if err != nil {
-		return err
-	}
-	dir := filepath.Dir(file)
-	if err := os.MkdirAll(dir, 0700); err != nil {
-		return err
-	}
-
-	out, err := json.MarshalIndent(items, "", "  ")
-	if err != nil {
-		return err
-	}
-	tmp, err := os.CreateTemp(dir, "metadata-*.tmp")
-	if err != nil {
-		return err
-	}
-	defer os.Remove(tmp.Name())
-	if _, err := tmp.Write(out); err != nil {
-		tmp.Close()
-		return err
-	}
-	if err := tmp.Close(); err != nil {
-		return err
-	}
-	if old, err := os.ReadFile(file); err == nil {
-		if err := os.WriteFile(file+".bak", old, 0600); err != nil {
-			return err
-		}
-	}
-	return os.Rename(tmp.Name(), file) // CreateTemp files are 0600
 }
 
 func indexOf(items []SecretMeta, title string) int {

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/atotto/clipboard"
 	"github.com/charmbracelet/bubbles/list"
@@ -58,13 +59,15 @@ func (m model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		for i := range m.inputs {
 			m.inputs[i].Width = inputW
 		}
+		authW := max(10, m.modalWidth()-8-15) // label, marker, brackets and cursor take 15 columns
+		m.pwInput.Width, m.pwConfirm.Width = authW, authW
 		return m, nil
 
 	case tickMsg:
 		return m.tick()
 
 	case spinner.TickMsg:
-		if !m.checking {
+		if !m.checking && !m.unlocking {
 			return m, nil
 		}
 		var cmd tea.Cmd
@@ -72,18 +75,20 @@ func (m model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, cmd
 
 	case orphanMsg:
+		if m.locked() {
+			return m, nil // the answer arrived after the vault was locked again
+		}
 		m.orphans, m.checking = msg.missing, false
 		m.list.SetDelegate(m.delegate())
 		return m, nil
 
+	case unlockedMsg:
+		return m.unlocked(msg)
+
 	case tea.KeyMsg:
 		m.lastActive = m.nowOr()
-		if m.mode == modeLocked {
-			if msg.String() == "ctrl+c" {
-				return m, tea.Quit
-			}
-			m.mode = m.prevMode
-			return m, nil
+		if m.locked() {
+			return m.updateAuth(msg)
 		}
 		m.statusMsg, m.statusErr = "", false
 
@@ -208,7 +213,7 @@ func (m model) tick() (tea.Model, tea.Cmd) {
 	if m.statusMsg != "" && m.mode != modeForm && !now.Before(m.toastUntil) {
 		m.statusMsg, m.statusErr = "", false
 	}
-	if m.lockAfter > 0 && m.mode != modeLocked && now.Sub(m.lastActive) >= m.lockAfter {
+	if m.lockAfter > 0 && !m.locked() && now.Sub(m.lastActive) >= m.lockAfter {
 		m.lock()
 	}
 	return m, tickCmd()
@@ -257,15 +262,162 @@ func (m *model) clearClipboard(manual bool) {
 	}
 }
 
-// lock masks everything: the reveal is dropped, a pending clipboard is
-// cleared, and the screen shows the lock until a key is pressed.
+// lock masks everything: the data key is dropped, the list, filters and any
+// open form are emptied, the reveal and a pending clipboard are cleared, and
+// the master-password screen is shown. Nothing but a correct password brings
+// the secrets back; an unsaved form is discarded.
 func (m *model) lock() {
-	m.prevMode, m.mode = m.mode, modeLocked
 	m.revealTitle = ""
 	m.statusMsg = ""
 	if !m.clipUntil.IsZero() {
 		_, _ = m.wipeClipboard()
 	}
+	store.Lock()
+	m.list.ResetFilter()
+	m.list.SetItems(nil)
+	m.orphans, m.checking = nil, false
+	m.total, m.expiring, m.loadErr = 0, 0, ""
+	m.categories, m.category, m.scroll = nil, "", 0
+	m.editing, m.deleting = "", ""
+	for i := range m.inputs {
+		m.inputs[i].SetValue("")
+		m.inputs[i].SetSuggestions(nil)
+	}
+	m.pwInput.SetValue("")
+	m.pwConfirm.SetValue("")
+	m.unlocking, m.unlockErr = false, ""
+	m.mode = modeUnlock
+	m.setReveal(false)
+	m.focusPassword(0)
+}
+
+// unlockedMsg reports the result of an unlock or first-run setup, which runs
+// off the UI thread because the key derivation takes a moment. warning is a
+// non-fatal problem after a successful migration.
+type unlockedMsg struct {
+	err     error
+	warning string
+}
+
+func unlockCmd(password string, setup, migrating bool) tea.Cmd {
+	return func() tea.Msg {
+		var err error
+		switch {
+		case !setup:
+			err = store.Unlock(password)
+		case migrating:
+			err = store.MigrateLegacy(password)
+		default:
+			err = store.Create(password)
+		}
+		var cleanup *store.CleanupError
+		if errors.As(err, &cleanup) {
+			return unlockedMsg{warning: cleanup.Error()}
+		}
+		return unlockedMsg{err: err}
+	}
+}
+
+// updateAuth handles keys on the unlock and setup screens.
+func (m model) updateAuth(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	key := msg.String()
+	if key == "ctrl+c" {
+		return m, tea.Quit
+	}
+	if m.unlocking {
+		return m, nil
+	}
+	switch key {
+	case "ctrl+r":
+		m.setReveal(!m.pwShow)
+		return m, nil
+	case "esc":
+		return m, nil
+	case "tab", "shift+tab", "up", "down":
+		if m.mode == modeSetup {
+			m.focusPassword(1 - m.pwField)
+		}
+		return m, nil
+	case "enter":
+		if m.mode == modeSetup && m.pwField == 0 {
+			m.focusPassword(1)
+			return m, nil
+		}
+		return m.submitAuth()
+	}
+	m.unlockErr = ""
+	if msg.Paste {
+		// A password copied from a manager or file often ends in a newline.
+		msg.Runes = []rune(strings.TrimRight(string(msg.Runes), "\r\n"))
+	}
+	var cmd tea.Cmd
+	if m.pwField == 0 {
+		m.pwInput, cmd = m.pwInput.Update(msg)
+	} else {
+		m.pwConfirm, cmd = m.pwConfirm.Update(msg)
+	}
+	return m, cmd
+}
+
+// submitAuth validates the entered password and starts the unlock.
+func (m model) submitAuth() (tea.Model, tea.Cmd) {
+	pw := m.pwInput.Value()
+	setup := m.mode == modeSetup
+	if pw == "" && !setup {
+		return m, nil
+	}
+	if setup {
+		switch {
+		case utf8.RuneCountInString(pw) < store.MinPasswordLen:
+			m.unlockErr = fmt.Sprintf("✗ Use at least %d characters. Type a new one", store.MinPasswordLen)
+			m.resetPasswordFields()
+			return m, nil
+		case pw != m.pwConfirm.Value():
+			m.unlockErr = fmt.Sprintf("✗ Passwords do not match: %d vs %d chars", utf8.RuneCountInString(pw), utf8.RuneCountInString(m.pwConfirm.Value()))
+			m.resetPasswordFields()
+			return m, nil
+		}
+	}
+	m.unlocking, m.unlockErr = true, ""
+	return m, tea.Batch(m.spinner.Tick, unlockCmd(pw, setup, setup && m.migrating))
+}
+
+// resetPasswordFields empties both password inputs and returns to the first,
+// so a failed setup starts over instead of leaving half the answer behind.
+func (m *model) resetPasswordFields() {
+	m.pwInput.SetValue("")
+	m.pwConfirm.SetValue("")
+	m.focusPassword(0)
+}
+
+// unlocked applies the result of unlockCmd.
+func (m model) unlocked(msg unlockedMsg) (tea.Model, tea.Cmd) {
+	m.unlocking = false
+	m.pwInput.SetValue("")
+	m.pwConfirm.SetValue("")
+	m.focusPassword(0)
+	m.setReveal(false)
+	if msg.err != nil {
+		if errors.Is(msg.err, store.ErrWrongPassword) {
+			m.unlockErr = "✗ Wrong password"
+		} else {
+			m.unlockErr = "✗ " + msg.err.Error()
+		}
+		return m, nil
+	}
+	m.mode, m.migrating = modeBrowse, false
+	m.lastActive = m.nowOr()
+	if err := m.reload(""); err != nil {
+		m.notify(fmt.Sprintf("✗ Could not load secrets: %v", err), true)
+	}
+	if msg.warning != "" {
+		m.notify("✗ Migrated, but "+msg.warning, true)
+	}
+	m.checking = m.total > 0
+	if !m.checking {
+		return m, nil
+	}
+	return m, tea.Batch(m.spinner.Tick, checkOrphans(m.titles()))
 }
 
 // updateHelp handles keys in the help overlay. When the overlay does not fit

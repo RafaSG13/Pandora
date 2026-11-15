@@ -49,6 +49,10 @@ func (a *app) cmdRun(args []string) error {
 		return err
 	}
 
+	if err := a.unlock(); err != nil {
+		return err
+	}
+
 	// Resolve every secret before starting anything.
 	env := make([]string, 0, len(injections))
 	for _, inj := range injections {
@@ -119,12 +123,12 @@ func EnvName(title string) string {
 	return b.String()
 }
 
-// childBase is the parent's environment minus Pandora's own passphrase
-// variable, which the child has no business seeing.
+// childBase is the parent's environment minus Pandora's own password
+// variables, which the child has no business seeing.
 func childBase(environ []string) []string {
 	out := make([]string, 0, len(environ))
 	for _, kv := range environ {
-		if !strings.HasPrefix(kv, passphraseEnv+"=") {
+		if !strings.HasPrefix(kv, passphraseEnv+"=") && !strings.HasPrefix(kv, masterEnv+"=") {
 			out = append(out, kv)
 		}
 	}

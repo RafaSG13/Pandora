@@ -34,7 +34,8 @@ const (
 	modeForm
 	modeConfirmDelete
 	modeHelp
-	modeLocked
+	modeUnlock // asks for the master password; nothing is loaded
+	modeSetup  // first run: choose the master password (or migrate an old store)
 )
 
 // Form fields, in tab order.
@@ -74,8 +75,16 @@ type model struct {
 	list          list.Model
 	width, height int
 	mode          mode
-	prevMode      mode // mode to return to when unlocking
 	now           func() time.Time
+
+	// Master-password screens (modeUnlock, modeSetup).
+	pwInput, pwConfirm textinput.Model
+	pwField            int  // 0 = password, 1 = confirmation (setup only)
+	pwShow             bool // typed text is visible (ctrl+r)
+	unlocking          bool
+	unlockErr          string
+	migrating          bool // setup converts an older plain-text store
+	legacyN            int  // secrets in that store, for the heading
 
 	statusMsg  string
 	statusErr  bool
@@ -162,12 +171,64 @@ func New() tea.Model {
 		genLen:     1,
 		lastActive: time.Now(),
 	}
+	m.pwInput, m.pwConfirm = newPasswordInput(), newPasswordInput()
 	m.setFocus(fieldName)
-	if err := m.reload(""); err != nil {
-		m.notify(fmt.Sprintf("✗ Could not load secrets: %v", err), true)
+	switch {
+	case store.IsUnlocked():
+		if err := m.reload(""); err != nil {
+			m.notify(fmt.Sprintf("✗ Could not load secrets: %v", err), true)
+		}
+		m.checking = m.total > 0
+	case store.Exists():
+		m.mode = modeUnlock
+		m.focusPassword(0)
+	default:
+		m.mode = modeSetup
+		m.migrating = store.LegacyExists()
+		m.legacyN = store.LegacyCount()
+		m.focusPassword(0)
 	}
-	m.checking = m.total > 0
 	return m
+}
+
+// newPasswordInput is a masked single-line input for the master password.
+func newPasswordInput() textinput.Model {
+	in := textinput.New()
+	in.Prompt = ""
+	in.EchoMode = textinput.EchoPassword
+	in.EchoCharacter = []rune(g.mask)[0]
+	return in
+}
+
+// locked reports whether a master-password screen is showing.
+func (m model) locked() bool { return m.mode == modeUnlock || m.mode == modeSetup }
+
+// focusPassword focuses the password (0) or confirmation (1) input and sets
+// the hints shown inside the empty boxes.
+func (m *model) focusPassword(i int) {
+	m.pwField = i
+	m.pwInput.Placeholder = "your master password"
+	m.pwConfirm.Placeholder = "type it again"
+	if m.mode == modeSetup {
+		m.pwInput.Placeholder = "choose a password"
+	}
+	m.pwInput.Blur()
+	m.pwConfirm.Blur()
+	if i == 0 {
+		m.pwInput.Focus()
+	} else {
+		m.pwConfirm.Focus()
+	}
+}
+
+// setReveal shows (true) or masks (false) what is typed in the password boxes.
+func (m *model) setReveal(show bool) {
+	m.pwShow = show
+	mode := textinput.EchoPassword
+	if show {
+		mode = textinput.EchoNormal
+	}
+	m.pwInput.EchoMode, m.pwConfirm.EchoMode = mode, mode
 }
 
 // lockTimeout parses PANDORA_LOCK_MINUTES; empty or invalid means the default.
