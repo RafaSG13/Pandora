@@ -10,6 +10,9 @@
   <img alt="Platforms" src="https://img.shields.io/badge/platforms-macOS%20%7C%20Linux%20%7C%20Windows-lightgrey.svg">
 </p>
 
+<p align="center">
+  <video src="assets/demo.mp4" autoplay loop muted playsinline width="100%"></video>
+</p>
 ```
 ▌PANDORA · OS keychain vault                                               3 secrets
 ────────────────────────────────────────────────────────────────────────────────────
