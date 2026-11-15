@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"crypto/sha256"
 	"errors"
 	"fmt"
 	"strings"
@@ -15,9 +16,12 @@ import (
 	"github.com/RafaSG13/Pandora/internal/store"
 )
 
-// writeClipboard is the system clipboard writer; a variable so tests never
-// touch the developer's real clipboard.
-var writeClipboard = clipboard.WriteAll
+// writeClipboard and readClipboard are the system clipboard accessors;
+// variables so tests never touch the developer's real clipboard.
+var (
+	writeClipboard = clipboard.WriteAll
+	readClipboard  = clipboard.ReadAll
+)
 
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	next, cmd := m.update(msg)
@@ -89,11 +93,7 @@ func (m model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case modeConfirmDelete:
 			return m.updateConfirmDelete(msg)
 		case modeHelp:
-			if msg.String() == "ctrl+c" {
-				return m, tea.Quit
-			}
-			m.mode = modeBrowse
-			return m, nil
+			return m.updateHelp(msg)
 		}
 
 		if m.list.FilterState() == list.Filtering {
@@ -159,10 +159,10 @@ func (m model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.notify("Nothing to clear", false)
 				return m, nil
 			}
-			m.clearClipboard()
+			m.clearClipboard(true)
 			return m, nil
 		case "?":
-			m.mode = modeHelp
+			m.mode, m.helpScroll = modeHelp, 0
 			return m, nil
 		case "enter", "c":
 			if hasSel {
@@ -176,6 +176,7 @@ func (m model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					return m, nil
 				}
 				m.clipUntil = m.nowOr().Add(clipboardTTL)
+				m.clipHash = sha256.Sum256([]byte(val))
 				m.notify("✓ Copied to clipboard", false)
 			}
 			return m, nil
@@ -202,7 +203,7 @@ func (m model) tick() (tea.Model, tea.Cmd) {
 		m.revealTitle = ""
 	}
 	if !m.clipUntil.IsZero() && !now.Before(m.clipUntil) {
-		m.clearClipboard()
+		m.clearClipboard(false)
 	}
 	if m.statusMsg != "" && m.mode != modeForm && !now.Before(m.toastUntil) {
 		m.statusMsg, m.statusErr = "", false
@@ -213,14 +214,47 @@ func (m model) tick() (tea.Model, tea.Cmd) {
 	return m, tickCmd()
 }
 
-// clearClipboard empties the system clipboard and forgets the pending deadline.
-func (m *model) clearClipboard() {
-	m.clipUntil = zeroTime
-	if err := writeClipboard(""); err != nil {
-		m.notify(fmt.Sprintf("✗ Could not clear clipboard: %v", err), true)
-		return
+// clipboardHolds reports whether the clipboard still contains the value whose
+// SHA-256 is want. Terminals and clipboard tools sometimes append a trailing
+// newline, which is ignored.
+func clipboardHolds(got string, want [sha256.Size]byte) bool {
+	for _, s := range []string{got, strings.TrimRight(got, "\r\n")} {
+		if sha256.Sum256([]byte(s)) == want {
+			return true
+		}
 	}
-	m.notify("✓ Clipboard cleared", false)
+	return false
+}
+
+// wipeClipboard ends the pending copy: the deadline and the remembered hash
+// are dropped, and the clipboard is emptied only if it still holds what
+// Pandora copied. When it cannot be read it is cleared anyway. It reports
+// whether the clipboard was left alone because its content changed, and any
+// error from clearing it.
+func (m *model) wipeClipboard() (changed bool, err error) {
+	want := m.clipHash
+	m.clipUntil, m.clipHash = zeroTime, [sha256.Size]byte{}
+	if got, rerr := readClipboard(); rerr == nil && !clipboardHolds(got, want) {
+		return true, nil
+	}
+	return false, writeClipboard("")
+}
+
+// clearClipboard clears the clipboard if it still holds the copied secret and
+// forgets the pending deadline. manual (the x key) also reports when the
+// clipboard was left alone; the automatic deadline stays silent about that.
+func (m *model) clearClipboard(manual bool) {
+	changed, err := m.wipeClipboard()
+	switch {
+	case err != nil:
+		m.notify(fmt.Sprintf("✗ Could not clear clipboard: %v", err), true)
+	case changed:
+		if manual {
+			m.notify("Clipboard changed since you copied — left untouched", false)
+		}
+	default:
+		m.notify("✓ Clipboard cleared", false)
+	}
 }
 
 // lock masks everything: the reveal is dropped, a pending clipboard is
@@ -230,9 +264,42 @@ func (m *model) lock() {
 	m.revealTitle = ""
 	m.statusMsg = ""
 	if !m.clipUntil.IsZero() {
-		m.clipUntil = zeroTime
-		_ = writeClipboard("")
+		_, _ = m.wipeClipboard()
 	}
+}
+
+// updateHelp handles keys in the help overlay. When the overlay does not fit
+// the terminal the scroll keys move it; every other key closes it.
+func (m model) updateHelp(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	key := msg.String()
+	if key == "ctrl+c" {
+		return m, tea.Quit
+	}
+	_, view := m.helpLayout()
+	if total := len(m.helpLines()); total > view {
+		page := max(1, view-1)
+		switch key {
+		case "up", "k":
+			m.helpScroll--
+		case "down", "j":
+			m.helpScroll++
+		case "pgup":
+			m.helpScroll -= page
+		case "pgdown":
+			m.helpScroll += page
+		case "home":
+			m.helpScroll = 0
+		case "end":
+			m.helpScroll = total
+		default:
+			m.mode = modeBrowse
+			return m, nil
+		}
+		m.helpScroll = clampHelpScroll(m.helpScroll, total, view)
+		return m, nil
+	}
+	m.mode = modeBrowse
+	return m, nil
 }
 
 // pickCategory applies the n-th category filter (1-based); 0 clears it and

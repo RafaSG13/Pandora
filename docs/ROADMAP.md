@@ -53,16 +53,17 @@ Never touch the real keychain, config directory or clipboard. Use `keyring.MockI
 
 | ID | Item | Milestone | Size | Depends | Status |
 | --- | --- | --- | --- | --- | --- |
-| R-01 | Version information | 0.1.0 | S | – | todo |
-| R-02 | Go module path | 0.1.0 | S | – | todo |
-| R-03 | Release pipeline | 0.1.0 | M | R-01, R-02 | todo |
-| R-04 | Homebrew tap and install docs | 0.1.0 | S | R-03 | todo |
-| R-05 | Real-environment QA | 0.1.0 | M | – | todo |
-| R-06 | Security model hardening (docs) | 0.1.0 | S | – | todo |
-| R-07 | Clipboard hygiene | 0.1.0 | M | – | todo |
-| R-08 | Shell completions | 0.1.0 | M | – | todo |
-| R-09 | `pandora gen` | 0.1.0 | S | – | todo |
-| R-10 | `NO_COLOR` and small-terminal help | 0.1.0 | S | – | todo |
+| R-01 | Version information | 0.1.0 | S | – | done (0.1.0 branch) |
+| R-02 | Go module path | 0.1.0 | S | – | done (0.1.0 branch) |
+| R-03 | Release pipeline | 0.1.0 | M | R-01, R-02 | in-progress |
+| R-04 | Homebrew tap and install docs | 0.1.0 | S | R-03 | blocked (needs the tap repo and a token) |
+| R-05 | Real-environment QA | 0.1.0 | M | – | in-progress |
+| R-06 | Security model hardening (docs) | 0.1.0 | S | – | done (0.1.0 branch) |
+| R-07 | Clipboard hygiene | 0.1.0 | M | – | done, part (a) only; part (b) is R-11 |
+| R-08 | Shell completions | 0.1.0 | M | – | done (0.1.0 branch) |
+| R-09 | `pandora gen` | 0.1.0 | S | – | done (0.1.0 branch) |
+| R-10 | `NO_COLOR` and small-terminal help | 0.1.0 | S | – | done (0.1.0 branch) |
+| R-11 | Concealed clipboard copies | later | M | – | todo |
 | R-20 | Multiline values | 0.2 | M | – | todo |
 | R-21 | Tags | 0.2 | M | – | todo |
 | R-22 | Search in notes and tags | 0.2 | S | R-21 (soft) | todo |
@@ -85,7 +86,9 @@ Milestones are a suggested cut, not a contract: **0.1.0** is "safe and easy to i
 ## Milestone 0.1.0 — publishable
 
 ### R-01 Version information
-**Status** todo · **Size** S · **Depends** –
+**Status** done · **Size** S · **Depends** –
+
+**Outcome.** `internal/version` (link-time values, `debug.ReadBuildInfo` fallback, pseudo-versions of untagged builds report `dev`), `pandora version` / `--version`, ldflags in the Makefile and `.goreleaser.yaml`, version line in the help overlay.
 
 **Why.** There is no `--version` (no `-ldflags`, no `debug.ReadBuildInfo` use anywhere), so a bug report cannot say which build it came from.
 
@@ -105,7 +108,9 @@ Milestones are a suggested cut, not a contract: **0.1.0** is "safe and easy to i
 **Docs.** README (Command-line mode), CHANGELOG.
 
 ### R-02 Go module path
-**Status** todo · **Size** S · **Depends** –
+**Status** done · **Size** S · **Depends** –
+
+**Outcome.** Module is `github.com/RafaSG13/Pandora`; every import rewritten. `go install …@latest` can only be confirmed after this reaches the remote default branch.
 
 **Why.** `go.mod` declares `module pandora`, so `go install github.com/RafaSG13/Pandora/cmd/pandora@latest` cannot work, and the name collides with any other local module called `pandora`.
 
@@ -124,7 +129,10 @@ Milestones are a suggested cut, not a contract: **0.1.0** is "safe and easy to i
 **Docs.** README install section, CONTRIBUTING.
 
 ### R-03 Release pipeline
-**Status** todo · **Size** M · **Depends** R-01, R-02
+**Status** in-progress · **Size** M · **Depends** R-01, R-02
+
+**Outcome so far.** `.goreleaser.yaml` (six archives plus `checksums.txt`; a local `goreleaser release --snapshot --clean --skip=publish` succeeded and the darwin/arm64 binary reported its injected version), `.github/workflows/release.yml` (tag trigger, fails when the changelog has no section for the tag, runs vet and tests), `scripts/release-notes.sh`, a `release-snapshot` CI job, and "Cutting a release" in CONTRIBUTING.
+**Left.** The release workflow itself has never run on GitHub. Cutting `v0.1.0` (after R-05) is the real test; open decisions (versioning policy, notarisation) were taken as the recommended defaults: SemVer with `v0.x` allowed to break, checksums only, no notarisation.
 
 **Why.** Only `.github/workflows/ci.yml` exists; there are no tags and no binaries. `SECURITY.md` says "no tagged releases yet".
 
@@ -145,7 +153,9 @@ Milestones are a suggested cut, not a contract: **0.1.0** is "safe and easy to i
 **Docs.** README (Install), CONTRIBUTING (how to cut a release), SECURITY, CHANGELOG.
 
 ### R-04 Homebrew tap and install docs
-**Status** todo · **Size** S · **Depends** R-03
+**Status** blocked (the tap repository `RafaSG13/homebrew-tap` and a token secret with write access must be created by the user) · **Size** S · **Depends** R-03
+
+**Outcome so far.** The README Install section covers release archives, `go install` and building from a checkout, and says nothing about Homebrew until this lands. When unblocked: add a `brews` section to `.goreleaser.yaml` and the token to `release.yml`.
 
 **Why.** Homebrew is the natural channel for a macOS terminal tool.
 
@@ -160,7 +170,9 @@ Milestones are a suggested cut, not a contract: **0.1.0** is "safe and easy to i
 **Docs.** README.
 
 ### R-05 Real-environment QA
-**Status** todo · **Size** M · **Depends** –
+**Status** in-progress · **Size** M · **Depends** –
+
+**Outcome so far.** `docs/QA.md` (keyring, clipboard, terminals, artefacts, how to record results) and `internal/store/integration_test.go` (build tag `integration`, only runs with `PANDORA_INTEGRATION=1`) wired to a `keyring-linux` CI job with `continue-on-error: true`; that job has not run on GitHub yet, so remove `continue-on-error` once it is green. **Left:** execute the checklist once on macOS and record the result before tagging.
 
 **Why.** Everything so far used the in-memory keyring and a pty. Nothing has run against the real macOS Keychain, libsecret, or Windows Credential Manager, nor in real terminals.
 
@@ -179,7 +191,9 @@ Milestones are a suggested cut, not a contract: **0.1.0** is "safe and easy to i
 **Docs.** CONTRIBUTING (release checklist link), ARCHITECTURE (known limitations updated with findings).
 
 ### R-06 Security model hardening (docs)
-**Status** todo · **Size** S · **Depends** –
+**Status** done · **Size** S · **Depends** –
+
+**Outcome.** README Security model gained "Things that surprise people" (run environment, lock is a screen mask, names in plain text, threat model) and `SECURITY.md` scope and supported versions were updated. No behaviour change.
 
 **Why.** The README security model is accurate but silent on three real exposures.
 
@@ -196,7 +210,9 @@ Also state the threat model in one paragraph: shoulder surfing, accidental scree
 **Acceptance.** README and SECURITY say the three points above; no behaviour change.
 
 ### R-07 Clipboard hygiene
-**Status** todo · **Size** M · **Depends** –
+**Status** done for part (a); part (b) moved to R-11 · **Size** M · **Depends** –
+
+**Outcome.** `readClipboard` next to `writeClipboard`; copies store a SHA-256 only; deadline, `x` and lock clear only when the clipboard still matches (trailing newlines ignored; a read error clears anyway; `x` toasts when it leaves foreign content alone).
 
 **Why.** `clearClipboard` and the lock path call `writeClipboard("")` unconditionally (`internal/tui/update.go`), so if the user copied something else in the meantime it is wiped, and the secret is visible to clipboard-history tools while it sits there.
 
@@ -213,7 +229,9 @@ Also state the threat model in one paragraph: shoulder surfing, accidental scree
 **Acceptance.** Test: copy secret → copy something else → deadline passes → the other content is untouched. Test: clipboard read failure still clears. README security text updated to match what (b) achieves.
 
 ### R-08 Shell completions
-**Status** todo · **Size** M · **Depends** –
+**Status** done · **Size** M · **Depends** –
+
+**Outcome.** One command table (`internal/cli/registry.go`) drives usage, dispatch and bash/zsh/fish/PowerShell scripts (`completion.go`), with a drift test against each command's real flags and a hidden `__complete titles|categories` helper. Verified: `bash -n`, `zsh -n`, a manual bash completion session and partial zsh. **Not verified:** fish and PowerShell scripts (not installed where this was built). No man page (deferred).
 
 **Why.** The CLI has eight subcommands, flags, and secret titles worth completing.
 
@@ -232,7 +250,9 @@ Also state the threat model in one paragraph: shoulder surfing, accidental scree
 **Docs.** README, CHANGELOG.
 
 ### R-09 `pandora gen`
-**Status** todo · **Size** S · **Depends** –
+**Status** done · **Size** S · **Depends** –
+
+**Outcome.** `internal/gen` (`Generate`, `Lookup`, `Charsets` keyed `alnum`/`symbols`/`hex`, lengths 8–128); the TUI uses it; `pandora gen [--length] [--charset] [--count]` (count 1–100) with usage errors for out-of-range values. `add --generate` was not added. The `digits` charset was dropped as too weak to offer.
 
 **Why.** The generator exists only in the form (`generateSecret`, `genLengths`, `genCharsets` in `internal/tui/generate.go`).
 
@@ -243,7 +263,9 @@ Also state the threat model in one paragraph: shoulder surfing, accidental scree
 **Acceptance.** `crypto/rand` only; tests for length, charset membership and the rejection range; the form behaves exactly as before.
 
 ### R-10 `NO_COLOR` and small-terminal help
-**Status** todo · **Size** S · **Depends** –
+**Status** done · **Size** S · **Depends** –
+
+**Outcome.** termenv v0.16 already honours `NO_COLOR` (Ascii profile, which also drops bold and reverse); `TERM=dumb` with `COLORTERM` set was not covered, so `detectNoColor` / `applyColorMode` in `icons.go` force it. Selection gets a `▌` / `>` gutter marker, compact expired rows show `◷!`. The help overlay scrolls (`↑/↓/j/k`, `PgUp/PgDn`, `Home/End`) only when it does not fit and shows a position hint.
 
 **Why.** The help overlay is taller than the window below 74 columns (known limitation in ARCHITECTURE), and there is no way to turn colour off.
 
@@ -254,6 +276,21 @@ Also state the threat model in one paragraph: shoulder surfing, accidental scree
 **Decisions.** Verify whether termenv/lipgloss already honour `NO_COLOR` in the pinned versions before adding code `[INFERENCE: they do; check]`. Help: scroll offset in the model, same clamp style as `clampScroll`.
 
 **Acceptance.** `NO_COLOR=1` output contains no SGR colour codes (selection still distinguishable); at 60×18 every help line is reachable and the view is exactly 18 lines.
+
+### R-11 Concealed clipboard copies
+**Status** todo · **Size** M · **Depends** –
+
+**Why.** Part (b) of the old R-07: while a secret sits on the clipboard, clipboard-history tools can record it.
+
+**Scope.** Mark the copy as concealed/transient where the OS supports it so managers skip it: macOS `org.nspasteboard.ConcealedType`, Windows `ExcludeClipboardContentFromMonitorProcessing` / `CanIncludeInClipboardHistory`. Linux has no standard.
+
+**Starting points.** `writeClipboard` in `internal/tui/update.go` (currently `atotto/clipboard`, which cannot set types), `readClipboard`.
+
+**Decisions.** Per-OS files with build tags and a native call (cgo or a small dependency) versus leaving it documented as a limitation. Evaluate the cost first; a cgo dependency would also break the CGO-off release builds, so prefer pure-Go options (e.g. a clipboard library that supports it).
+
+**Ask the user.** Accept per-OS code and possibly a new dependency?
+
+**Acceptance.** On each supported OS the copy carries the concealed marker (verified manually per `docs/QA.md`); release builds stay `CGO_ENABLED=0`; README security text updated.
 
 ---
 

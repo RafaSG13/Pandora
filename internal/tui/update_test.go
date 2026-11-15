@@ -28,9 +28,22 @@ func newTestModel(t *testing.T) tea.Model {
 	t.Setenv("AppData", dir)
 
 	clipboardLog = nil
-	orig := writeClipboard
+	origWrite, origRead := writeClipboard, readClipboard
 	writeClipboard = func(s string) error { clipboardLog = append(clipboardLog, s); return nil }
-	t.Cleanup(func() { writeClipboard = orig })
+	// The stub clipboard holds whatever was written last, like a real one.
+	readClipboard = func() (string, error) {
+		if len(clipboardLog) == 0 {
+			return "", nil
+		}
+		return clipboardLog[len(clipboardLog)-1], nil
+	}
+	t.Cleanup(func() { writeClipboard, readClipboard = origWrite, origRead })
+
+	// Keep the developer's NO_COLOR / TERM out of the tests; New applies them.
+	t.Setenv("NO_COLOR", "")
+	t.Setenv("TERM", "xterm-256color")
+	origNoColor, origProfile := noColor, lipgloss.ColorProfile()
+	t.Cleanup(func() { noColor = origNoColor; lipgloss.SetColorProfile(origProfile) })
 
 	m, _ := New().Update(tea.WindowSizeMsg{Width: 100, Height: 30})
 	mm := m.(model)

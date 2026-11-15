@@ -389,6 +389,10 @@ func TestViewFitsTerminalHeight(t *testing.T) {
 }
 
 func TestPositionIndicatorAndScrollbar(t *testing.T) {
+	// The ASCII thumb ("#") is also the ASCII logo glyph, so pin the Unicode set.
+	prev := g
+	g = newGlyphs(false)
+	t.Cleanup(func() { g = prev })
 	m := addMany(newTestModel(t), 9)
 	out := m.View()
 	if !strings.Contains(out, "9/9") {

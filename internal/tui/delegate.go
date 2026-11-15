@@ -78,6 +78,10 @@ func (d rowDelegate) Render(w io.Writer, m list.Model, index int, it list.Item) 
 		dot = base.Bold(true).Foreground(danger).Render(g.orphan + " ")
 	}
 	indent := base.Render(strings.Repeat(" ", gutter))
+	if selected && noColor {
+		// Without colour the highlight is invisible, so mark the row instead.
+		indent = g.marker + strings.Repeat(" ", gutter-lipgloss.Width(g.marker))
+	}
 
 	expLabel, level := expiryInfo(i.meta, now)
 	var expStyle lipgloss.Style
@@ -90,9 +94,15 @@ func (d rowDelegate) Render(w io.Writer, m list.Model, index int, it list.Item) 
 		expStyle = base.Foreground(warning)
 	}
 
+	// The compact row shows only a glyph for an expiry; without colour an
+	// expired secret gets a "!" so it differs from one expiring soon.
+	expMark := g.clock
+	if noColor && level == expiryExpired {
+		expMark += "!"
+	}
 	var lines []string
 	if d.compact {
-		lines = []string{d.compactLine(i, indent, dot, rowTitle, base, catColor, expLabel, expStyle, matched, width)}
+		lines = []string{d.compactLine(i, indent, dot, rowTitle, base, catColor, expLabel, expStyle, expMark, matched, width)}
 	} else {
 		textW := width - lead
 		title := lipgloss.StyleRunes(truncate(i.meta.Title, textW), matched, rowTitle.Underline(true), rowTitle)
@@ -128,7 +138,7 @@ func (d rowDelegate) Render(w io.Writer, m list.Model, index int, it list.Item) 
 }
 
 // compactLine is "● title ........ CATEGORY ◷" on one line.
-func (d rowDelegate) compactLine(i item, indent, dot string, rowTitle, base lipgloss.Style, catColor lipgloss.TerminalColor, expLabel string, expStyle lipgloss.Style, matched []int, width int) string {
+func (d rowDelegate) compactLine(i item, indent, dot string, rowTitle, base lipgloss.Style, catColor lipgloss.TerminalColor, expLabel string, expStyle lipgloss.Style, expMark string, matched []int, width int) string {
 	right := ""
 	rightW := 0
 	if i.meta.Category != "" {
@@ -137,8 +147,8 @@ func (d rowDelegate) compactLine(i item, indent, dot string, rowTitle, base lipg
 		rightW += lipgloss.Width(c)
 	}
 	if expLabel != "" {
-		right += expStyle.Render(" " + g.clock)
-		rightW += 1 + lipgloss.Width(g.clock)
+		right += expStyle.Render(" " + expMark)
+		rightW += 1 + lipgloss.Width(expMark)
 	}
 	if right != "" {
 		right = base.Render(" ") + right

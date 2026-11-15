@@ -7,6 +7,7 @@ package version
 
 import (
 	"fmt"
+	"regexp"
 	"runtime"
 	"runtime/debug"
 	"strings"
@@ -46,11 +47,15 @@ func (i Info) String() string {
 	return fmt.Sprintf("pandora %s (%s)", i.Version, strings.Join(details, ", "))
 }
 
+// pseudoVersion matches the version Go stamps on untagged builds, such as
+// v0.0.0-20261115135323-d03453e8e0c8+dirty.
+var pseudoVersion = regexp.MustCompile(`-\d{14}-[0-9a-f]{12}(\+dirty)?$`)
+
 // resolve prefers link-time values and fills the gaps from bi.
 func resolve(version, commit, date string, bi *debug.BuildInfo, goVersion string) Info {
 	info := Info{Version: version, Commit: commit, Date: date, Go: goVersion}
 	if bi != nil {
-		if info.Version == "" && bi.Main.Version != "(devel)" {
+		if info.Version == "" && bi.Main.Version != "(devel)" && !pseudoVersion.MatchString(bi.Main.Version) {
 			info.Version = bi.Main.Version
 		}
 		var rev, modified string

@@ -2,6 +2,7 @@
 package tui
 
 import (
+	"crypto/sha256"
 	"fmt"
 	"os"
 	"sort"
@@ -84,8 +85,11 @@ type model struct {
 	revealTitle string
 	revealUntil time.Time
 
-	// Clipboard auto-clear deadline; zero when nothing is pending.
+	// Clipboard auto-clear deadline; zero when nothing is pending. clipHash is
+	// the SHA-256 of what was copied, so the clear can tell whether the
+	// clipboard still holds it; the value itself is never kept.
 	clipUntil time.Time
+	clipHash  [sha256.Size]byte
 
 	// Idle lock.
 	lockAfter  time.Duration
@@ -114,10 +118,14 @@ type model struct {
 	genSet     int    // index into genCharsets
 
 	deleting string // title awaiting delete confirmation
+
+	helpScroll int // first help line shown when the overlay does not fit
 }
 
 // New returns the root model, populated from the stored metadata.
 func New() tea.Model {
+	applyColorMode(detectNoColor(os.Getenv)) // before any style can resolve a colour
+
 	l := list.New(nil, rowDelegate{}, 40, 14)
 	l.Title = "Secrets"
 	l.Styles.Title = lipgloss.NewStyle().Bold(true).Foreground(accent)

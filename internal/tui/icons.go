@@ -6,6 +6,7 @@ import (
 
 	"github.com/charmbracelet/bubbles/spinner"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/muesli/termenv"
 )
 
 // glyphSet is every non-letter symbol the UI draws, so a terminal without
@@ -66,3 +67,28 @@ func newGlyphs(ascii bool) glyphSet {
 
 // g is the active glyph set.
 var g = newGlyphs(detectASCII(os.Getenv))
+
+// detectNoColor reports whether the environment asks for output without
+// colour: NO_COLOR set to anything non-empty (https://no-color.org), or a
+// dumb terminal.
+func detectNoColor(getenv func(string) string) bool {
+	return getenv("NO_COLOR") != "" || getenv("TERM") == "dumb"
+}
+
+// noColor is true when the UI draws no colour at all; see applyColorMode.
+var noColor = detectNoColor(os.Getenv)
+
+// applyColorMode switches the whole UI to colourless output when off is
+// true. lipgloss already picks the Ascii profile for NO_COLOR, but not for
+// TERM=dumb together with COLORTERM, so it is forced here. The Ascii profile
+// drops every escape code, bold and reverse video included, which is why the
+// selected row also carries a marker (see rowDelegate.Render). The dark
+// background is assumed so no terminal query is sent just to pick colours
+// that are never drawn.
+func applyColorMode(off bool) {
+	noColor = off
+	if off {
+		lipgloss.SetColorProfile(termenv.Ascii)
+		lipgloss.SetHasDarkBackground(true)
+	}
+}
