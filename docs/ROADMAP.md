@@ -53,12 +53,12 @@ Never touch the real keychain, config directory or clipboard. Use `keyring.MockI
 
 | ID | Item | Milestone | Size | Depends | Status |
 | --- | --- | --- | --- | --- | --- |
-| R-01 | Version information | 0.1.0 | S | – | done (0.1.0 branch) |
-| R-02 | Go module path | 0.1.0 | S | – | done (0.1.0 branch) |
-| R-03 | Release pipeline | 0.1.0 | M | R-01, R-02 | in-progress |
-| R-04 | Homebrew tap and install docs | 0.1.0 | S | R-03 | blocked (needs the tap repo and a token) |
-| R-05 | Real-environment QA | 0.1.0 | M | – | in-progress |
-| R-06 | Security model hardening (docs) | 0.1.0 | S | – | done (0.1.0 branch) |
+| R-01 | Version information | 0.1.0 | S | – | done (v0.1.0, PR #6) |
+| R-02 | Go module path | 0.1.0 | S | – | done (v0.1.0, PR #6) |
+| R-03 | Release pipeline | 0.1.0 | M | R-01, R-02 | done (v0.1.0) |
+| R-04 | Homebrew tap and install docs | 0.1.0 | S | R-03 | blocked (needs the `HOMEBREW_TAP_TOKEN` secret) |
+| R-05 | Real-environment QA | 0.1.0 | M | – | in-progress (macOS keyring and clipboard done; other terminals and OSes open) |
+| R-06 | Security model hardening (docs) | 0.1.0 | S | – | done (v0.1.0, PR #6) |
 | R-07 | Clipboard hygiene | 0.1.0 | M | – | done, part (a) only; part (b) is R-11 |
 | R-08 | Shell completions | 0.1.0 | M | – | done (0.1.0 branch) |
 | R-09 | `pandora gen` | 0.1.0 | S | – | done (0.1.0 branch) |
@@ -110,7 +110,7 @@ Milestones are a suggested cut, not a contract: **0.1.0** is "safe and easy to i
 ### R-02 Go module path
 **Status** done · **Size** S · **Depends** –
 
-**Outcome.** Module is `github.com/RafaSG13/Pandora`; every import rewritten. `go install …@latest` can only be confirmed after this reaches the remote default branch.
+**Outcome.** Module is `github.com/RafaSG13/Pandora`; every import rewritten. Verified after the release: `go install github.com/RafaSG13/Pandora/cmd/pandora@v0.1.0` installs and reports `0.1.0`.
 
 **Why.** `go.mod` declares `module pandora`, so `go install github.com/RafaSG13/Pandora/cmd/pandora@latest` cannot work, and the name collides with any other local module called `pandora`.
 
@@ -129,10 +129,10 @@ Milestones are a suggested cut, not a contract: **0.1.0** is "safe and easy to i
 **Docs.** README install section, CONTRIBUTING.
 
 ### R-03 Release pipeline
-**Status** in-progress · **Size** M · **Depends** R-01, R-02
+**Status** done · **Size** M · **Depends** R-01, R-02
 
-**Outcome so far.** `.goreleaser.yaml` (six archives plus `checksums.txt`; a local `goreleaser release --snapshot --clean --skip=publish` succeeded and the darwin/arm64 binary reported its injected version), `.github/workflows/release.yml` (tag trigger, fails when the changelog has no section for the tag, runs vet and tests), `scripts/release-notes.sh`, a `release-snapshot` CI job, and "Cutting a release" in CONTRIBUTING.
-**Left.** The release workflow itself has never run on GitHub. Cutting `v0.1.0` (after R-05) is the real test; open decisions (versioning policy, notarisation) were taken as the recommended defaults: SemVer with `v0.x` allowed to break, checksums only, no notarisation.
+**Outcome.** `.goreleaser.yaml`, `.github/workflows/release.yml` (tag trigger; fails when the changelog has no section for the tag; vet and tests; GoReleaser; then `gh release edit --notes-file`), `scripts/release-notes.sh`, a `release-snapshot` CI job, and "Cutting a release" in CONTRIBUTING. `v0.1.0` was published by it: six archives plus `checksums.txt`; the darwin/arm64 archive verified against the checksum and reports `0.1.0`. Decisions taken as the recommended defaults: SemVer with `v0.x` allowed to break, checksums only, no notarisation.
+**Lesson.** Passing `--release-notes` to GoReleaser left the v0.1.0 release body empty (its changelog is disabled), so the notes are now set with `gh release edit`; the v0.1.0 body was fixed by hand.
 
 **Why.** Only `.github/workflows/ci.yml` exists; there are no tags and no binaries. `SECURITY.md` says "no tagged releases yet".
 
