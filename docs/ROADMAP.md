@@ -64,7 +64,7 @@ Never touch the real keychain, config directory or clipboard. Use `keyring.MockI
 | R-09 | `pandora gen` | 0.1.0 | S | – | done (v0.1.0, PR #6) |
 | R-10 | `NO_COLOR` and small-terminal help | 0.1.0 | S | – | done (v0.1.0, PR #6) |
 | R-11 | Concealed clipboard copies | later | M | – | todo |
-| R-20 | Multiline values | 0.2 | M | – | todo |
+| R-20 | Multiline values | 0.2 | M | – | done (unreleased) |
 | R-21 | Tags | 0.2 | M | – | todo |
 | R-22 | Search in notes and tags | 0.2 | S | R-21 (soft) | todo |
 | R-23 | Config file | 0.2 | M | – | todo |
@@ -297,7 +297,9 @@ Also state the threat model in one paragraph: shoulder surfing, accidental scree
 ## Milestone 0.2 — data model and workflows
 
 ### R-20 Multiline values
-**Status** todo · **Size** M · **Depends** –
+**Status** done (unreleased; PR pending) · **Size** M · **Depends** –
+
+**Outcome.** The form's secret is a `textarea` (`enter` = newline, `ctrl+s` saves, `ctrl+r` shows/hides, masked as bullets otherwise); `add` reads any number of lines from stdin; `get`/`run`/export/import round-trip them. Decisions taken: textarea (not `$EDITOR`); text only, no binary values; a 32 KB cap (`store.MaxValueBytes`). The Windows (2560 B) and macOS (~4 KB `security` command) per-entry limits, made tighter by the encrypted base64 form, are handled by splitting the stored value over several keyring entries (`chunks` in the vault record) rather than by a small hard limit. The detail card shows the first lines of a long revealed value and says how many more (no scrolling). Details: `docs/ARCHITECTURE.md` "Persisted data" and "Secret field".
 
 **Why.** SSH keys, certificates and JSON credentials are multiline; the secret field is a single-line `textinput` (`internal/tui/model.go`, `inputs`).
 

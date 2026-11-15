@@ -387,6 +387,9 @@ func parseExport(data []byte) (*exportFile, error) {
 		if s.Value != nil && *s.Value == "" {
 			return nil, fmt.Errorf("secret %q has an empty value", s.Title)
 		}
+		if s.Value != nil && len(*s.Value) > store.MaxValueBytes {
+			return nil, fmt.Errorf("secret %q: %w", s.Title, store.ErrValueTooLarge)
+		}
 		if s.Created == "" {
 			s.Created = today
 		}

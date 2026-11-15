@@ -9,6 +9,18 @@ All notable changes are documented here. The format follows [Keep a Changelog](h
 **Upgrade note.** The data format changes and cannot be downgraded. Before upgrading, back up with `pandora export --values -o backup.age` using the old version. The first start of this version asks you to choose a master password and migrates your secrets automatically; the password cannot be recovered.
 
 ### Added
+- **Multi-line secrets** (SSH keys, certificates, JSON credentials), up to 32 KB. In the form, **Secret** is a multi-line editor: paste or press `enter` for a new line, `tab` moves on, `ctrl+s` saves, `ctrl+r` shows or hides the text (it is bullets otherwise). `pandora add <title> < file` reads any number of lines from stdin; `get`, `run`, `export` and `import` keep them intact.
+- Long values are stored in several keyring entries so they fit the Windows (2560 bytes) and macOS limits. Records written by 0.2.0 load unchanged.
+
+### Changed
+- Replacing a value (edit, import) now writes the new value first and removes the old one afterwards, so a failure can no longer leave a half-replaced value. In the detail card a long revealed value shows its first lines and how many more there are; `c` still copies all of it.
+- In the form's **Secret** field `enter` inserts a newline; use `tab` to move to the next field.
+
+## [0.2.0] - 2026-11-15
+
+**Upgrade note.** The data format changes and cannot be downgraded. Before upgrading, back up with `pandora export --values -o backup.age` using the old version. The first start of this version asks you to choose a master password and migrates your secrets automatically; the password cannot be recovered.
+
+### Added
 - **Master password.** Names, categories, notes, expiry dates and values are encrypted (Argon2id key derivation, XChaCha20-Poly1305) in `vault.json`; the keyring holds only encrypted values under random IDs, so `security dump-keychain` no longer lists your titles. The first start asks for a password (at least 10 characters, not recoverable); the TUI and every CLI command that reads secrets ask for it.
 - `pandora passwd` changes the master password without touching the stored values.
 - In the password screens, `ctrl+r` shows or hides what you type, and the inputs are drawn as boxes with hints; passwords pasted with a trailing newline still match.

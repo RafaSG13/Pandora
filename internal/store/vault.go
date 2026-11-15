@@ -74,6 +74,8 @@ type vaultFile struct {
 // ID that is the keyring account of its value.
 type record struct {
 	ID string `json:"id"`
+	// Chunks is how many keyring entries hold the value; absent means one.
+	Chunks int `json:"chunks,omitempty"`
 	SecretMeta
 }
 

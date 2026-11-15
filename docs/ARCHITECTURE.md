@@ -18,13 +18,13 @@
 | `Exists`, `LegacyExists`, `IsUnlocked` | Is there a `vault.json`, an old plain-text `metadata.json`, a held session key. |
 | `Create(pw)`, `Unlock(pw)`, `Lock()`, `ChangePassword(old, new)` | Master-password lifecycle. The data key lives in a package-level session; every function below returns `ErrLocked` without it. `Unlock` on a wrong password returns `ErrWrongPassword`. Passwords need `MinPasswordLen` (10) runes. |
 | `MigrateLegacy(pw)` | Converts the plain-text store; on any failure the old files and keyring entries stay untouched. A `*CleanupError` means the vault is complete but some old data could not be removed. |
-| `SaveSecret(meta, value)` | Validates text, fails with `ErrExists` if the title is recorded. Writes the sealed value under a new random id, then the vault; if the vault write fails the keyring entry is rolled back. |
-| `GetSecretValue(title)` | Maps the title to its id and decrypts the keyring value. An unknown title returns `keyring.ErrNotFound`, like a missing value. |
-| `UpdateSecret(old, meta, newValue)` | Replaces name, category, expiry and notes and, when `newValue != nil`, the value. `Created` is preserved and `Updated` is set to today. A rename only rewrites the vault: the keyring entry keeps its id. `ErrNotFound` / `ErrExists` for a missing source / taken target. |
-| `DeleteSecret(title)` | Deletes the keyring entry (already missing is fine), then the vault record. `ErrNotFound` if not recorded. |
+| `SaveSecret(meta, value)` | Validates text, fails with `ErrExists` if the title is recorded and `ErrValueTooLarge` above `MaxValueBytes` (32 KB). Writes the sealed value, split into keyring entries, under a new random id, then the vault; if the vault write fails the entries are rolled back. |
+| `GetSecretValue(title)` | Maps the title to its id, reads every keyring entry of the value and decrypts it. An unknown title or a missing entry returns `keyring.ErrNotFound`. |
+| `UpdateSecret(old, meta, newValue)` | Replaces name, category, expiry and notes and, when `newValue != nil`, the value. `Created` is preserved and `Updated` is set to today. A rename only rewrites the vault: the keyring entries keep their id. A new value is written under a fresh id and the old entries are removed only after the vault points at the new ones, so a failure never leaves a half-replaced value. `ErrNotFound` / `ErrExists` for a missing source / taken target; `ErrValueTooLarge` above 32 KB. |
+| `DeleteSecret(title)` | Deletes every keyring entry of the value (already missing is fine), then the vault record. `ErrNotFound` if not recorded. |
 | `LoadMetadata()` | Decrypts the vault; missing vault → empty list; collapses duplicate titles (last wins). Corrupt data is an error. |
 | `MissingValues()` | Titles whose keyring value is missing (used by `pandora doctor`). |
-| `RestoreSecrets(...)` | Batch import: values first, then one vault write; rolls back newly stored values on failure. |
+| `RestoreSecrets(...)` | Batch import: values first (each under a fresh id), then one vault write; the entries a replaced value used are removed only after that write, and everything the batch stored is removed again if it fails. |
 | `ParseDate`, `SecretMeta.DaysUntilExpiry` | `YYYY-MM-DD` handling shared by the form, list badges and CLI. |
 
 Vault writes go through a temp file in the same directory and `os.Rename`, so a crash cannot leave a half-written file; the previous contents are first copied to `vault.json.bak`. Every mutating function decrypts the vault first and aborts on error, so a corrupt or tampered file is never overwritten.
@@ -78,6 +78,8 @@ stateDiagram-v2
 
 **Orphans.** After unlock and on `r`, the model runs `checkOrphans` off the UI thread (some keyring backends are slow or prompt); the result (`orphanMsg`) marks rows and the detail card of secrets whose value is missing. A spinner shows in the header meanwhile. A result arriving while locked is dropped.
 
+**Secret field.** The form's secret is a `bubbles/textarea` (`model.secret`; `inputs[fieldSecret]` is an unused slot kept so the other fields keep their indices), because `textinput` cannot hold newlines. `enter` inserts a newline there, `tab` moves on, `ctrl+s` saves, and `up`/`down` move through its lines before leaving the field. The textarea's own 99-row and 500-column caps are lifted (they would silently cut keys and tokens); `store.MaxValueBytes` is the limit. It cannot mask, so while the text is not shown (`ctrl+r`) the form draws bullets per line (`maskedLines`) from `Value()`. Its height is `clamp(h-18+1, 1, 8)`, which is what keeps the form exactly the window height at 60×18. A reveal reads the value once (`revealValue`, dropped on hide, expiry and lock) instead of on every frame.
+
 **Layout.** Computed from the last `tea.WindowSizeMsg`: the list pane gets `max(30, (w-6)*45/100)` columns, the detail pane the rest (6 = two borders per pane plus a 2-column gap). Panes fit their content: outer height `clamp(listChrome + n*rowHeight + 4, minPaneOuter, h-4)`, top-aligned, with the status row and footer pinned to the bottom, so the view is always exactly `h` lines. Below 60×18 the view is replaced by `Terminal too small`. The list is a bubbles `list.Model` sized to hold every item on one page; `listView` crops its rendered lines to a window starting at `model.scroll` (the wheel changes only that offset, never the selection), replaces the status bar text with the position indicator, and appends the scrollbar. Toasts are composed over the bottom-right of the detail pane with `ansi.Truncate`/`TruncateLeft`.
 
 **Mouse geometry.** Click hit-testing uses `listTopRow` (8) and the row height; `TestClickGeometryMatchesRenderedList` and `TestCompactRowsGeometry` fail if the rendered list moves.
@@ -124,9 +126,9 @@ sequenceDiagram
 ```
 
 - `wrapped_key` is a random 32-byte data key sealed with XChaCha20-Poly1305 under the key Argon2id derives from the master password (AAD `pandora-v2-key`). A failed open is "wrong password".
-- `data` is the same AEAD under the data key (AAD `pandora-v2-meta`, fresh nonce on every write) over a JSON array of records `{id, title, category, created, updated?, expires?, notes?}`. `id` is 32 lowercase hex characters from `crypto/rand`; it is the keyring account of the value.
+- `data` is the same AEAD under the data key (AAD `pandora-v2-meta`, fresh nonce on every write) over a JSON array of records `{id, chunks?, title, category, created, updated?, expires?, notes?}`. `id` is 32 lowercase hex characters from `crypto/rand`; it is the keyring account of the first piece of the value. `chunks` is the number of keyring entries and is omitted for one, so records written before multi-line values load unchanged.
 - KDF parameters are read from the file, which is untrusted input: `alg` must be `argon2id`, `time` 1–10, `memory_kib` 8–1048576, `threads` 1–16, otherwise the file is rejected before any key derivation.
-- Keyring values are `pv2:` + base64(nonce24 || XChaCha20-Poly1305(dataKey, value, AAD = id)). Binding the id stops ciphertexts being swapped between entries.
+- Keyring values are `pv2:` + base64(nonce24 || XChaCha20-Poly1305(dataKey, value, AAD = id)). Binding the id stops ciphertexts being swapped between entries. The string is split into pieces of at most 2000 characters, stored as accounts `<id>`, `<id>.1`, `<id>.2`, … because the OS keyrings cap one entry (Windows Credential Manager 2560 bytes; macOS about 4 KB per `security` command after go-keyring's own base64). The AAD covers the whole concatenation, so reordered, truncated or foreign pieces fail to decrypt.
 - A corrupt or tampered `data` field is an error and is never overwritten. `vault.json.bak` holds the previous (still encrypted) version.
 - Titles, categories and notes must not contain control characters (`store.ValidateText`), so imported files cannot inject terminal escape sequences.
 
@@ -150,6 +152,7 @@ Tests replace the keyring with `keyring.MockInit()`, point `HOME`, `XDG_CONFIG_H
 ## Known limitations
 
 - A secret deleted or renamed by another Pandora instance is only noticed after `r` (reload); acting on it fails with a status message.
+- The revealed value in the detail card shows only its first lines when it does not fit (`c` copies all); there is no scrolling inside the card. Values are text only, up to 32 KB; there is no binary value type.
 - Two concurrent instances can race on `vault.json` (last writer wins).
 - go-keyring cannot enumerate entries, so `doctor` finds vault entries without a value but not keyring entries without a vault record.
 - The master password cannot be recovered; `export --values` is the backup route.
