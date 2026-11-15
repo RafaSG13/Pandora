@@ -48,6 +48,12 @@ Pandora keeps API keys, tokens and passwords out of dotfiles, shell history and 
 
 ## Installation
 
+**Homebrew** (tested on macOS; the formula also has Linux entries):
+
+```sh
+brew install RafaSG13/tap/pandora
+```
+
 **Pre-built binary.** Download the archive for your OS and CPU from the [Releases page](https://github.com/RafaSG13/Pandora/releases), check it against `checksums.txt`, and put `pandora` on your `PATH`:
 
 ```sh

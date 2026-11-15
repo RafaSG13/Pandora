@@ -56,13 +56,13 @@ Never touch the real keychain, config directory or clipboard. Use `keyring.MockI
 | R-01 | Version information | 0.1.0 | S | – | done (v0.1.0, PR #6) |
 | R-02 | Go module path | 0.1.0 | S | – | done (v0.1.0, PR #6) |
 | R-03 | Release pipeline | 0.1.0 | M | R-01, R-02 | done (v0.1.0) |
-| R-04 | Homebrew tap and install docs | 0.1.0 | S | R-03 | blocked (needs the `HOMEBREW_TAP_TOKEN` secret) |
+| R-04 | Homebrew tap and install docs | 0.1.0 | S | R-03 | done (v0.1.1) |
 | R-05 | Real-environment QA | 0.1.0 | M | – | in-progress (macOS keyring and clipboard done; other terminals and OSes open) |
 | R-06 | Security model hardening (docs) | 0.1.0 | S | – | done (v0.1.0, PR #6) |
 | R-07 | Clipboard hygiene | 0.1.0 | M | – | done, part (a) only; part (b) is R-11 |
-| R-08 | Shell completions | 0.1.0 | M | – | done (0.1.0 branch) |
-| R-09 | `pandora gen` | 0.1.0 | S | – | done (0.1.0 branch) |
-| R-10 | `NO_COLOR` and small-terminal help | 0.1.0 | S | – | done (0.1.0 branch) |
+| R-08 | Shell completions | 0.1.0 | M | – | done (v0.1.0, PR #6) |
+| R-09 | `pandora gen` | 0.1.0 | S | – | done (v0.1.0, PR #6) |
+| R-10 | `NO_COLOR` and small-terminal help | 0.1.0 | S | – | done (v0.1.0, PR #6) |
 | R-11 | Concealed clipboard copies | later | M | – | todo |
 | R-20 | Multiline values | 0.2 | M | – | todo |
 | R-21 | Tags | 0.2 | M | – | todo |
@@ -153,9 +153,9 @@ Milestones are a suggested cut, not a contract: **0.1.0** is "safe and easy to i
 **Docs.** README (Install), CONTRIBUTING (how to cut a release), SECURITY, CHANGELOG.
 
 ### R-04 Homebrew tap and install docs
-**Status** blocked (the tap `RafaSG13/homebrew-tap` exists; the user must add a `HOMEBREW_TAP_TOKEN` repository secret) · **Size** S · **Depends** R-03
+**Status** done · **Size** S · **Depends** R-03
 
-**Outcome so far.** `RafaSG13/homebrew-tap` created; `.goreleaser.yaml` has a `brews` section that is skipped while `HOMEBREW_TAP_TOKEN` is empty, so releases work without it. **Left:** create a fine-grained token (contents: read and write on the tap repo only), store it as the `HOMEBREW_TAP_TOKEN` Actions secret, then tag a release and add the `brew install RafaSG13/tap/pandora` line to the README Install section once the formula appears in the tap.
+**Outcome.** `RafaSG13/homebrew-tap` exists; `.goreleaser.yaml` has a `brews` section (skipped while `HOMEBREW_TAP_TOKEN` is empty) and the secret was added by the user. Releasing `v0.1.1` pushed `Formula/pandora.rb`; `brew install RafaSG13/tap/pandora` installed 0.1.1 on macOS arm64 and `pandora --version` reported it. The README Install section lists Homebrew, `go install` and release archives. No `scoop` bucket (not requested).
 
 **Why.** Homebrew is the natural channel for a macOS terminal tool.
 
