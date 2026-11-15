@@ -153,9 +153,9 @@ Milestones are a suggested cut, not a contract: **0.1.0** is "safe and easy to i
 **Docs.** README (Install), CONTRIBUTING (how to cut a release), SECURITY, CHANGELOG.
 
 ### R-04 Homebrew tap and install docs
-**Status** blocked (the tap repository `RafaSG13/homebrew-tap` and a token secret with write access must be created by the user) · **Size** S · **Depends** R-03
+**Status** blocked (the tap `RafaSG13/homebrew-tap` exists; the user must add a `HOMEBREW_TAP_TOKEN` repository secret) · **Size** S · **Depends** R-03
 
-**Outcome so far.** The README Install section covers release archives, `go install` and building from a checkout, and says nothing about Homebrew until this lands. When unblocked: add a `brews` section to `.goreleaser.yaml` and the token to `release.yml`.
+**Outcome so far.** `RafaSG13/homebrew-tap` created; `.goreleaser.yaml` has a `brews` section that is skipped while `HOMEBREW_TAP_TOKEN` is empty, so releases work without it. **Left:** create a fine-grained token (contents: read and write on the tap repo only), store it as the `HOMEBREW_TAP_TOKEN` Actions secret, then tag a release and add the `brew install RafaSG13/tap/pandora` line to the README Install section once the formula appears in the tap.
 
 **Why.** Homebrew is the natural channel for a macOS terminal tool.
 
@@ -172,7 +172,7 @@ Milestones are a suggested cut, not a contract: **0.1.0** is "safe and easy to i
 ### R-05 Real-environment QA
 **Status** in-progress · **Size** M · **Depends** –
 
-**Outcome so far.** `docs/QA.md` (keyring, clipboard, terminals, artefacts, how to record results) and `internal/store/integration_test.go` (build tag `integration`, only runs with `PANDORA_INTEGRATION=1`) wired to a `keyring-linux` CI job with `continue-on-error: true`; that job has not run on GitHub yet, so remove `continue-on-error` once it is green. **Left:** execute the checklist once on macOS and record the result before tagging.
+**Outcome so far.** `docs/QA.md` (keyring, clipboard, terminals, artefacts, how to record results) and `internal/store/integration_test.go` (build tag `integration`, only runs with `PANDORA_INTEGRATION=1`) wired to a `keyring-linux` CI job; it passed on GitHub against gnome-keyring (add, read with a newline, rename, delete). The macOS checklist was run on 2026-11-15 for keyring, `run`, `doctor`, export and clipboard (see PR #6). **Left:** other terminals (Terminal.app, iTerm2, tmux, Windows Terminal), Windows Credential Manager, and the artefact checks against the real release.
 
 **Why.** Everything so far used the in-memory keyring and a pty. Nothing has run against the real macOS Keychain, libsecret, or Windows Credential Manager, nor in real terminals.
 

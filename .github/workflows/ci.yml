@@ -24,11 +24,9 @@ jobs:
       - run: go build ./cmd/pandora
 
   # Runs the store against a real Secret Service (gnome-keyring) in a throwaway
-  # D-Bus session. Not yet observed green on GitHub: continue-on-error stays
-  # until it has passed once; then remove it.
+  # D-Bus session (see internal/store/integration_test.go).
   keyring-linux:
     runs-on: ubuntu-latest
-    continue-on-error: true
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
