@@ -76,11 +76,16 @@ sequenceDiagram
 
 ### Copy
 
-`enter`/`c` → `store.GetSecretValue(title)` → on success `clipboard.WriteAll`, status `✓ Copied…`, and a 15 s `tea.Tick` that delivers `clearClipboardMsg`; the handler writes an empty string to the clipboard. On error the status shows `✗ Could not read secret` and nothing is copied. Each copy schedules its own clear; the earliest one wins.
+`enter`/`c` → `store.GetSecretValue(title)` → `writeClipboard(value)` (a variable, so tests can fake the clipboard). On success the model sets `clipLeft = 15`, increments `copyGen`, and starts a 1 s `tea.Tick` that delivers `clipboardTickMsg{gen}`. Each tick decrements `clipLeft`, the footer shows `✓ Copied · clears in Ns` with a draining bar, and at zero the clipboard is overwritten with an empty string.
+
+- A tick whose `gen` differs from `copyGen` is ignored, so a second copy restarts the countdown and cannot be cut short by the first one.
+- `x` clears immediately and bumps `copyGen`, cancelling the countdown, so a later clipboard content from the user is never wiped by a stale tick.
+- `q`/`ctrl+c` clears a pending value before quitting (the countdown would otherwise die with the process).
+- Errors are reported in the status line: `✗ Could not read secret`, `✗ Could not copy: …`, `✗ Could not clear clipboard: …`; no countdown starts if the copy failed.
 
 ### Reveal
 
-`v` toggles `showValue`. While set, `renderDetail` fetches the selected secret's value from the keyring on every render; on error the masked value stays.
+`v` reveals the **selected** secret (`model.revealed` holds its title) and starts a 10 s timer (`hideRevealMsg{gen}`; `revealGen` invalidates stale timers). Pressing `v` again hides it. After every message `Update` checks the selection: if it no longer matches `revealed` (cursor moved, item renamed, deleted, reloaded away) the value is hidden, so returning to an item never shows it again without a new `v`. While revealed, `renderDetail` fetches the value from the keyring on every render; on error the masked value stays.
 
 ## Persisted data
 
@@ -113,4 +118,3 @@ Tests replace the keyring with `keyring.MockInit()` and point `HOME`, `XDG_CONFI
 - A secret deleted or renamed by another Pandora instance is only noticed after `r` (reload); acting on it fails with a status message.
 - Two concurrent instances can race on `metadata.json` (last writer wins).
 - Below 60×18 the UI shows a "Terminal too small" notice instead of the layout.
-- The reveal toggle is global, not per secret.

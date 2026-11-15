@@ -21,8 +21,8 @@ Pandora keeps API keys, tokens and passwords out of dotfiles, shell history and 
 - **Native secure storage** — values never touch disk through Pandora; they live in the OS keyring.
 - **Full management** — add, edit (including rename), delete with confirmation, and reload.
 - **Fast lookup** — fuzzy filter over name and category.
-- **Safe copying** — copy to the clipboard, which is cleared automatically after 15 seconds.
-- **Masked by default** — values are hidden until you explicitly reveal them.
+- **Safe copying** — the clipboard is cleared automatically after 15 seconds (with a live countdown), on demand with `x`, or when you quit.
+- **Masked by default** — values are hidden until you reveal them, one secret at a time, and hide again on their own.
 - **Responsive layout** — adapts to the terminal size, light and dark palettes.
 - **Safe metadata handling** — atomic writes; a corrupt metadata file is reported, never overwritten.
 - **Single binary, no network, no telemetry.**
@@ -69,8 +69,9 @@ pandora
 | ----------------- | ------------------------------------------------------ |
 | `↑` `↓` / `j` `k` | Move through the list                                  |
 | `/`               | Filter by name or category (`esc` clears the filter)   |
-| `enter` / `c`     | Copy the selected secret to the clipboard (cleared after 15 s) |
-| `v`               | Toggle revealing secret values                         |
+| `enter` / `c`     | Copy the selected secret to the clipboard; a countdown shows when it will be cleared (15 s) |
+| `x`               | Clear the clipboard now                                |
+| `v`               | Reveal / hide the selected secret (auto-hides after 10 s) |
 | `n`               | New secret                                             |
 | `e`               | Edit the selected secret                               |
 | `d`               | Delete the selected secret (asks for confirmation)     |
@@ -116,7 +117,7 @@ Pandora is designed to reduce accidental exposure, not to defend against a compr
 **It does**
 
 - keep values in the OS keyring instead of files;
-- mask values on screen until revealed, and clear the clipboard 15 seconds after copying;
+- mask values on screen until revealed (one secret at a time, hidden again after 10 seconds or when you move), and clear the clipboard 15 seconds after copying, on `x`, or when you quit;
 - never log, print or transmit values, and never open network connections;
 - write metadata atomically with owner-only permissions (`0600`/`0700` on macOS and Linux; Windows relies on the per-user profile directory's ACLs).
 

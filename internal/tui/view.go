@@ -32,7 +32,11 @@ func (m model) View() string {
 	}
 
 	rule := subtleStyle.Render(strings.Repeat("─", m.width))
-	return strings.Join([]string{m.renderHeader(), rule, m.renderPanes(), m.renderStatus(), m.renderHelp()}, "\n")
+	status := m.renderStatus()
+	if status == "" {
+		status = m.renderCountdown()
+	}
+	return strings.Join([]string{m.renderHeader(), rule, m.renderPanes(), status, m.renderHelp()}, "\n")
 }
 
 func (m model) renderHeader() string {
@@ -66,7 +70,7 @@ func (m model) renderDetail(w, h int) string {
 
 	value := subtleStyle.Render(maskedValue)
 	valueBorder := subtle
-	if m.showValue {
+	if m.revealed == sel.meta.Title {
 		if real, err := store.GetSecretValue(sel.meta.Title); err == nil {
 			value = textStyle.Render(real)
 			valueBorder = accent
@@ -142,10 +146,25 @@ func (m model) renderStatus() string {
 	return lipgloss.NewStyle().Foreground(color).Bold(true).MaxWidth(m.width).Render(m.statusMsg)
 }
 
+// renderCountdown shows the clipboard timer: "✓ Copied · clears in 12s ▰▰▰▰▰▰▰▰▱▱".
+func (m model) renderCountdown() string {
+	if m.clipLeft == 0 {
+		return ""
+	}
+	const barW = 10
+	filled := (m.clipLeft*barW + clipboardSeconds - 1) / clipboardSeconds
+	bar := strings.Repeat("▰", filled) + strings.Repeat("▱", barW-filled)
+	line := fmt.Sprintf("✓ Copied · clears in %ds %s", m.clipLeft, bar)
+	return lipgloss.NewStyle().Foreground(success).Bold(true).MaxWidth(m.width).Render(line)
+}
+
 func (m model) renderHelp() string {
 	keys := [][2]string{
 		{"↑/↓", "move"}, {"/", "filter"}, {"enter/c", "copy"}, {"v", "reveal"},
 		{"n", "new"}, {"e", "edit"}, {"d", "delete"}, {"r", "reload"}, {"q", "quit"},
+	}
+	if m.clipLeft > 0 {
+		keys = append(keys[:len(keys)-1:len(keys)-1], [2]string{"x", "clear clipboard"}, [2]string{"q", "quit"})
 	}
 	switch m.mode {
 	case modeForm:

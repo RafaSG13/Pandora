@@ -20,8 +20,6 @@ func (i item) Title() string       { return i.meta.Title }
 func (i item) Description() string { return fmt.Sprintf("%s · %s", i.meta.Category, i.meta.Created) }
 func (i item) FilterValue() string { return i.meta.Title + " " + i.meta.Category }
 
-type clearClipboardMsg struct{}
-
 // mode is what the keyboard currently drives.
 type mode int
 
@@ -36,7 +34,10 @@ type model struct {
 	width, height int
 	statusMsg     string
 	statusErr     bool
-	showValue     bool
+	revealed      string // title of the secret whose value is shown; empty when none
+	revealGen     int    // invalidates pending auto-hide timers
+	clipLeft      int    // seconds until the clipboard is cleared; 0 when nothing pending
+	copyGen       int    // invalidates countdown ticks from superseded copies
 	mode          mode
 	inputs        []textinput.Model
 	focusIndex    int

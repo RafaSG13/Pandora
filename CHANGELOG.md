@@ -5,6 +5,8 @@ All notable changes are documented here. The format follows [Keep a Changelog](h
 ## [Unreleased]
 
 ### Added
+- Live clipboard countdown with a progress bar, and `x` to clear the clipboard immediately.
+- Revealed values are per secret, hide when the selection moves and auto-hide after 10 seconds.
 - Category colours: each category gets a stable colour on the list bar, text and detail badge.
 - Custom list rows with a full-width highlight on the selected row.
 - Detail card with category badge and a bordered value box.
@@ -28,3 +30,6 @@ All notable changes are documented here. The format follows [Keep a Changelog](h
 ### Fixed
 - Adding a secret with an existing name no longer silently overwrites its value or duplicates the metadata entry; duplicates written by older versions are collapsed on load.
 - Save and read failures are no longer silently ignored.
+- Clipboard countdown could not be cancelled: a second copy was cleared early by the first copy's timer. Each copy now owns its countdown.
+- `✓ Copied` was shown even when the clipboard write failed; the error is now reported.
+- A value copied shortly before quitting stayed on the clipboard; it is now cleared on exit.

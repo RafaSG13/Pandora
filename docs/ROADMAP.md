@@ -13,15 +13,13 @@ Features that fit Pandora's scope (local, keyring-backed, keyboard-driven) and c
 - **List rows**: custom delegate with a category bar, a full-width tinted background on the selected row, ellipsis truncation and filter-match underlining.
 - **Detail card**: title, category badge, created date and a bordered value box (accent border while revealed).
 - **Terminal size guard**: below 60×18 a `Terminal too small` notice is shown instead of a broken layout.
+- **Per-item reveal**: `v` reveals only the selected secret; it hides again when the selection changes, on a second `v`, or after 10 s.
+- **Clipboard safety**: live countdown (`Copied · clears in 12s` with a draining bar), `x` to clear now, stale countdowns can't wipe newer clipboard content, copy failures are reported, and quitting clears a pending value.
 
 ## Priority 2 — day-to-day usability
 
 | Feature | Key | Notes |
 | ------- | --- | ----- |
-| Per-item reveal | `v` | Make reveal apply to the selected item and reset when the selection changes or after N seconds, instead of one global toggle. |
-| Auto-hide revealed value | — | Timer like the clipboard one (e.g. 10 s). |
-| Copy cancel / clear now | `x` | Clear the clipboard immediately instead of waiting for the 15 s tick; also cancel stale ticks so a second copy isn't cleared early by the first. |
-| Clipboard error feedback | — | `clipboard.WriteAll` errors are ignored today, so `✓ Copied` can be shown when it failed (no `xclip` on Linux, etc.). |
 | Sort | `s` | Cycle name / category / created date. |
 | Category filter | `tab` in filter, or `1..9` | Quick-filter by existing categories; category autocomplete in the form. |
 | Notes / URL field | — | Optional non-secret text in metadata (e.g. account, URL, expiry reason). Schema addition, backwards compatible. |
@@ -45,8 +43,7 @@ Assessment from running the current build at 100×30: the layout is correct but 
 - **Header**: a logo glyph and gradient (accent → secondary) on `PANDORA`; vault status chip (`● unlocked`), and the keyring backend name (`Keychain`, `Secret Service`, `Credential Manager`).
 
 ### Feedback and state
-- **Clipboard countdown**: show `Copied · clears in 12s` with a progress bar that drains, updated each second via `tea.Tick`.
-- **Reveal countdown** (with auto-hide) shown the same way.
+- **Reveal countdown**: show the remaining seconds before the value auto-hides, like the clipboard countdown.
 - **Icons** (Unicode, with an ASCII fallback when `PANDORA_ASCII=1` or a non-UTF-8 locale): lock/unlock for masked/revealed, a clock for expiring secrets, `!` for orphaned entries.
 - **Expiry badges**: yellow `expires in 5d`, red `expired`.
 - **Empty and error states** with an illustrated ASCII vault and the two or three keys that matter, instead of a single line.
@@ -90,7 +87,7 @@ pandora run -s <title> -- cmd   # inject secret as env var for one command
 ## Suggested order
 
 1. Visual improvements (see above), starting with per-category colours and the full-row selection highlight.
-2. Per-item reveal and clipboard fixes.
+2. ~~Per-item reveal and clipboard fixes~~ (done)
 3. Backup of `metadata.json`, `pandora doctor`.
 4. CLI mode.
 5. Everything else as needed.

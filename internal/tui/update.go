@@ -13,9 +13,38 @@ import (
 	"pandora/internal/store"
 )
 
-const clipboardTTL = 15 * time.Second
+const (
+	clipboardSeconds = 15
+	revealTTL        = 10 * time.Second
+)
 
+// writeClipboard is a variable so tests can replace the system clipboard.
+var writeClipboard = clipboard.WriteAll
+
+// clipboardTickMsg fires once a second while a copied value is on the clipboard.
+// gen identifies the copy it belongs to; ticks from superseded copies are ignored.
+type clipboardTickMsg struct{ gen int }
+
+// hideRevealMsg hides a revealed value after revealTTL, unless gen is stale.
+type hideRevealMsg struct{ gen int }
+
+func tickClipboard(gen int) tea.Cmd {
+	return tea.Tick(time.Second, func(time.Time) tea.Msg { return clipboardTickMsg{gen} })
+}
+
+// Update applies msg, then hides the revealed value if the selection moved off it.
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	next, cmd := m.update(msg)
+	nm := next.(model)
+	if nm.revealed != "" {
+		if sel, ok := nm.list.SelectedItem().(item); !ok || sel.meta.Title != nm.revealed {
+			nm.revealed = ""
+		}
+	}
+	return nm, cmd
+}
+
+func (m model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		m.width, m.height = msg.Width, msg.Height
@@ -44,6 +73,9 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		sel, hasSel := m.list.SelectedItem().(item)
 		switch msg.String() {
 		case "ctrl+c", "q":
+			if m.clipLeft > 0 {
+				_ = writeClipboard("") // the countdown dies with the process
+			}
 			return m, tea.Quit
 		case "n":
 			m.openForm("", store.SecretMeta{})
@@ -66,7 +98,26 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			return m, nil
 		case "v":
-			m.showValue = !m.showValue
+			if !hasSel {
+				return m, nil
+			}
+			m.revealGen++
+			if m.revealed == sel.meta.Title {
+				m.revealed = ""
+				return m, nil
+			}
+			m.revealed = sel.meta.Title
+			gen := m.revealGen
+			return m, tea.Tick(revealTTL, func(time.Time) tea.Msg { return hideRevealMsg{gen} })
+		case "x":
+			if m.clipLeft > 0 {
+				m.copyGen++ // cancels the pending countdown
+				m.clipLeft = 0
+				m.statusMsg = "✓ Clipboard cleared"
+				if err := writeClipboard(""); err != nil {
+					m.statusMsg, m.statusErr = fmt.Sprintf("✗ Could not clear clipboard: %v", err), true
+				}
+			}
 			return m, nil
 		case "enter", "c":
 			if hasSel {
@@ -75,17 +126,34 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					m.statusMsg, m.statusErr = fmt.Sprintf("✗ Could not read secret: %v", err), true
 					return m, nil
 				}
-				_ = clipboard.WriteAll(val)
-				m.statusMsg = "✓ Copied to clipboard (clears in 15s)"
-				return m, tea.Tick(clipboardTTL, func(time.Time) tea.Msg {
-					return clearClipboardMsg{}
-				})
+				if err := writeClipboard(val); err != nil {
+					m.statusMsg, m.statusErr = fmt.Sprintf("✗ Could not copy: %v", err), true
+					return m, nil
+				}
+				m.copyGen++ // a newer copy supersedes any pending countdown
+				m.clipLeft = clipboardSeconds
+				return m, tickClipboard(m.copyGen)
 			}
 		}
 
-	case clearClipboardMsg:
-		_ = clipboard.WriteAll("")
+	case clipboardTickMsg:
+		if msg.gen != m.copyGen || m.clipLeft == 0 {
+			return m, nil // superseded by a newer copy, or already cleared
+		}
+		m.clipLeft--
+		if m.clipLeft > 0 {
+			return m, tickClipboard(m.copyGen)
+		}
 		m.statusMsg, m.statusErr = "✓ Clipboard cleared", false
+		if err := writeClipboard(""); err != nil {
+			m.statusMsg, m.statusErr = fmt.Sprintf("✗ Could not clear clipboard: %v", err), true
+		}
+		return m, nil
+
+	case hideRevealMsg:
+		if msg.gen == m.revealGen {
+			m.revealed = ""
+		}
 		return m, nil
 	}
 
