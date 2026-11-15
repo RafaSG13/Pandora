@@ -10,42 +10,64 @@ type Restore struct {
 }
 
 // RestoreSecrets records every entry's metadata exactly as given (replacing
-// any entry with the same title and keeping its dates) and stores the values
-// that are present. The metadata file is written once, so metadata.json.bak
-// holds the state from before the whole batch. If a keyring write or the
-// metadata write fails, values stored for titles that did not exist before
-// are removed again (values replaced for existing titles cannot be restored).
+// any entry with the same title, keeping its keyring ID and dates as given)
+// and stores the values that are present. The vault is written once, so
+// vault.json.bak holds the state from before the whole batch. If a keyring
+// write or the vault write fails, values stored for titles that did not exist
+// before are removed again (values replaced for existing titles cannot be
+// restored).
 func RestoreSecrets(entries []Restore) error {
-	existing, err := LoadMetadata()
+	for _, e := range entries {
+		if err := validateMeta(e.Meta); err != nil {
+			return err
+		}
+	}
+	existing, err := loadRecords()
 	if err != nil {
 		return err
 	}
-	items := append([]SecretMeta(nil), existing...)
+	recs := append([]record(nil), existing...)
 
-	var stored []string
+	var created []string // IDs of titles that did not exist before
 	rollback := func() {
-		for _, t := range stored {
-			if indexOf(existing, t) < 0 {
-				_ = keyring.Delete(ServiceName, t)
-			}
+		for _, id := range created {
+			_ = keyring.Delete(ServiceName, id)
 		}
 	}
 
 	for _, e := range entries {
-		if e.Value != nil {
-			if err := keyring.Set(ServiceName, e.Meta.Title, *e.Value); err != nil {
+		i := recordIndex(recs, e.Meta.Title)
+		isNew := i < 0
+		var id string
+		if isNew {
+			if id, err = newID(); err != nil {
 				rollback()
 				return err
 			}
-			stored = append(stored, e.Meta.Title)
-		}
-		if i := indexOf(items, e.Meta.Title); i >= 0 {
-			items[i] = e.Meta
 		} else {
-			items = append(items, e.Meta)
+			id = recs[i].ID
+		}
+		if e.Value != nil {
+			sealed, err := sealValue(id, *e.Value)
+			if err != nil {
+				rollback()
+				return err
+			}
+			if err := keyring.Set(ServiceName, id, sealed); err != nil {
+				rollback()
+				return err
+			}
+			if isNew {
+				created = append(created, id)
+			}
+		}
+		if isNew {
+			recs = append(recs, record{ID: id, SecretMeta: e.Meta})
+		} else {
+			recs[i].SecretMeta = e.Meta
 		}
 	}
-	if err := writeMetadata(items); err != nil {
+	if err := saveRecords(recs); err != nil {
 		rollback()
 		return err
 	}

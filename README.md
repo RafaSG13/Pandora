@@ -23,18 +23,18 @@ Pandora keeps API keys, tokens and passwords out of dotfiles, shell history and 
 
 ## Features
 
-- **Native secure storage** — values never touch disk through Pandora; they live in the OS keyring.
+- **Encrypted storage** — a master password protects everything: names, notes and values are encrypted, and values also live in the OS keyring under random IDs.
 - **Full management** — add, edit (including rename), delete with confirmation, and reload.
 - **Rich metadata** — category (with autocomplete), notes or URL, and an optional expiry date with warning badges.
 - **Fast lookup** — fuzzy filter over name and category, quick category filters (`1`–`9`), and sorting by name, category or date.
 - **Safe copying** — copy to the clipboard, cleared automatically after 15 seconds (or right away with `x`), with a visible countdown.
 - **Masked by default** — the value is revealed one secret at a time and hides again after 10 seconds or when you move.
 - **Secret generator** — `ctrl+g` in the form fills a random password or token (length and charset selectable); `pandora gen` does the same from the shell.
-- **Idle lock** — after 5 idle minutes everything is masked and a pending clipboard is cleared.
+- **Idle lock** — after 5 idle minutes everything is masked, the secrets are dropped from memory, a pending clipboard is cleared, and the master password is required again.
 - **Orphan detection** — secrets whose keyring value is missing are flagged `!`.
 - **Polished interface** — per-category colours (or none, with `NO_COLOR`), full-row selection, bordered detail card, toasts, compact mode (`t`), mouse support, and an ASCII fallback.
-- **Command-line mode** — `list`, `get`, `add`, `rm`, `run`, `gen`, encrypted `export`/`import`, `doctor` and shell completions.
-- **Safe metadata handling** — atomic writes with a `metadata.json.bak` backup; a corrupt file is reported, never overwritten.
+- **Command-line mode** — `list`, `get`, `add`, `rm`, `run`, `gen`, `passwd`, encrypted `export`/`import`, `doctor` and shell completions.
+- **Safe vault handling** — atomic writes with a `vault.json.bak` backup; a corrupt or tampered file is reported, never overwritten.
 - **Single binary, no network, no telemetry.**
 
 ## Installation
@@ -85,6 +85,7 @@ Check the install with `pandora --version`.
 pandora
 ```
 
+0. The first time, Pandora asks you to create a **master password** (at least 10 characters). It cannot be recovered. If you used an older version, your secrets are migrated to the encrypted vault at this point.
 1. Press `n`, fill in a name, a category and the secret value (or press `ctrl+g` to generate one), and press `enter` through the optional **Expires** and **Notes** fields to save.
 2. Move with `↑`/`↓` (or `j`/`k`), press `v` to reveal the value, `c` or `enter` to copy it.
 3. Press `/` to filter, `s` to sort, `e` to edit, `d` to delete, `?` for every key, `q` to quit.
@@ -140,6 +141,7 @@ Fields: **Name**, **Category**, **Secret**, **Expires** (`YYYY-MM-DD`, optional)
 | Variable                 | Effect                                                              |
 | ------------------------ | ------------------------------------------------------------------- |
 | `PANDORA_LOCK_MINUTES`   | Idle minutes before the screen locks (default `5`, `0` disables)    |
+| `PANDORA_MASTER_PASSWORD` | CLI only: the master password when there is no terminal (visible to your user's other processes; a warning is printed). Removed from the environment of `pandora run` children |
 | `PANDORA_ASCII=1`        | Draw with plain ASCII; also used automatically when the locale is not UTF-8 |
 | `NO_COLOR`               | Any non-empty value turns colour off (also `TERM=dumb`); the selected row is then marked with `▌` (`>` in ASCII mode) and expired secrets show `◷!` in compact rows |
 
@@ -155,18 +157,14 @@ The interface needs at least 60×18 characters and shows `Terminal too small` be
 
 | Data                            | Where                                                              |
 | ------------------------------- | ------------------------------------------------------------------ |
-| Secret values                   | OS keyring, service `pandora-cli`, account = the secret's name     |
-| Name, category, dates, expiry, notes | `<user config dir>/pandora/metadata.json` (file `0600`, directory `0700`), previous version kept as `metadata.json.bak` |
+| Secret values                   | OS keyring, service `pandora-cli`, account = a random 32-hex ID; the stored value is itself encrypted with the vault key |
+| Name, category, dates, expiry, notes | `<user config dir>/pandora/vault.json` (file `0600`, directory `0700`): XChaCha20-Poly1305 under a random data key that is wrapped with your master password (Argon2id). The previous version is kept as `vault.json.bak`, also ciphertext |
 
-The user config dir is `~/Library/Application Support` on macOS, `$XDG_CONFIG_HOME` or `~/.config` on Linux and `%AppData%` on Windows. The metadata file never contains secret values, but it does reveal the **names** of your secrets.
+The user config dir is `~/Library/Application Support` on macOS, `$XDG_CONFIG_HOME` or `~/.config` on Linux and `%AppData%` on Windows. Neither the vault nor the keyring reveals the **names** or values of your secrets without the master password. The first run asks you to create one (at least 10 characters, cannot be recovered). Older plain-text stores (`metadata.json` and keyring entries named after the secrets) are migrated automatically on first start and the old data is removed.
 
-Secrets are ordinary keyring entries, so you can also inspect them with the system tools, e.g. on macOS:
+Because values are encrypted, the system keyring tools show only opaque entries, e.g. on macOS `security find-generic-password -s pandora-cli -w` prints ciphertext. Use `pandora get` or `pandora export --values`.
 
-```sh
-security find-generic-password -s pandora-cli -a "<name>" -w
-```
-
-See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the metadata schema and data flows.
+See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the vault format and data flows.
 
 ## Command-line mode
 
@@ -181,7 +179,8 @@ See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the metadata schema and dat
 | `pandora run -s TITLE[=ENV_NAME] [-s ...] -- cmd args...` | Runs `cmd` with each secret in an environment variable that exists only for that process. `ENV_NAME` defaults to the title upper-cased with other characters replaced by `_`. Fails before running anything if a secret is missing; exits with the command's exit code. |
 | `pandora export [--values] [-o FILE] [--force]` | Writes the metadata as JSON. With `--values` the values are included and the whole file is encrypted. |
 | `pandora import FILE [--values] [--overwrite]` | Reads an export (`-` for stdin). Existing titles are skipped unless `--overwrite`; values are restored only with `--values`. The whole file is validated before anything is written. |
-| `pandora doctor [--fix] [-y]` | Lists metadata entries whose value is missing from the keyring; `--fix` removes them (asks unless `-y`). Exits `1` while problems remain. |
+| `pandora doctor [--fix] [-y]` | Lists vault entries whose value is missing from the keyring; `--fix` removes them (asks unless `-y`). Exits `1` while problems remain. |
+| `pandora passwd` | Changes the master password (needs a terminal). Values stay valid. |
 | `pandora version` | Prints the version, commit and build date (also `pandora --version`). |
 | `pandora gen [--length 8-128] [--charset alnum\|symbols\|hex] [--count 1-100]` | Prints random secrets (default: one of 24 letters and digits) using `crypto/rand`. Stores nothing. |
 | `pandora completion bash\|zsh\|fish\|powershell` | Prints a shell completion script (see below). |
@@ -195,11 +194,11 @@ pandora export --values -o backup.age       # prompts twice for a passphrase
 PANDORA_PASSPHRASE=... pandora import backup.age --values --overwrite
 ```
 
-**Encrypted exports.** `export --values` never writes plaintext values. The document, titles included, is encrypted with [age](https://age-encryption.org) using a scrypt passphrase recipient and ASCII-armored; `age -d backup.age` can decrypt it too. The passphrase is prompted for twice without echo, or read from `PANDORA_PASSPHRASE` when there is no terminal (environment variables can be visible to other processes of your user, so prefer the prompt where possible; `pandora run` removes the variable from the child's environment). Export files are created with mode `0600`, and an existing file is only replaced with `--force`. Export without `--values` contains names, categories and dates but no values.
+**Encrypted exports.** `export --values` never writes plaintext values. The document, titles included, is encrypted with [age](https://age-encryption.org) using a scrypt passphrase recipient and ASCII-armored; `age -d backup.age` can decrypt it too. The passphrase must be at least 10 characters when exporting; it is prompted for twice without echo, or read from `PANDORA_PASSPHRASE` when there is no terminal (environment variables can be visible to other processes of your user, so prefer the prompt where possible; a warning is printed and `pandora run` removes the variable from the child's environment). Export files are created with mode `0600`, and an existing file is only replaced with `--force`. Export without `--values` is **plain text**: names, categories, notes and dates, but no values.
 
-**Doctor limitation.** `doctor` can only find metadata entries without a value. The keyring API Pandora uses cannot list entries, so values that exist in the keyring without a metadata entry cannot be detected.
+**Doctor limitation.** `doctor` can only find vault entries without a value. The keyring API Pandora uses cannot list entries, so values that exist in the keyring without a vault entry cannot be detected.
 
-**Shell completion.** Completion offers commands, flags, secret titles (`get`, `rm`, `run -s`), categories (`-c`) and file names. Titles come from the local metadata file; values are never read and nothing prompts.
+**Shell completion.** Completion offers commands, flags, secret titles (`get`, `rm`, `run -s`), categories (`-c`) and file names. Names are encrypted, so titles and categories are offered only when `PANDORA_MASTER_PASSWORD` is exported in your shell; otherwise completion stays silent about them and never prompts. Values are never read.
 
 ```sh
 # bash    (add to ~/.bashrc)
@@ -218,23 +217,26 @@ Pandora is designed to reduce accidental exposure, not to defend against a compr
 
 **It does**
 
-- keep values in the OS keyring instead of files;
+- require a master password to see anything, and keep values in the OS keyring instead of files;
 - mask values on screen until revealed, and clear the clipboard 15 seconds after copying — but only if the clipboard still holds what Pandora copied (it compares a SHA-256 and keeps no plaintext), so something you copied meanwhile is left alone;
 - never log, print or transmit values, and never open network connections;
-- write metadata atomically with owner-only permissions (`0600`/`0700` on macOS and Linux; Windows relies on the per-user profile directory's ACLs).
+- write the vault atomically with owner-only permissions (`0600`/`0700` on macOS and Linux; Windows relies on the per-user profile directory's ACLs);
+- encrypt names, categories, notes, expiry dates and values under a key that only your master password unlocks, and store the keyring entries under random IDs, so neither `security dump-keychain` nor the config directory reveals your titles.
 
 **It does not**
 
 - protect against malware or other processes running as your user — they can read the keyring subject to your OS's prompts and policies;
 - control clipboard managers or other tools that record clipboard history;
-- hide secret names (they are stored in the metadata file) or wipe memory after use;
+- wipe memory reliably after use, or stop someone who can read your keyring and guess a weak master password offline (use a long, unique one; the key derivation is Argon2id with 64 MiB, 3 passes);
 - sync or back up for you — [`pandora export`](#command-line-mode) is manual, and an export made with `--values` is only as safe as its passphrase.
 
 **Things that surprise people**
 
 - **`pandora run` uses the environment.** Values reach the child process (and everything it starts) as environment variables; on some systems other processes of the same user can read them (`ps eww`, `/proc/<pid>/environ`). Use it for commands you trust.
-- **The idle lock only hides the screen.** Any key unlocks it, because the keyring is already open for your session; it protects against someone glancing at an unattended terminal, not against someone who can use it. Stopping that needs a passphrase gate, which is [on the roadmap](docs/ROADMAP.md).
-- **Names are plain text on disk.** Titles, categories, notes and expiry dates live in `metadata.json` and its `.bak`, and `pandora export` without `--values` writes them to the file you choose. Never put a secret in the notes.
+- **The idle lock asks for your master password.** After the idle timeout (default 5 minutes) the data key is dropped from memory (best effort: Go does not guarantee wiped memory), the list is emptied and the unlock screen needs the password again. An unsaved form is discarded.
+- **Lose the master password, lose the vault.** Nothing can recover it. `pandora export --values` makes an encrypted backup under a separate passphrase.
+- **`PANDORA_MASTER_PASSWORD` is a trade-off.** It lets scripts and shell completion work without a terminal, but environment variables can be visible to other processes of your user. Without it, completion offers no titles or categories because they are encrypted.
+- **`pandora export` without `--values` is plain text.** It writes names, categories, notes and dates, unencrypted, to the file you choose. Never put a secret in the notes.
 - **The threat model** is accidental exposure: shoulder surfing, screen sharing, shell history, dotfiles and notes apps. Malware running as you is out of scope.
 
 To report a vulnerability, see [SECURITY.md](SECURITY.md).

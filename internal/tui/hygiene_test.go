@@ -119,8 +119,8 @@ func TestLockLeavesChangedClipboardButStopsCountdown(t *testing.T) {
 	*now = now.Add(2 * time.Minute)
 	m = tickAt(m, *now)
 
-	if m.(model).mode != modeLocked {
-		t.Fatalf("mode = %v, want locked", m.(model).mode)
+	if m.(model).mode != modeUnlock {
+		t.Fatalf("mode = %v, want the unlock screen", m.(model).mode)
 	}
 	if len(clipboardLog) != writes {
 		t.Errorf("lock overwrote foreign clipboard content: log=%q", clipboardLog)

@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/charmbracelet/bubbles/list"
+	"github.com/charmbracelet/bubbles/textinput"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/ansi"
 
@@ -41,8 +42,8 @@ func (m model) view() string {
 	}
 
 	switch m.mode {
-	case modeLocked:
-		return m.renderLocked()
+	case modeUnlock, modeSetup:
+		return m.renderAuth()
 	case modeForm:
 		return m.placeModal(m.renderForm())
 	case modeConfirmDelete:
@@ -152,8 +153,8 @@ func (m model) renderEmpty() string {
 			lipgloss.NewStyle().Bold(true).Foreground(accent).Render("Welcome to Pandora"),
 			"",
 			subtleStyle.Width(inner).Align(lipgloss.Center).Render(
-				"Secret values live in your operating system's keyring ("+backendName()+"). "+
-					"Pandora only keeps names, categories and notes in a local file, and never uses the network."),
+				"Secret values live in your operating system's keyring ("+backendName()+"), encrypted with your master password. "+
+					"Names, categories and notes are kept encrypted in a local vault file; Pandora never uses the network."),
 			"",
 			textStyle.Bold(true).Render("Press "+keyStyle.Render("n")+" to add your first secret"),
 		)
@@ -358,15 +359,45 @@ func (m model) placeModal(dialog string) string {
 	return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, body)
 }
 
-func (m model) renderLocked() string {
-	body := lipgloss.JoinVertical(lipgloss.Center,
-		lipgloss.NewStyle().Foreground(warning).Bold(true).Render(g.lock+" Locked"),
-		"",
-		subtleStyle.Render("Idle timeout reached. Values are hidden."),
-		"",
-		renderKeys([][2]string{{"any key", "unlock"}}),
-	)
-	return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, body)
+// renderAuth is the master-password screen: unlock, or first-run setup (which
+// also migrates an older plain-text store).
+func (m model) renderAuth() string {
+	inner := m.modalWidth() - 8
+	// Each input is drawn as a [ box ] with a hint inside, so it reads as a
+	// text field and not as a button.
+	field := func(i int, label string, in textinput.Model) string {
+		l := lipgloss.NewStyle().Width(formLabelW)
+		box := lipgloss.NewStyle().Width(in.Width + 1).Render(in.View())
+		if m.pwField == i {
+			br := lipgloss.NewStyle().Foreground(accent).Bold(true)
+			return br.Render(g.marker) + " " + l.Bold(true).Foreground(accent).Render(label) + br.Render("[") + box + br.Render("]")
+		}
+		return "  " + l.Foreground(subtle).Render(label) + subtleStyle.Render("[") + box + subtleStyle.Render("]")
+	}
+
+	var b strings.Builder
+	if m.mode == modeSetup {
+		heading := "Create a master password"
+		if m.migrating {
+			heading = fmt.Sprintf("Migrate %s to an encrypted vault", count(m.legacyN))
+		}
+		b.WriteString(titleStyle.Render(heading) + "\n\n")
+		b.WriteString(subtleStyle.Render(fmt.Sprintf("At least %d characters. It cannot be recovered.", store.MinPasswordLen)) + "\n\n")
+		b.WriteString(field(0, "Password", m.pwInput) + "\n")
+		b.WriteString(field(1, "Repeat", m.pwConfirm))
+	} else {
+		b.WriteString(lipgloss.NewStyle().Foreground(warning).Bold(true).Render(g.lock+" Locked") + "\n\n")
+		b.WriteString(subtleStyle.Render("Enter your master password.") + "\n\n")
+		b.WriteString(field(0, "Password", m.pwInput))
+	}
+	b.WriteString("\n\n")
+	switch {
+	case m.unlocking:
+		b.WriteString(m.spinner.View() + " " + subtleStyle.Render("Working"+g.ellipsis))
+	case m.unlockErr != "":
+		b.WriteString(lipgloss.NewStyle().Foreground(danger).Bold(true).Render(m.unlockErr))
+	}
+	return m.placeModal(modalStyle.Width(m.modalWidth()).Render(lipgloss.NewStyle().MaxWidth(inner).Render(b.String())))
 }
 
 // formLabelW is the width of the form's label column.
@@ -558,8 +589,16 @@ func (m model) renderHelp() string {
 		if m.helpScrollable() {
 			keys = [][2]string{{"↑/↓ pgup/pgdn", "scroll"}, {"esc", "close"}}
 		}
-	case modeLocked:
-		keys = [][2]string{{"any key", "unlock"}}
+	case modeUnlock:
+		keys = [][2]string{{"enter", "unlock"}, {"ctrl+r", revealLabel(m.pwShow)}, {"ctrl+c", "quit"}}
+	case modeSetup:
+		keys = [][2]string{{"tab", "next field"}, {"enter", "next"}, {"ctrl+r", revealLabel(m.pwShow)}, {"ctrl+c", "quit"}}
+		if m.pwField == 1 {
+			keys[1][1] = "create"
+			if m.migrating {
+				keys[1][1] = "migrate"
+			}
+		}
 	default:
 		if len(m.list.Items()) == 0 {
 			keys = [][2]string{{"n", "new"}, {"?", "help"}, {"q", "quit"}}
@@ -600,4 +639,12 @@ func renderKeys(keys [][2]string) string {
 		parts[i] = keyStyle.Render(k[0]) + " " + subtleStyle.Render(k[1])
 	}
 	return strings.Join(parts, subtleStyle.Render(" "+g.sep+" "))
+}
+
+// revealLabel is the footer text of the show/hide-password key.
+func revealLabel(shown bool) string {
+	if shown {
+		return "hide"
+	}
+	return "show"
 }

@@ -15,8 +15,11 @@ import (
 	"github.com/RafaSG13/Pandora/internal/store"
 )
 
+const testMaster = "correct horse battery"
+
 // isolate points the keyring at the in-memory mock and the config directory
-// at a temp dir, so tests never touch the real keychain or metadata.
+// at a temp dir, so tests never touch the real keychain or vault, and creates
+// an unlocked vault with testMaster as its password.
 func isolate(t *testing.T) {
 	t.Helper()
 	keyring.MockInit()
@@ -24,24 +27,42 @@ func isolate(t *testing.T) {
 	t.Setenv("HOME", dir)
 	t.Setenv("XDG_CONFIG_HOME", filepath.Join(dir, ".config"))
 	t.Setenv("AppData", dir)
+	store.FastKDFForTests()
+	t.Cleanup(store.Lock)
+	store.Lock()
+	if err := store.Create(testMaster); err != nil {
+		t.Fatal(err)
+	}
 }
 
 // harness is one CLI invocation with controllable terminal and environment.
+// Every run starts like a new process: the vault is locked, and the master
+// password comes from PANDORA_MASTER_PASSWORD unless noMaster is set or env
+// already defines it.
 type harness struct {
-	env    map[string]string
-	tty    bool
-	hidden []string // answers returned by successive hidden prompts
-	stdin  string
+	env      map[string]string
+	tty      bool
+	hidden   []string // answers returned by successive hidden prompts
+	stdin    string
+	noMaster bool
 }
 
 func (h harness) run(t *testing.T, args ...string) (code int, stdout, stderr string) {
 	t.Helper()
+	store.Lock()
+	env := map[string]string{}
+	for k, v := range h.env {
+		env[k] = v
+	}
+	if _, ok := env[masterEnv]; !ok && !h.noMaster {
+		env[masterEnv] = testMaster
+	}
 	var out, errb bytes.Buffer
 	a := newApp(strings.NewReader(h.stdin), &out, &errb)
-	a.getenv = func(k string) string { return h.env[k] }
+	a.getenv = func(k string) string { return env[k] }
 	a.environ = func() []string {
 		e := []string{"PATH=" + os.Getenv("PATH")}
-		for k, v := range h.env {
+		for k, v := range env {
 			e = append(e, k+"="+v)
 		}
 		return e
@@ -58,6 +79,9 @@ func (h harness) run(t *testing.T, args ...string) (code int, stdout, stderr str
 	}
 	a.scryptWorkFactor = 10
 	code = a.run(args)
+	if !h.noMaster && !store.IsUnlocked() {
+		_ = store.Unlock(testMaster) // lets the test inspect the store afterwards
+	}
 	return code, out.String(), errb.String()
 }
 
@@ -248,11 +272,11 @@ func TestRunInjectsEnvForChildOnlyAndPropagatesExitCode(t *testing.T) {
 
 	h := harness{env: map[string]string{"PANDORA_PASSPHRASE": "hunter2", "KEEP": "me"}}
 	code, stdout, stderr := h.run(t, "run", "-s", "api-key=MY_KEY", "-s", "db pass.v2", "--",
-		"sh", "-c", `printf '%s|%s|%s|[%s]' "$MY_KEY" "$DB_PASS_V2" "$KEEP" "$PANDORA_PASSPHRASE"; exit 7`)
+		"sh", "-c", `printf '%s|%s|%s|[%s][%s]' "$MY_KEY" "$DB_PASS_V2" "$KEEP" "$PANDORA_PASSPHRASE" "$PANDORA_MASTER_PASSWORD"; exit 7`)
 	if code != 7 {
 		t.Errorf("exit code = %d, want 7 (stderr %q)", code, stderr)
 	}
-	if want := "KEY-VALUE|DB-VALUE|me|[]"; stdout != want {
+	if want := "KEY-VALUE|DB-VALUE|me|[][]"; stdout != want {
 		t.Errorf("child saw %q, want %q", stdout, want)
 	}
 	if os.Getenv("MY_KEY") != "" || os.Getenv("DB_PASS_V2") != "" {
@@ -339,8 +363,7 @@ func TestUsageAndHelpExitCodes(t *testing.T) {
 func TestDoctorDetectsAndFixesOrphan(t *testing.T) {
 	isolate(t)
 	mustSave(t, "healthy", "X", "v")
-	mustSave(t, "orphan", "X", "v")
-	if err := keyring.Delete(store.ServiceName, "orphan"); err != nil {
+	if err := store.RestoreSecrets([]store.Restore{{Meta: store.SecretMeta{Title: "orphan", Category: "X", Created: "2026-01-02"}}}); err != nil {
 		t.Fatal(err)
 	}
 

@@ -30,6 +30,10 @@ const (
 // passphrase when no terminal is available.
 const passphraseEnv = "PANDORA_PASSPHRASE"
 
+// masterEnv names the environment variable that supplies the master password
+// when no terminal is available.
+const masterEnv = "PANDORA_MASTER_PASSWORD"
+
 // exitError carries the exit code for Run. An empty msg means the message was
 // already printed.
 type exitError struct {
@@ -56,6 +60,8 @@ type app struct {
 	readHidden func(prompt string) (string, error)
 	// scryptWorkFactor overrides the age scrypt cost (log2 N) when non-zero.
 	scryptWorkFactor int
+	// warnedEnv records which environment-secret warnings were already printed.
+	warnedEnv map[string]bool
 }
 
 // Run executes the command line (without the program name) and returns the

@@ -34,6 +34,9 @@ func (a *app) cmdList(args []string) error {
 		return err
 	}
 
+	if err := a.unlock(); err != nil {
+		return err
+	}
 	items, err := store.LoadMetadata()
 	if err != nil {
 		return err
@@ -66,6 +69,9 @@ func (a *app) cmdGet(args []string) error {
 	fs := flag.NewFlagSet("get", flag.ContinueOnError)
 	pos, err := a.parse("get", "get <title>", fs, args, 1, 1)
 	if err != nil {
+		return err
+	}
+	if err := a.unlock(); err != nil {
 		return err
 	}
 	value, err := secretValue(pos[0])
@@ -107,6 +113,9 @@ func (a *app) cmdAdd(args []string) error {
 		return usageErrorf("add: invalid --expires %q: %v", expires, err)
 	}
 
+	if err := a.unlock(); err != nil {
+		return err
+	}
 	value, err := a.readValue(title)
 	if err != nil {
 		return err
@@ -123,8 +132,11 @@ func (a *app) cmdAdd(args []string) error {
 		Notes:    notes,
 	}
 	if err := store.SaveSecret(meta, value); err != nil {
-		if errors.Is(err, store.ErrExists) {
+		switch {
+		case errors.Is(err, store.ErrExists):
 			return fmt.Errorf("secret %q already exists", title)
+		case errors.Is(err, store.ErrInvalidText):
+			return usageErrorf("add: %v", err)
 		}
 		return err
 	}
@@ -160,6 +172,9 @@ func (a *app) cmdRm(args []string) error {
 	}
 	title := pos[0]
 
+	if err := a.unlock(); err != nil {
+		return err
+	}
 	items, err := store.LoadMetadata()
 	if err != nil {
 		return err
@@ -196,6 +211,9 @@ func (a *app) cmdDoctor(args []string) error {
 		return err
 	}
 
+	if err := a.unlock(); err != nil {
+		return err
+	}
 	items, err := store.LoadMetadata()
 	if err != nil {
 		return err

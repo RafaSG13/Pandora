@@ -16,7 +16,7 @@ func TestMissingValuesReportsOnlyEntriesWithoutValue(t *testing.T) {
 	mustSave(t, "gone", "X", "v2")
 	mustSave(t, "also-gone", "X", "v3")
 	for _, title := range []string{"gone", "also-gone"} {
-		if err := keyring.Delete(ServiceName, title); err != nil {
+		if err := keyring.Delete(ServiceName, idOf(t, title)); err != nil {
 			t.Fatal(err)
 		}
 	}

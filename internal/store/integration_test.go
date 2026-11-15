@@ -25,6 +25,11 @@ func TestRealKeyring(t *testing.T) {
 	t.Setenv("HOME", dir)
 	t.Setenv("XDG_CONFIG_HOME", filepath.Join(dir, ".config"))
 	t.Setenv("AppData", dir)
+	FastKDFForTests()
+	t.Cleanup(Lock)
+	if err := Create("correct horse battery"); err != nil {
+		t.Fatal(err)
+	}
 
 	var b [6]byte
 	if _, err := rand.Read(b[:]); err != nil {

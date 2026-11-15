@@ -114,14 +114,14 @@ func TestExportPromptsTwiceOnTerminalAndRejectsMismatch(t *testing.T) {
 	seed(t)
 	file := filepath.Join(t.TempDir(), "b.age")
 
-	code, _, stderr := harness{tty: true, hidden: []string{"one", "two"}}.run(t, "export", "--values", "-o", file)
+	code, _, stderr := harness{tty: true, hidden: []string{"passphrase-one", "passphrase-two"}}.run(t, "export", "--values", "-o", file)
 	if code != 1 || !strings.Contains(stderr, "do not match") {
 		t.Errorf("mismatch: %d %q", code, stderr)
 	}
 	if _, err := os.Stat(file); err == nil {
 		t.Error("file written despite mismatched passphrases")
 	}
-	if code, _, e := (harness{tty: true, hidden: []string{"same", "same"}}).run(t, "export", "--values", "-o", file); code != 0 {
+	if code, _, e := (harness{tty: true, hidden: []string{"same-passphrase", "same-passphrase"}}).run(t, "export", "--values", "-o", file); code != 0 {
 		t.Fatal(e)
 	}
 }
@@ -156,9 +156,7 @@ func TestExportRefusesToOverwriteWithoutForce(t *testing.T) {
 func TestExportWithValuesFailsListingEntriesWithoutValue(t *testing.T) {
 	isolate(t)
 	seed(t)
-	if err := keyring.Delete(store.ServiceName, "bravo"); err != nil {
-		t.Fatal(err)
-	}
+	keyring.MockInit() // every value is gone; the vault still lists both entries
 	file := filepath.Join(t.TempDir(), "b.age")
 	code, _, stderr := withPass(pass).run(t, "export", "--values", "-o", file)
 	if code != 1 || !strings.Contains(stderr, "bravo") || !strings.Contains(stderr, "doctor") {

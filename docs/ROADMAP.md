@@ -39,8 +39,8 @@ An item is `done` only when its **Acceptance** list holds *and*:
 ## Constraints that apply to every item
 
 - **No network code in the binary and no telemetry.** See [Not planned](#not-planned); lifting it needs an explicit user decision.
-- **Secret values live only in the OS keyring** (service `pandora-cli`), never in metadata, logs, error messages, toasts or test output. Exports with values are encrypted.
-- **`metadata.json` is a persisted format.** New fields are `omitempty` and a missing field must have a sensible default, so old files keep loading and a downgrade does not corrupt anything. Any item that cannot honour this must say so in its plan and ask the user.
+- **Secret values live only in the OS keyring** (service `pandora-cli`, encrypted under the vault key, account = an opaque random ID), never in the vault, logs, error messages, toasts or test output. Names, categories and notes are only ever stored encrypted. Exports with values are encrypted.
+- **`vault.json` is a persisted format** (version `2`, encrypted). New record fields are `omitempty` inside the encrypted JSON and a missing field must have a sensible default. A format change needs a new `version` and a migration; `store.SecretMeta` is also the export/import schema. Any item that cannot honour this must say so in its plan and ask the user.
 - **Layering.** `internal/store` has no UI dependency; `internal/tui` reaches the keyring and files only through `store`; `internal/cli` takes its streams as arguments and returns an exit code (`0` ok, `1` runtime, `2` usage).
 - **Terminal floor.** The TUI must stay usable at 60×18, have an ASCII fallback (`PANDORA_ASCII=1`), and keep the view exactly the window height.
 - **Time-based behaviour uses deadlines** driven by the 1 s `tickMsg` and the injectable `model.now`, not per-action timers.
@@ -74,7 +74,7 @@ Never touch the real keychain, config directory or clipboard. Use `keyring.MockI
 | R-27 | External-change detection and file lock | 0.2 | M | – | todo |
 | R-28 | Keyring index and recovery | 0.2 | L | R-24 (soft) | todo |
 | R-30 | `expiring` command | 0.3 | S | – | todo |
-| R-31 | Unlock challenge | 0.3 | L | R-23 | todo |
+| R-31 | Unlock challenge | 0.3 | L | R-23 | done (master password) |
 | R-32 | Local audit log | 0.3 | M | R-23 | todo |
 | R-40 | TOTP codes | later | L | R-20 (soft) | todo |
 | R-41 | Folder-sync vault file | later | L | R-23, R-28 | todo |
@@ -199,8 +199,8 @@ Milestones are a suggested cut, not a contract: **0.1.0** is "safe and easy to i
 
 **Scope.** Document, in README and SECURITY.md, honestly and briefly:
 1. `pandora run` puts values in the child's environment: visible to the child, its children, and (on some OSes) `ps eww`/`/proc/<pid>/environ` to same-user processes.
-2. The idle lock **masks the screen only**; any key unlocks, because the keyring is already open for the session. It is not authentication (see R-31).
-3. Secret *names*, categories, notes and expiry dates are stored in plain text in `metadata.json` (already mentioned) and in the `.bak`; `export` without `--values` writes them too.
+2. *(Historical; replaced by the master password, R-31.)* The idle lock masked the screen only; any key unlocked.
+3. *(Historical.)* Secret *names*, categories, notes and expiry dates were stored in plain text in `metadata.json` and its `.bak`; `export` without `--values` still writes them to the file you choose.
 Also state the threat model in one paragraph: shoulder surfing, accidental screen sharing and shell-history leaks are in; same-user malware is out.
 
 **Starting points.** `README.md` "Security model", `SECURITY.md` "Scope", `internal/cli/run.go`.
@@ -456,22 +456,9 @@ Also state the threat model in one paragraph: shoulder surfing, accidental scree
 **Acceptance.** Table test for window boundaries (today, tomorrow, yesterday, no expiry); JSON output stable and documented.
 
 ### R-31 Unlock challenge
-**Status** todo · **Size** L · **Depends** R-23
+**Status** done (superseded by the master-password vault) · **Size** L · **Depends** R-23
 
-**Why.** The idle lock only masks the screen (see R-06); any key unlocks.
-
-**Scope.** Optionally require a passphrase to leave the lock screen (and to reveal/copy when configured).
-
-**Decisions (design needed).**
-- It protects against a person at an unattended terminal, not against same-user malware (which can read the keyring directly). Say so in the UI and README; do not oversell.
-- Verifier: a salted memory-hard hash (argon2id or scrypt from `golang.org/x/crypto`, already an indirect dependency in `go.mod`) stored in the config. Never store the passphrase.
-- Biometrics (Touch ID/Windows Hello) require cgo/OS APIs: out of scope for this item.
-- Failed-attempt policy: backoff, no lockout that can lose data.
-- Recovery: forgetting the passphrase must not lose secrets (they remain in the keyring and the CLI still works) — state clearly that this is a UI gate.
-
-**Ask the user.** Is a UI-only gate worth shipping given its limits, or should this be dropped?
-
-**Acceptance.** Wrong passphrase never unlocks; correct one restores the previous mode including a half-typed form; no passphrase in logs/metadata; tests with an injected clock for backoff.
+**Outcome.** Instead of a UI-only gate, a master password now protects the data itself: `vault.json` holds encrypted names and metadata, keyring values are encrypted under the same key, and both the TUI (including after the idle lock) and the CLI ask for the password. Argon2id + XChaCha20-Poly1305 (`golang.org/x/crypto`); no recovery, so `export --values` is the backup route. See README "Security model" and `docs/ARCHITECTURE.md` "Persisted data". Biometrics and a failed-attempt backoff were not built; the KDF cost is the brake.
 
 ### R-32 Local audit log
 **Status** todo · **Size** M · **Depends** R-23

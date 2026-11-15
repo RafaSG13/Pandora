@@ -2,7 +2,6 @@ package tui
 
 import (
 	"errors"
-	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -15,17 +14,36 @@ import (
 	"github.com/RafaSG13/Pandora/internal/store"
 )
 
+// testPassword is the master password of the vault newTestModel creates.
+const testPassword = "correct horse battery"
+
 // clipboardLog records what the app wrote to the (stubbed) system clipboard.
 var clipboardLog []string
 
-// newTestModel isolates keyring, config dir and clipboard and returns a sized model.
+// newTestModel isolates keyring, config dir and clipboard, creates an
+// unlocked vault and returns a sized model.
 func newTestModel(t *testing.T) tea.Model {
+	t.Helper()
+	return newModelFor(t, true, 100, 30)
+}
+
+// newModelFor is newTestModel with a choice of vault (none means the first-run
+// setup screen) and terminal size.
+func newModelFor(t *testing.T, createVault bool, w, h int) tea.Model {
 	t.Helper()
 	keyring.MockInit()
 	dir := t.TempDir()
 	t.Setenv("HOME", dir)
 	t.Setenv("XDG_CONFIG_HOME", filepath.Join(dir, ".config"))
 	t.Setenv("AppData", dir)
+	store.FastKDFForTests()
+	store.Lock()
+	t.Cleanup(store.Lock)
+	if createVault {
+		if err := store.Create(testPassword); err != nil {
+			t.Fatal(err)
+		}
+	}
 
 	clipboardLog = nil
 	origWrite, origRead := writeClipboard, readClipboard
@@ -45,7 +63,7 @@ func newTestModel(t *testing.T) tea.Model {
 	origNoColor, origProfile := noColor, lipgloss.ColorProfile()
 	t.Cleanup(func() { noColor = origNoColor; lipgloss.SetColorProfile(origProfile) })
 
-	m, _ := New().Update(tea.WindowSizeMsg{Width: 100, Height: 30})
+	m, _ := New().Update(tea.WindowSizeMsg{Width: w, Height: h})
 	mm := m.(model)
 	mm.lockAfter = 0 // idle lock is opt-in per test
 	return mm
@@ -188,16 +206,18 @@ func TestReloadPicksUpExternalChangesAndKeepsSelection(t *testing.T) {
 	m := add(newTestModel(t), "a", "X", "1")
 	m = add(m, "b", "X", "2") // b selected
 
-	dir, _ := os.UserConfigDir()
-	file := filepath.Join(dir, "pandora", "metadata.json")
-	data := `[{"title":"c","category":"Z","created":"1"},{"title":"a","category":"X","created":"1"},{"title":"b","category":"X","created":"1"}]`
-	if err := os.WriteFile(file, []byte(data), 0600); err != nil {
+	// Another Pandora instance adds a secret behind this model's back.
+	if err := store.SaveSecret(store.SecretMeta{Title: "c", Category: "Z", Created: "2026-01-01"}, "3"); err != nil {
 		t.Fatal(err)
 	}
 
 	m = press(m, "r")
-	if got := strings.Join(titles(m), ","); got != "c,a,b" {
-		t.Errorf("titles = %s, want c,a,b", got)
+	got := map[string]bool{}
+	for _, title := range titles(m) {
+		got[title] = true
+	}
+	if len(got) != 3 || !got["a"] || !got["b"] || !got["c"] {
+		t.Errorf("titles = %v, want a, b and c", titles(m))
 	}
 	if sel := m.(model).list.SelectedItem().(item); sel.meta.Title != "b" {
 		t.Errorf("selection moved to %q, want b", sel.meta.Title)

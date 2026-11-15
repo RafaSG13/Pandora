@@ -32,10 +32,17 @@ func (a *app) cmdCompletion(args []string) error {
 // cmdComplete is the hidden helper behind the generated scripts: it prints
 // completion candidates, one per line. It prints secret titles (or
 // categories) and never values. It must not prompt and must not fail loudly,
-// so every problem ends in empty output and exit code 0.
+// so every problem ends in empty output and exit code 0. Names are encrypted,
+// so candidates exist only when PANDORA_MASTER_PASSWORD is exported.
 func (a *app) cmdComplete(args []string) error {
 	if len(args) == 0 {
 		return nil
+	}
+	if !store.IsUnlocked() {
+		pw := a.getenv(masterEnv)
+		if pw == "" || !store.Exists() || store.Unlock(pw) != nil {
+			return nil
+		}
 	}
 	items, err := store.LoadMetadata()
 	if err != nil {

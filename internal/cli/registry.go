@@ -119,6 +119,7 @@ func commands() []command {
 			},
 			run: (*app).cmdDoctor,
 		},
+		{name: "passwd", summary: "Change the master password", run: (*app).cmdPasswd},
 		{
 			name: "gen", summary: "Generate random secrets (printed to stdout, not stored)",
 			flags: []flagSpec{

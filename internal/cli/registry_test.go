@@ -232,17 +232,16 @@ func TestCompleteNeverFailsOrPrompts(t *testing.T) {
 	}
 
 	// A store error ends quietly too.
-
 	dir, err := os.UserConfigDir()
 	if err != nil {
 		t.Fatal(err)
 	}
-	file := filepath.Join(dir, "pandora", "metadata.json")
+	file := filepath.Join(dir, "pandora", "vault.json")
 	if err := os.WriteFile(file, []byte("{not json"), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	code, stdout, stderr := harness{tty: true}.run(t, "__complete", "titles")
 	if code != 0 || stdout != "" || stderr != "" {
-		t.Errorf("broken metadata: exit %d, stdout %q, stderr %q; want silent success", code, stdout, stderr)
+		t.Errorf("broken vault: exit %d, stdout %q, stderr %q; want silent success", code, stdout, stderr)
 	}
 }

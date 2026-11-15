@@ -10,7 +10,10 @@ import (
 	"github.com/zalando/go-keyring"
 )
 
-// setup isolates the keyring (in-memory mock) and the config directory.
+const testPassword = "correct horse battery"
+
+// setup isolates the keyring (in-memory mock) and the config directory and
+// leaves a fresh, unlocked vault.
 func setup(t *testing.T) {
 	t.Helper()
 	keyring.MockInit()
@@ -18,6 +21,12 @@ func setup(t *testing.T) {
 	t.Setenv("HOME", dir)
 	t.Setenv("XDG_CONFIG_HOME", filepath.Join(dir, ".config"))
 	t.Setenv("AppData", dir)
+	FastKDFForTests()
+	t.Cleanup(Lock)
+	Lock()
+	if err := Create(testPassword); err != nil {
+		t.Fatal(err)
+	}
 }
 
 func mustSave(t *testing.T, title, category, value string) {
@@ -25,6 +34,20 @@ func mustSave(t *testing.T, title, category, value string) {
 	if err := SaveSecret(SecretMeta{Title: title, Category: category, Created: "2026-01-02"}, value); err != nil {
 		t.Fatalf("SaveSecret(%q): %v", title, err)
 	}
+}
+
+// idOf returns the keyring account of the record titled title.
+func idOf(t *testing.T, title string) string {
+	t.Helper()
+	recs, err := loadRecords()
+	if err != nil {
+		t.Fatal(err)
+	}
+	i := recordIndex(recs, title)
+	if i < 0 {
+		t.Fatalf("no record titled %q", title)
+	}
+	return recs[i].ID
 }
 
 func titles(t *testing.T) []string {
@@ -60,6 +83,7 @@ func TestDelete(t *testing.T) {
 	setup(t)
 	mustSave(t, "a", "X", "one")
 	mustSave(t, "b", "X", "two")
+	id := idOf(t, "a")
 
 	if err := DeleteSecret("a"); err != nil {
 		t.Fatal(err)
@@ -68,6 +92,9 @@ func TestDelete(t *testing.T) {
 		t.Errorf("titles = %v, want [b]", got)
 	}
 	if _, err := GetSecretValue("a"); !errors.Is(err, keyring.ErrNotFound) {
+		t.Errorf("GetSecretValue after delete: err = %v, want not found", err)
+	}
+	if _, err := keyring.Get(ServiceName, id); !errors.Is(err, keyring.ErrNotFound) {
 		t.Errorf("keyring value for a still present: err = %v", err)
 	}
 	if err := DeleteSecret("a"); !errors.Is(err, ErrNotFound) {
@@ -78,7 +105,7 @@ func TestDelete(t *testing.T) {
 func TestDeleteWhenKeyringValueAlreadyGone(t *testing.T) {
 	setup(t)
 	mustSave(t, "a", "X", "one")
-	_ = keyring.Delete(ServiceName, "a")
+	_ = keyring.Delete(ServiceName, idOf(t, "a"))
 
 	if err := DeleteSecret("a"); err != nil {
 		t.Fatalf("err = %v, want metadata cleanup to succeed", err)
@@ -117,10 +144,15 @@ func TestUpdateNewValue(t *testing.T) {
 	}
 }
 
-func TestUpdateRenameMovesValueAndRemovesOldEntry(t *testing.T) {
+func TestUpdateRenameKeepsSameKeyringEntry(t *testing.T) {
 	setup(t)
 	mustSave(t, "a", "X", "one")
 	mustSave(t, "z", "X", "last")
+	id := idOf(t, "a")
+	before, err := keyring.Get(ServiceName, id)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	if err := UpdateSecret("a", SecretMeta{Title: "b", Category: "X"}, nil); err != nil {
 		t.Fatal(err)
@@ -132,7 +164,13 @@ func TestUpdateRenameMovesValueAndRemovesOldEntry(t *testing.T) {
 		t.Errorf("value under new name = %q, want one", v)
 	}
 	if _, err := GetSecretValue("a"); !errors.Is(err, keyring.ErrNotFound) {
-		t.Errorf("old keyring entry still present: err = %v", err)
+		t.Errorf("old name still resolves: err = %v", err)
+	}
+	if idOf(t, "b") != id {
+		t.Error("rename changed the keyring account")
+	}
+	if after, _ := keyring.Get(ServiceName, id); after != before {
+		t.Error("rename rewrote the stored value")
 	}
 }
 
@@ -152,14 +190,14 @@ func TestUpdateErrors(t *testing.T) {
 	}
 }
 
-func TestLoadCollapsesDuplicatesFromOlderFiles(t *testing.T) {
+func TestLoadCollapsesDuplicateTitles(t *testing.T) {
 	setup(t)
-	file, _ := metadataPath()
-	if err := os.MkdirAll(filepath.Dir(file), 0700); err != nil {
-		t.Fatal(err)
+	recs := []record{
+		{ID: "1", SecretMeta: SecretMeta{Title: "a", Category: "X", Created: "1"}},
+		{ID: "2", SecretMeta: SecretMeta{Title: "b", Category: "X", Created: "2"}},
+		{ID: "3", SecretMeta: SecretMeta{Title: "a", Category: "Y", Created: "3"}},
 	}
-	old := `[{"title":"a","category":"X","created":"1"},{"title":"b","category":"X","created":"2"},{"title":"a","category":"Y","created":"3"}]`
-	if err := os.WriteFile(file, []byte(old), 0600); err != nil {
+	if err := saveRecords(recs); err != nil {
 		t.Fatal(err)
 	}
 
@@ -172,18 +210,15 @@ func TestLoadCollapsesDuplicatesFromOlderFiles(t *testing.T) {
 	}
 }
 
-func TestCorruptMetadataIsNotOverwritten(t *testing.T) {
+func TestCorruptVaultIsNotOverwritten(t *testing.T) {
 	setup(t)
-	file, _ := metadataPath()
-	if err := os.MkdirAll(filepath.Dir(file), 0700); err != nil {
-		t.Fatal(err)
-	}
+	file, _ := vaultPath()
 	if err := os.WriteFile(file, []byte("{not json"), 0600); err != nil {
 		t.Fatal(err)
 	}
 
 	if err := SaveSecret(SecretMeta{Title: "a"}, "v"); err == nil {
-		t.Fatal("SaveSecret succeeded on corrupt metadata")
+		t.Fatal("SaveSecret succeeded on corrupt vault")
 	}
 	data, _ := os.ReadFile(file)
 	if string(data) != "{not json" {
@@ -191,13 +226,13 @@ func TestCorruptMetadataIsNotOverwritten(t *testing.T) {
 	}
 }
 
-func TestMetadataFileMode(t *testing.T) {
+func TestVaultFileMode(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("Windows has no POSIX file modes")
 	}
 	setup(t)
 	mustSave(t, "a", "X", "one")
-	file, _ := metadataPath()
+	file, _ := vaultPath()
 	st, err := os.Stat(file)
 	if err != nil {
 		t.Fatal(err)

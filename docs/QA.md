@@ -16,6 +16,9 @@ Use a throwaway test vault: start with a clean `HOME`-level config (move `~/Libr
 | Delete an entry in the OS keychain tool, restart Pandora | The secret is marked `!` in the list, and `pandora doctor` reports it. |
 | Locked keychain (macOS: lock the login keychain) | A clear error, no crash, no data loss. |
 | Linux without a running Secret Service (e.g. a bare SSH session) | The error screen / CLI message says the keyring is unavailable. |
+| First start on a profile with an older plain-text store (`metadata.json`) | Asks for a new master password, migrates, `metadata.json*` is gone, and `security dump-keychain` shows only 32-hex accounts under `pandora-cli`. |
+| Idle lock (`PANDORA_LOCK_MINUTES=1`) | Unlock screen with an empty list; a key press does not unlock; the master password does; a wrong password stays locked. |
+| `PANDORA_MASTER_PASSWORD=… pandora get <title> \| cat` | Prints the value; the env warning is on stderr only. |
 
 ## 2. Clipboard
 

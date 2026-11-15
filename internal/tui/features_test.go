@@ -214,9 +214,10 @@ func TestUpdateSecretStampsUpdatedAndKeepsBackup(t *testing.T) {
 		t.Errorf("metadata after update = %+v", metas[0])
 	}
 	dir, _ := os.UserConfigDir()
-	bak, err := os.ReadFile(filepath.Join(dir, "pandora", "metadata.json.bak"))
-	if err != nil || !strings.Contains(string(bak), `"category": "X"`) {
-		t.Errorf("backup missing or not the previous contents: err=%v bak=%s", err, bak)
+	bak, err := os.ReadFile(filepath.Join(dir, "pandora", "vault.json.bak"))
+	cur, _ := os.ReadFile(filepath.Join(dir, "pandora", "vault.json"))
+	if err != nil || len(bak) == 0 || string(bak) == string(cur) {
+		t.Errorf("backup missing or not the previous contents: err=%v", err)
 	}
 }
 
@@ -274,7 +275,34 @@ func TestExpiryShownInListHeaderAndDetail(t *testing.T) {
 	}
 }
 
-func TestIdleLockMasksClearsClipboardAndAnyKeyUnlocks(t *testing.T) {
+// submitPassword types pw and presses enter, then runs the resulting commands
+// (the key derivation runs off the UI thread in the real program) and feeds
+// the unlock result back.
+func submitPassword(t *testing.T, m tea.Model, pw string) tea.Model {
+	t.Helper()
+	m = press(m, pw)
+	m, cmd := m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	if cmd == nil {
+		return m
+	}
+	if !m.(model).unlocking {
+		t.Fatal("enter did not start unlocking")
+	}
+	var cmds []tea.Cmd
+	if batch, ok := cmd().(tea.BatchMsg); ok {
+		cmds = batch
+	} else {
+		t.Fatal("expected a batch of commands")
+	}
+	for _, c := range cmds {
+		if res, ok := c().(unlockedMsg); ok {
+			m, _ = m.Update(res)
+		}
+	}
+	return m
+}
+
+func TestIdleLockHidesEverythingAndNeedsThePassword(t *testing.T) {
 	m := add(newTestModel(t), "visible-title", "X", "val")
 	mm := m.(model)
 	mm.lockAfter = 5 * time.Minute
@@ -286,14 +314,17 @@ func TestIdleLockMasksClearsClipboardAndAnyKeyUnlocks(t *testing.T) {
 	m = press(m, "j") // activity resets the idle clock
 	now = now.Add(4 * time.Minute)
 	m = tickAt(m, now)
-	if m.(model).mode == modeLocked {
+	if m.(model).locked() {
 		t.Fatal("locked although the user was active 4 minutes ago")
 	}
 
 	now = now.Add(2 * time.Minute)
 	m = tickAt(m, now)
-	if m.(model).mode != modeLocked {
-		t.Fatal("not locked after the idle timeout")
+	if m.(model).mode != modeUnlock || store.IsUnlocked() {
+		t.Fatalf("mode = %v, unlocked = %v; want the unlock screen and a locked store", m.(model).mode, store.IsUnlocked())
+	}
+	if n := len(m.(model).list.Items()); n != 0 {
+		t.Errorf("%d list items kept in memory while locked", n)
 	}
 	if clipboardLog[len(clipboardLog)-1] != "" || !m.(model).clipUntil.IsZero() || m.(model).revealTitle != "" {
 		t.Errorf("lock left secrets exposed: log=%q clipUntil=%v reveal=%q", clipboardLog, m.(model).clipUntil, m.(model).revealTitle)
@@ -302,24 +333,54 @@ func TestIdleLockMasksClearsClipboardAndAnyKeyUnlocks(t *testing.T) {
 		t.Errorf("lock screen wrong:\n%s", out)
 	}
 
-	m = press(m, "q") // any key unlocks and must not quit
-	if m.(model).mode != modeBrowse {
-		t.Errorf("mode after key = %v, want browse", m.(model).mode)
+	var cmd tea.Cmd
+	m, cmd = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("q")}) // typed into the field, not "quit"
+	if cmd != nil {
+		if _, quit := cmd().(tea.QuitMsg); quit {
+			t.Fatal("q quit the app from the unlock screen")
+		}
+	}
+	m = ctrl(ctrl(m, tea.KeyBackspace), tea.KeyEnter) // empty password: nothing happens
+	if m.(model).mode != modeUnlock || store.IsUnlocked() || m.(model).unlocking {
+		t.Fatal("a key press unlocked the vault")
+	}
+
+	m = submitPassword(t, m, "wrong wrong wrong")
+	if mm := m.(model); mm.mode != modeUnlock || store.IsUnlocked() || !strings.Contains(mm.View(), "Wrong password") {
+		t.Fatalf("wrong password: mode %v, unlocked %v\n%s", mm.mode, store.IsUnlocked(), mm.View())
+	}
+	if got := m.(model).pwInput.Value(); got != "" {
+		t.Errorf("password field not cleared after a failure: %q", got)
+	}
+
+	m = submitPassword(t, m, testPassword)
+	if m.(model).mode != modeBrowse || !store.IsUnlocked() {
+		t.Fatalf("correct password: mode %v, unlocked %v", m.(model).mode, store.IsUnlocked())
+	}
+	if got := titles(m); len(got) != 1 || got[0] != "visible-title" {
+		t.Errorf("titles after unlock = %v", got)
 	}
 }
 
-func TestLockRestoresOpenForm(t *testing.T) {
-	m := press(newTestModel(t), "n", "half-typed")
+func TestIdleLockDiscardsAnOpenForm(t *testing.T) {
+	m := newTestModel(t)
 	mm := m.(model)
 	mm.lockAfter = time.Minute
 	now := time.Now()
 	m = withClock(mm, &now)
 
+	m = press(m, "n", "half-typed-name", "enter", "cat", "enter", "typed-secret")
 	now = now.Add(2 * time.Minute)
 	m = tickAt(m, now)
-	m = press(m, "x")
-	if mm := m.(model); mm.mode != modeForm || mm.inputs[fieldName].Value() != "half-typed" {
-		t.Errorf("mode=%v name=%q, want the form back with its text", mm.mode, mm.inputs[fieldName].Value())
+
+	for i, in := range m.(model).inputs {
+		if in.Value() != "" {
+			t.Errorf("form field %d still holds %q after the lock", i, in.Value())
+		}
+	}
+	m = submitPassword(t, m, testPassword)
+	if m.(model).mode != modeBrowse {
+		t.Errorf("mode after unlock = %v, want browse (never back into the form)", m.(model).mode)
 	}
 }
 
@@ -427,17 +488,10 @@ func TestWelcomeScreenOnFirstRun(t *testing.T) {
 	}
 }
 
-func TestErrorStateWhenMetadataIsCorrupt(t *testing.T) {
-	keyring.MockInit()
-	dir := t.TempDir()
-	t.Setenv("HOME", dir)
-	t.Setenv("XDG_CONFIG_HOME", filepath.Join(dir, ".config"))
-	t.Setenv("AppData", dir)
+func TestErrorStateWhenVaultIsCorrupt(t *testing.T) {
+	newTestModel(t) // creates and unlocks the vault
 	cfg, _ := os.UserConfigDir()
-	if err := os.MkdirAll(filepath.Join(cfg, "pandora"), 0o700); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(cfg, "pandora", "metadata.json"), []byte("{not json"), 0o600); err != nil {
+	if err := os.WriteFile(filepath.Join(cfg, "pandora", "vault.json"), []byte("{not json"), 0o600); err != nil {
 		t.Fatal(err)
 	}
 
@@ -447,14 +501,16 @@ func TestErrorStateWhenMetadataIsCorrupt(t *testing.T) {
 		t.Errorf("error state missing:\n%s", out)
 	}
 	if strings.Contains(out, "Welcome to Pandora") {
-		t.Error("corrupt metadata shown as a fresh install")
+		t.Error("corrupt vault shown as a fresh install")
 	}
 }
 
 func TestOrphanDetectionMarksRowAndDetail(t *testing.T) {
 	m := add(newTestModel(t), "a", "X", "v")
 	m = add(m, "b", "X", "v")
-	if err := keyring.Delete(store.ServiceName, "a"); err != nil {
+	keyring.MockInit() // every value is gone ...
+	bv := "v"
+	if err := store.UpdateSecret("b", store.SecretMeta{Title: "b", Category: "X"}, &bv); err != nil { // ... then b gets its back
 		t.Fatal(err)
 	}
 
