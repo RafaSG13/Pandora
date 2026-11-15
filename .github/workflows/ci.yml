@@ -57,3 +57,5 @@ jobs:
         with:
           version: "~> v2"
           args: release --snapshot --clean --skip=publish
+        env:
+          HOMEBREW_TAP_TOKEN: ""
