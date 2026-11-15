@@ -29,6 +29,8 @@
 
 Vault writes go through a temp file in the same directory and `os.Rename`, so a crash cannot leave a half-written file; the previous contents are first copied to `vault.json.bak`. Every mutating function decrypts the vault first and aborts on error, so a corrupt or tampered file is never overwritten.
 
+**Concurrency.** Every function that writes (`Create`, `ChangePassword`, `MigrateLegacy`, `SaveSecret`, `UpdateSecret`, `DeleteSecret`, `RestoreSecrets`) holds an exclusive OS file lock (`flock`, `LockFileEx` on Windows) on `vault.lock` for its whole load → keyring write → save cycle, so concurrent processes serialize instead of overwriting each other. The kernel drops the lock when a process dies, so there is no stale-lock cleanup; `vault.lock` is never deleted. Waiting is polled up to 10 s, then the write fails with `ErrBusy` having changed nothing. Reads (`LoadMetadata`, `GetSecretValue`, `MissingValues`) never lock: the vault is replaced atomically, so they see a complete version. `VaultStamp()` (modification time and size of `vault.json`) lets a front end detect changes cheaply.
+
 ### `internal/cli`
 
 `cli.Run(args, stdin, stdout, stderr) int` looks the command up in one table (`registry.go`: name, summary, flags with value hints, positional kind) and calls its handler, each with its own `flag.FlagSet`. The same table builds the usage text and the bash/zsh/fish/PowerShell completion scripts (`completion.go`); a test runs `<cmd> -h` for every command and fails if the table's flags drift from the real ones. The hidden `__complete titles|categories` helper feeds completions and prints names only, never values, and stays silent on any error. Exit codes: `0` ok, `1` runtime error, `2` usage error. `export --values` encrypts with age (scrypt passphrase recipient, armored); `export` without `--values` is plain JSON without values. `run` injects secrets into the child's environment only and forwards signals. Secret values are printed only by `get` (and generated ones by `gen`, which stores nothing).
@@ -68,7 +70,7 @@ stateDiagram-v2
 
 **Master password.** `modeUnlock` and `modeSetup` own the keyboard until `store.Unlock` / `store.Create` / `store.MigrateLegacy` succeeds. The key derivation runs in a `tea.Cmd` off the UI thread (`unlockCmd` → `unlockedMsg`) with a spinner; input is ignored meanwhile except `ctrl+c`. `lock()` calls `store.Lock()` and empties the list, filters, form inputs and password fields, so no title stays in the model; unlocking always returns to Browse. While the list filter is active, browse-mode keys go to the list unchanged. Any key press clears the status message before it is handled. Failed saves keep the form open so nothing typed is lost.
 
-**Single source of truth.** After every mutation (add, edit, delete, `r`, `s`, category change) the model calls `reload(selectTitle)`, which re-reads `LoadMetadata()`, applies the category filter and sort, and calls `list.SetItems`; it never patches the list by index. `reload` restores the selection by title.
+**Single source of truth.** After every mutation (add, edit, delete, `r`, `s`, category change) the model calls `reload(selectTitle)`, which re-reads `LoadMetadata()`, applies the category filter and sort, and calls `list.SetItems`; it never patches the list by index. `reload` restores the selection by title (or the new last row when the selected one was the last and is gone) and records the vault's `store.VaultStamp()`. Each tick compares that stamp with the file's: when another process changed the vault and the model is browsing, it reloads and restarts the orphan check; in a form or delete confirmation it waits until the dialog closes.
 
 **Time.** One `tickMsg` per second (started in `Init`) drives everything time-based: reveal auto-hide, the clipboard deadline, toast expiry and the idle lock. State holds *deadlines* (`revealUntil`, `clipUntil`, `toastUntil`, `lastActive`), never per-action timers, so a second copy cannot be cleared by the first copy's timer. `model.now` is injectable for tests.
 
@@ -151,9 +153,9 @@ Tests replace the keyring with `keyring.MockInit()`, point `HOME`, `XDG_CONFIG_H
 
 ## Known limitations
 
-- A secret deleted or renamed by another Pandora instance is only noticed after `r` (reload); acting on it fails with a status message.
+- A change made by another process is detected by polling the size and modification time of `vault.json` once per tick. A file system with one-second timestamps could hide a same-size change made within the same second; `r` always reloads. A secret renamed or deleted elsewhere while you are editing it fails with a status message on save.
 - The revealed value in the detail card shows only its first lines when it does not fit (`c` copies all); there is no scrolling inside the card. Values are text only, up to 32 KB; there is no binary value type.
-- Two concurrent instances can race on `vault.json` (last writer wins).
+- The write lock is advisory: it protects against other Pandora processes, not against something editing `vault.json` or the keyring by hand. It needs a local file system with working `flock` / `LockFileEx` semantics; on a network share, locking may not exclude other machines.
 - go-keyring cannot enumerate entries, so `doctor` finds vault entries without a value but not keyring entries without a vault record.
 - The master password cannot be recovered; `export --values` is the backup route.
 - `ChangePassword` re-wraps the same data key, so someone who knew the old password and kept an old copy of `vault.json` (not the `.bak`, which is replaced) can still open that old copy. Rotating the data key would need every keyring value re-encrypted.

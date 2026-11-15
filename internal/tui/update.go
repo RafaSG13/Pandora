@@ -132,11 +132,7 @@ func (m model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, nil
 			}
 			m.notify(fmt.Sprintf("✓ Reloaded (%s)", count(m.total)), false)
-			m.checking = m.total > 0
-			if !m.checking {
-				return m, nil
-			}
-			return m, tea.Batch(m.spinner.Tick, checkOrphans(m.titles()))
+			return m, m.startOrphanCheck()
 		case "s":
 			m.sort = m.sort.next()
 			if err := m.reload(""); err != nil {
@@ -217,7 +213,44 @@ func (m model) tick() (tea.Model, tea.Cmd) {
 	if m.lockAfter > 0 && !m.locked() && now.Sub(m.lastActive) >= m.lockAfter {
 		m.lock()
 	}
-	return m, tickCmd()
+	cmds := []tea.Cmd{tickCmd()}
+	if c := m.reloadIfChangedElsewhere(); c != nil {
+		cmds = append(cmds, c)
+	}
+	return m, tea.Batch(cmds...)
+}
+
+// reloadIfChangedElsewhere refreshes the list when another process (the CLI, a
+// second instance) has rewritten the vault since the last load. It only acts
+// in browse mode: a form or a delete confirmation is never disturbed, and the
+// change is picked up on the first tick after it closes. The selection is kept
+// by title; own writes already reload, which refreshes the stamp, so they do
+// not trigger this. A vault that cannot be stat-ed is ignored: the list keeps
+// showing what was loaded.
+func (m *model) reloadIfChangedElsewhere() tea.Cmd {
+	if m.mode != modeBrowse || m.unlocking {
+		return nil
+	}
+	s, err := store.VaultStamp()
+	if err != nil || s == m.stamp {
+		return nil
+	}
+	if err := m.reload(""); err != nil {
+		m.notify(fmt.Sprintf("✗ Could not reload: %v", err), true)
+		return nil
+	}
+	m.notify(fmt.Sprintf("✓ Reloaded — changed elsewhere (%s)", count(m.total)), false)
+	return m.startOrphanCheck()
+}
+
+// startOrphanCheck begins the background check for entries whose keyring value
+// is missing; it returns nil when there is nothing to check.
+func (m *model) startOrphanCheck() tea.Cmd {
+	m.checking = m.total > 0
+	if !m.checking {
+		return nil
+	}
+	return tea.Batch(m.spinner.Tick, checkOrphans(m.titles()))
 }
 
 // clipboardHolds reports whether the clipboard still contains the value whose

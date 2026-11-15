@@ -108,6 +108,11 @@ func loadLegacy() ([]legacyItem, error) {
 // from the keyring are kept so doctor can list them. On failure the legacy
 // files and keyring entries are left untouched.
 func MigrateLegacy(password string) error {
+	release, err := lockVault()
+	if err != nil {
+		return err
+	}
+	defer release()
 	if !LegacyExists() {
 		return errors.New("no legacy metadata to migrate")
 	}
