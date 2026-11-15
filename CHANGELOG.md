@@ -5,6 +5,10 @@ All notable changes are documented here. The format follows [Keep a Changelog](h
 ## [Unreleased]
 
 ### Added
+- Category colours: each category gets a stable colour on the list bar, text and detail badge.
+- Custom list rows with a full-width highlight on the selected row.
+- Detail card with category badge and a bordered value box.
+- "Terminal too small" notice below 60×18.
 - Edit a secret (`e`): change name, category and optionally the value; renaming moves the keyring value.
 - Delete a secret (`d`) with a confirmation dialog.
 - Reload the list from disk (`r`).

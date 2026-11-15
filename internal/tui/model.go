@@ -46,13 +46,7 @@ type model struct {
 
 // New returns the root model, populated from the stored metadata.
 func New() tea.Model {
-	delegate := list.NewDefaultDelegate()
-	delegate.Styles.NormalTitle = delegate.Styles.NormalTitle.Foreground(text)
-	delegate.Styles.NormalDesc = delegate.Styles.NormalDesc.Foreground(subtle)
-	delegate.Styles.SelectedTitle = delegate.Styles.SelectedTitle.Foreground(accent).BorderLeftForeground(accent)
-	delegate.Styles.SelectedDesc = delegate.Styles.SelectedDesc.Foreground(subtle).BorderLeftForeground(accent)
-
-	l := list.New(nil, delegate, 40, 14)
+	l := list.New(nil, delegate{}, 40, 14)
 	l.Title = "Secrets"
 	l.Styles.Title = lipgloss.NewStyle().Bold(true).Foreground(accent)
 	l.SetShowHelp(false)

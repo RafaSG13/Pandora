@@ -7,7 +7,9 @@ var (
 	subtle  = lipgloss.AdaptiveColor{Light: "#64748B", Dark: "#94A3B8"}
 	success = lipgloss.AdaptiveColor{Light: "#059669", Dark: "#10B981"}
 	danger  = lipgloss.AdaptiveColor{Light: "#DC2626", Dark: "#F87171"}
-	text    = lipgloss.AdaptiveColor{Light: "#1E293B", Dark: "#F8FAFC"}
+	// selectedBg tints the selected list row.
+	selectedBg = lipgloss.AdaptiveColor{Light: "#EDE9FE", Dark: "#2E1065"}
+	text       = lipgloss.AdaptiveColor{Light: "#1E293B", Dark: "#F8FAFC"}
 )
 
 var (

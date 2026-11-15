@@ -9,6 +9,10 @@ Features that fit Pandora's scope (local, keyring-backed, keyboard-driven) and c
 - **Reload** (`r`): re-reads `metadata.json`, keeping the selection when the secret still exists.
 - **Duplicate titles**: adding or renaming onto an existing name is rejected with `✗ "<name>" already exists` and the form stays open. Entries duplicated by older versions are collapsed on load.
 - **Safer persistence**: metadata is written atomically; a corrupt `metadata.json` is reported instead of being overwritten.
+- **Category colours**: each category gets a stable colour (case-insensitive hash into an 8-colour adaptive palette), used for the row bar, the category text and the detail badge. Uncategorised secrets are muted.
+- **List rows**: custom delegate with a category bar, a full-width tinted background on the selected row, ellipsis truncation and filter-match underlining.
+- **Detail card**: title, category badge, created date and a bordered value box (accent border while revealed).
+- **Terminal size guard**: below 60×18 a `Terminal too small` notice is shown instead of a broken layout.
 
 ## Priority 2 — day-to-day usability
 
@@ -24,7 +28,6 @@ Features that fit Pandora's scope (local, keyring-backed, keyboard-driven) and c
 | Generate secret | `ctrl+g` in the form | Random password/token with selectable length and charset (`crypto/rand`). |
 | Expiry / rotation reminder | — | Optional `expires` date; show a warning badge in the list and header when near or past. |
 | Help overlay | `?` | Full key list; footer stays short. |
-| Minimum terminal size guard | — | Show `Terminal too small` below ~60×18 instead of an overflowing list pane (known limitation). |
 
 ## Visual improvements to the TUI
 
@@ -32,13 +35,11 @@ Assessment from running the current build at 100×30: the layout is correct but 
 
 ### Structure and density
 - **Fit the content, not the terminal**: cap the panes' height to their content (with a minimum) and centre or top-align the block, instead of drawing two tall empty boxes. Alternative: keep full height but use the spare space for the items below.
-- **Detail card**: split the right pane into sections: a large title with the category badge beside it, a metadata block (created, updated, expiry), a masked/revealed value box with its own border, and a notes block.
+- **Detail card**: add an updated/expiry block and a notes block (title, category badge, created date and bordered value box are done).
 - **Row separators and padding** in the list; one-line rows (`title … category`) as a compact mode toggled with `t`, three-line rows as the roomy default.
 - **Scrollbar / position indicator** (`3/12`) in the list pane instead of the default paginator dots.
 
 ### Colour and typography
-- **Per-category colours**: derive a stable colour for each category (hash → fixed palette of 6–8 adaptive colours) and use it for the badge, a coloured dot or bar in the list row, and the detail badge. Categories become scannable at a glance.
-- **Selection highlight**: full-row background on the selected item instead of only a left bar; dimmed (not hidden) when focus is in the detail pane.
 - **Focus indication**: bold border plus title tag (`╭─ Secrets ─╮`) on the active pane, muted on the other; focused input in the form gets an accent border/underline, unfocused inputs are muted.
 - **Status as toasts**: render the status message as a bordered pill in the bottom-right corner (green/red) that disappears after 3 s, instead of a plain line that shifts the layout.
 - **Header**: a logo glyph and gradient (accent → secondary) on `PANDORA`; vault status chip (`● unlocked`), and the keyring backend name (`Keychain`, `Secret Service`, `Credential Manager`).
@@ -58,8 +59,8 @@ Assessment from running the current build at 100×30: the layout is correct but 
 - **Mouse support**: click to select, scroll wheel in the list (`tea.WithMouseCellMotion`).
 
 ### Suggested visual order
-1. Per-category colours + full-row selection highlight (biggest visible gain, small change).
-2. Detail card with a bordered value box.
+1. ~~Per-category colours + full-row selection highlight~~ (done)
+2. ~~Detail card with a bordered value box~~ (done)
 3. Toast-style status and clipboard countdown bar.
 4. Content-fit layout and compact mode.
 5. Welcome/empty states, icons, mouse.

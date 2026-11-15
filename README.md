@@ -10,23 +10,9 @@
   <img alt="Platforms" src="https://img.shields.io/badge/platforms-macOS%20%7C%20Linux%20%7C%20Windows-lightgrey.svg">
 </p>
 
-```
-▌PANDORA · OS keychain vault                                               3 secrets
-────────────────────────────────────────────────────────────────────────────────────
-╭──────────────────────────────────────╮  ╭────────────────────────────────────────╮
-│                                      │  │                                        │
-│  Secrets                             │  │  stripe-live                           │
-│                                      │  │                                        │
-│    githubToken                       │  │  Category   INFRA                      │
-│    TOKENS · 2026-11-15               │  │  Created    2026-11-16                 │
-│  │ stripe-live                       │  │  Value      ••••••••••••               │
-│  │ INFRA · 2026-11-16                │  │                                        │
-│    npm-publish                       │  │                                        │
-│    TOKENS · 2026-11-20               │  │                                        │
-╰──────────────────────────────────────╯  ╰────────────────────────────────────────╯
-✓ Copied to clipboard (clears in 15s)
-↑/↓ move · / filter · enter/c copy · v reveal · n new · e edit · d delete · r reload · q quit
-```
+<p align="center">
+  <img alt="Pandora screenshot" src="docs/assets/screenshot.png" width="760">
+</p>
 
 Pandora keeps API keys, tokens and passwords out of dotfiles, shell history and plain-text notes. Secret **values** are stored by the OS (macOS Keychain, Windows Credential Manager, Linux Secret Service); Pandora only adds a fast interface for browsing, copying and managing them. It makes no network connections.
 

@@ -28,6 +28,8 @@ Metadata writes go through a temp file in the same directory and `os.Rename`, so
 | `update.go` | `Update`, `openForm`, `updateForm`, `saveForm`, `updateConfirmDelete`, `setFocus` |
 | `view.go`   | `View` and the `render*` helpers (header, panes, detail, form, delete dialog, status, help) |
 | `styles.go` | Adaptive colour palette (`accent`, `subtle`, `success`, `danger`, `text`) and lipgloss styles |
+| `category.go` | Category palette, stable hash → colour, category badge |
+| `delegate.go` | List row renderer: category bar, selected-row background, truncation, filter-match underline |
 
 **Modes.** `model.mode` decides what the keyboard drives:
 
@@ -110,5 +112,5 @@ Tests replace the keyring with `keyring.MockInit()` and point `HOME`, `XDG_CONFI
 
 - A secret deleted or renamed by another Pandora instance is only noticed after `r` (reload); acting on it fails with a status message.
 - Two concurrent instances can race on `metadata.json` (last writer wins).
-- Layout assumes a terminal of roughly 70×24 or larger; very short terminals can overflow the list pane.
+- Below 60×18 the UI shows a "Terminal too small" notice instead of the layout.
 - The reveal toggle is global, not per secret.

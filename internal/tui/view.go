@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"fmt"
 	"strings"
 
 	"github.com/charmbracelet/lipgloss"
@@ -8,13 +9,21 @@ import (
 	"pandora/internal/store"
 )
 
-const maskedValue = "••••••••••••"
+const (
+	maskedValue = "••••••••••••"
+	minWidth    = 60
+	minHeight   = 18
+)
 
 func (m model) View() string {
 	if m.width == 0 {
 		return "Loading…"
 	}
 
+	if m.width < minWidth || m.height < minHeight {
+		msg := fmt.Sprintf("Terminal too small\n%d×%d, need at least %d×%d", m.width, m.height, minWidth, minHeight)
+		return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, subtleStyle.Render(msg))
+	}
 	switch m.mode {
 	case modeForm:
 		return m.placeModal(m.renderForm())
@@ -55,30 +64,29 @@ func (m model) renderDetail(w, h int) string {
 		return lipgloss.PlaceVertical(h, lipgloss.Center, empty)
 	}
 
-	valueW := max(1, w-lipgloss.Width(labelStyle.Render("")))
 	value := subtleStyle.Render(maskedValue)
+	valueBorder := subtle
 	if m.showValue {
 		if real, err := store.GetSecretValue(sel.meta.Title); err == nil {
 			value = textStyle.Render(real)
+			valueBorder = accent
 		}
 	}
-	category := subtleStyle.Render("—")
-	if sel.meta.Category != "" {
-		category = badgeStyle.Render(sel.meta.Category)
-	}
-
-	row := func(label, content string) string {
-		return lipgloss.JoinHorizontal(lipgloss.Top,
-			labelStyle.Render(label),
-			lipgloss.NewStyle().Width(valueW).Render(content))
-	}
+	valueBox := lipgloss.NewStyle().
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(valueBorder).
+		Padding(0, 1).
+		Width(w - 2).
+		Render(value)
 
 	return lipgloss.JoinVertical(lipgloss.Left,
 		textStyle.Bold(true).Width(w).Render(sel.meta.Title),
+		categoryBadge(sel.meta.Category),
 		"",
-		row("Category", category),
-		row("Created", textStyle.Render(sel.meta.Created)),
-		row("Value", value),
+		lipgloss.JoinHorizontal(lipgloss.Top, labelStyle.Render("Created"), textStyle.Render(sel.meta.Created)),
+		"",
+		labelStyle.Render("Value"),
+		valueBox,
 	)
 }
 
