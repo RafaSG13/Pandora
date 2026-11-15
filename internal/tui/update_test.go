@@ -9,12 +9,16 @@ import (
 
 	"github.com/charmbracelet/bubbles/list"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 	"github.com/zalando/go-keyring"
 
 	"pandora/internal/store"
 )
 
-// newTestModel isolates keyring and config dir and returns a sized model.
+// clipboardLog records what the app wrote to the (stubbed) system clipboard.
+var clipboardLog []string
+
+// newTestModel isolates keyring, config dir and clipboard and returns a sized model.
 func newTestModel(t *testing.T) tea.Model {
 	t.Helper()
 	keyring.MockInit()
@@ -23,8 +27,15 @@ func newTestModel(t *testing.T) tea.Model {
 	t.Setenv("XDG_CONFIG_HOME", filepath.Join(dir, ".config"))
 	t.Setenv("AppData", dir)
 
+	clipboardLog = nil
+	orig := writeClipboard
+	writeClipboard = func(s string) error { clipboardLog = append(clipboardLog, s); return nil }
+	t.Cleanup(func() { writeClipboard = orig })
+
 	m, _ := New().Update(tea.WindowSizeMsg{Width: 100, Height: 30})
-	return m
+	mm := m.(model)
+	mm.lockAfter = 0 // idle lock is opt-in per test
+	return mm
 }
 
 // press feeds keys ("enter", "esc", "tab" or literal text) to the model.
@@ -46,8 +57,9 @@ func press(m tea.Model, keys ...string) tea.Model {
 	return m
 }
 
+// add fills name, category and secret, skips Expires and Notes, and saves.
 func add(m tea.Model, name, category, secret string) tea.Model {
-	return press(m, "n", name, "enter", category, "enter", secret, "enter")
+	return press(m, "n", name, "enter", category, "enter", secret, "enter", "enter", "enter")
 }
 
 func titles(m tea.Model) []string {
@@ -108,7 +120,7 @@ func TestEditPrefillsAndEmptySecretKeepsValue(t *testing.T) {
 
 	// Replace the one-character name, change category; leave secret empty.
 	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyBackspace})
-	m = press(m, "renamed", "enter", "Z", "enter", "enter")
+	m = press(m, "renamed", "enter", "Z", "enter", "enter", "enter", "enter")
 
 	if got := titles(m); len(got) != 1 || got[0] != "renamed" {
 		t.Fatalf("titles = %v, want [renamed]", got)
@@ -238,16 +250,64 @@ func TestQuestionMarkIsTextWhileFiltering(t *testing.T) {
 	}
 }
 
-func TestWheelMovesSelection(t *testing.T) {
-	m := addThree(newTestModel(t))
-
-	m = wheel(m, tea.MouseButtonWheelUp)
-	if got := selected(m); got != "bravo" {
-		t.Errorf("after wheel up selected %q, want bravo", got)
+// addMany adds n secrets named s1..sn (n ≤ 9); the last is selected.
+func addMany(m tea.Model, n int) tea.Model {
+	for i := 1; i <= n; i++ {
+		m = add(m, "s"+string(rune('0'+i)), "X", "v")
 	}
-	m = wheel(m, tea.MouseButtonWheelDown)
-	if got := selected(m); got != "charlie" {
-		t.Errorf("after wheel down selected %q, want charlie", got)
+	return m
+}
+
+func TestWheelScrollsListWithoutMovingSelection(t *testing.T) {
+	m := addMany(newTestModel(t), 9)
+	view := m.(model).itemsInView()
+	if view >= 9 {
+		t.Fatalf("test needs more items than fit (%d)", view)
+	}
+	if got := selected(m); got != "s9" {
+		t.Fatalf("selected %q, want s9", got)
+	}
+
+	// Scroll to the top: the first row now shows s1, selection is untouched.
+	for range 9 {
+		m = wheel(m, tea.MouseButtonWheelUp)
+	}
+	if got := selected(m); got != "s9" {
+		t.Errorf("wheel changed selection to %q", got)
+	}
+	if row := strings.Split(m.View(), "\n")[listTopRow]; !strings.Contains(row, "s1") {
+		t.Errorf("row %d = %q, want s1 after scrolling to top", listTopRow, row)
+	}
+
+	// Clicking the first visible row selects the item shown there.
+	m = click(m, 5, listTopRow)
+	if got := selected(m); got != "s1" {
+		t.Errorf("click after scroll selected %q, want s1", got)
+	}
+
+	// Scrolling past the end stops at the last whole page.
+	for range 20 {
+		m = wheel(m, tea.MouseButtonWheelDown)
+	}
+	if row := strings.Split(m.View(), "\n")[listTopRow]; !strings.Contains(row, "s"+string(rune('0'+9-view+1))) {
+		t.Errorf("row %d = %q, want first item of last page", listTopRow, row)
+	}
+}
+
+func TestKeyboardScrollsViewToSelection(t *testing.T) {
+	m := addMany(newTestModel(t), 9)
+	for range 9 {
+		m = wheel(m, tea.MouseButtonWheelUp)
+	}
+	m = press(m, "k") // moves selection s9 -> s8 and must bring it back into view
+
+	if got := selected(m); got != "s8" {
+		t.Fatalf("selected %q, want s8", got)
+	}
+	// s8 is index 7; the viewport scrolls just enough to show it on the last row.
+	last := listTopRow + (m.(model).itemsInView()-1)*roomyRows
+	if row := strings.Split(m.View(), "\n")[last]; !strings.Contains(row, "s8") {
+		t.Errorf("row %d = %q, want selected s8 scrolled into view", last, row)
 	}
 }
 
@@ -259,14 +319,14 @@ func TestClickSelectsItemRow(t *testing.T) {
 	if got := selected(m); got != "alpha" {
 		t.Errorf("click row 0 selected %q, want alpha", got)
 	}
-	m = click(m, 5, listTopRow+itemRows)
+	m = click(m, 5, listTopRow+roomyRows)
 	if got := selected(m); got != "bravo" {
 		t.Errorf("click row 1 selected %q, want bravo", got)
 	}
 
 	for name, pos := range map[string][2]int{
-		"spacing line": {5, listTopRow + itemRows + 2},
-		"past last":    {5, listTopRow + 3*itemRows},
+		"spacing line": {5, listTopRow + roomyRows + 2},
+		"past last":    {5, listTopRow + 3*roomyRows},
 		"above list":   {5, listTopRow - 1},
 		"detail pane":  {leftW + 10, listTopRow},
 	} {
@@ -285,8 +345,8 @@ func TestClickGeometryMatchesRenderedList(t *testing.T) {
 	if !strings.Contains(lines[listTopRow], "alpha") {
 		t.Errorf("row %d = %q, want alpha", listTopRow, lines[listTopRow])
 	}
-	if !strings.Contains(lines[listTopRow+itemRows], "bravo") {
-		t.Errorf("row %d = %q, want bravo", listTopRow+itemRows, lines[listTopRow+itemRows])
+	if !strings.Contains(lines[listTopRow+roomyRows], "bravo") {
+		t.Errorf("row %d = %q, want bravo", listTopRow+roomyRows, lines[listTopRow+roomyRows])
 	}
 }
 
@@ -300,5 +360,42 @@ func TestMouseIgnoredInModals(t *testing.T) {
 	}
 	if got := selected(m); got != "charlie" {
 		t.Errorf("selected %q, want charlie unchanged", got)
+	}
+}
+
+func TestCategoryColorIsStableAndCaseInsensitive(t *testing.T) {
+	if categoryColor("tokens") != categoryColor("  TOKENS ") {
+		t.Error("same category with different case/spacing got different colours")
+	}
+	if categoryColor("") != subtle {
+		t.Error("empty category should be muted")
+	}
+	seen := map[string]bool{}
+	for _, c := range []string{"TOKENS", "INFRA", "DB", "CI", "MAIL", "CLOUD", "KEYS", "WEB"} {
+		seen[categoryColor(c).Dark] = true
+	}
+	if len(seen) < 3 {
+		t.Errorf("only %d distinct colours across 8 categories; hashing looks degenerate", len(seen))
+	}
+}
+
+func TestSelectedRowFillsListWidth(t *testing.T) {
+	m := addThree(newTestModel(t)).(model) // charlie (index 2) is selected
+
+	render := func(index int) []string {
+		var b strings.Builder
+		rowDelegate{}.Render(&b, m.list, index, m.list.VisibleItems()[index])
+		return strings.Split(b.String(), "\n")
+	}
+
+	for _, line := range render(2) {
+		if got := lipgloss.Width(line); got != m.list.Width() {
+			t.Errorf("selected line width = %d, want %d", got, m.list.Width())
+		}
+	}
+	for _, line := range render(0) {
+		if got := lipgloss.Width(line); got >= m.list.Width() {
+			t.Errorf("unselected line padded to %d; only the selection is filled", got)
+		}
 	}
 }

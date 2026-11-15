@@ -25,7 +25,7 @@
 │    TOKENS · 2026-11-20               │  │                                        │
 ╰──────────────────────────────────────╯  ╰────────────────────────────────────────╯
 ✓ Copied to clipboard (clears in 15s)
-↑/↓ move · / filter · enter/c copy · v reveal · n new · e edit · d delete · r reload · ? help · q quit
+↑/↓ move · / filter · enter/c copy · v reveal · n new · e edit · d delete · s sort · ? help · q quit
 ```
 
 Pandora keeps API keys, tokens and passwords out of dotfiles, shell history and plain-text notes. Secret **values** are stored by the OS (macOS Keychain, Windows Credential Manager, Linux Secret Service); Pandora only adds a fast interface for browsing, copying and managing them. It makes no network connections.
@@ -34,11 +34,16 @@ Pandora keeps API keys, tokens and passwords out of dotfiles, shell history and 
 
 - **Native secure storage** — values never touch disk through Pandora; they live in the OS keyring.
 - **Full management** — add, edit (including rename), delete with confirmation, and reload.
-- **Fast lookup** — fuzzy filter over name and category.
-- **Safe copying** — copy to the clipboard, which is cleared automatically after 15 seconds.
-- **Masked by default** — values are hidden until you explicitly reveal them.
-- **Responsive layout** — adapts to the terminal size, light and dark palettes.
-- **Safe metadata handling** — atomic writes; a corrupt metadata file is reported, never overwritten.
+- **Rich metadata** — category (with autocomplete), notes or URL, and an optional expiry date with warning badges.
+- **Fast lookup** — fuzzy filter over name and category, quick category filters (`1`–`9`), and sorting by name, category or date.
+- **Safe copying** — copy to the clipboard, cleared automatically after 15 seconds (or right away with `x`), with a visible countdown.
+- **Masked by default** — the value is revealed one secret at a time and hides again after 10 seconds or when you move.
+- **Secret generator** — `ctrl+g` in the form fills a random password or token (length and charset selectable).
+- **Idle lock** — after 5 idle minutes everything is masked and a pending clipboard is cleared.
+- **Orphan detection** — secrets whose keyring value is missing are flagged `!`.
+- **Polished interface** — per-category colours, full-row selection, bordered detail card, toasts, compact mode (`t`), mouse support, and an ASCII fallback.
+- **Command-line mode** — `list`, `get`, `add`, `rm`, `run`, encrypted `export`/`import` and `doctor`.
+- **Safe metadata handling** — atomic writes with a `metadata.json.bak` backup; a corrupt file is reported, never overwritten.
 - **Single binary, no network, no telemetry.**
 
 ## Installation
@@ -71,9 +76,9 @@ install -m 0755 bin/pandora /usr/local/bin/pandora
 pandora
 ```
 
-1. Press `n`, fill in a name, a category and the secret value, and press `enter` on the last field to save.
+1. Press `n`, fill in a name, a category and the secret value (or press `ctrl+g` to generate one), and press `enter` through the optional **Expires** and **Notes** fields to save.
 2. Move with `↑`/`↓` (or `j`/`k`), press `v` to reveal the value, `c` or `enter` to copy it.
-3. Press `/` to filter, `e` to edit, `d` to delete, `q` to quit.
+3. Press `/` to filter, `s` to sort, `e` to edit, `d` to delete, `?` for every key, `q` to quit.
 
 ## Keybindings
 
@@ -82,13 +87,18 @@ pandora
 | Key               | Action                                                 |
 | ----------------- | ------------------------------------------------------ |
 | `↑` `↓` / `j` `k` | Move through the list                                  |
+| `g` / `G`, `pgup` / `pgdn` | First / last, previous / next page            |
 | `/`               | Filter by name or category (`esc` clears the filter)   |
+| `1`–`9`, `0`      | Show only the n-th category (same key again, or `0`, shows all) |
+| `s`               | Cycle sort: date added, name, category                 |
+| `t`               | Toggle compact one-line rows                           |
 | `enter` / `c`     | Copy the selected secret to the clipboard (cleared after 15 s) |
-| `v`               | Toggle revealing secret values                         |
+| `x`               | Clear the clipboard now                                |
+| `v`               | Reveal / hide the selected secret's value (hides after 10 s or when the selection changes) |
 | `n`               | New secret                                             |
 | `e`               | Edit the selected secret                               |
 | `d`               | Delete the selected secret (asks for confirmation)     |
-| `r`               | Reload the list from disk                              |
+| `r`               | Reload the list from disk and re-check the keyring     |
 | `?`               | Show the full key list (any key closes it)             |
 | `q` / `ctrl+c`    | Quit                                                   |
 
@@ -97,7 +107,7 @@ pandora
 | Input        | Action                                      |
 | ------------ | ------------------------------------------- |
 | Click        | Select the secret under the pointer         |
-| Wheel        | Move the selection up or down               |
+| Wheel        | Scroll the list without changing the selection (arrow keys scroll back to it) |
 
 Mouse input is ignored while a dialog, the form or the filter prompt is open. Because Pandora captures the mouse, select terminal text with `Shift` held (`Alt` in some terminals).
 
@@ -108,9 +118,24 @@ Mouse input is ignored while a dialog, the form or the filter prompt is open. Be
 | `tab` / `↓`           | Next field                                                  |
 | `shift+tab` / `↑`     | Previous field                                              |
 | `enter`               | Next field; on the last field, save                         |
+| `ctrl+s`              | Save from any field                                         |
+| `→`                   | Accept the suggested category                               |
+| `ctrl+g`              | Generate a random secret (shown so you can see it)          |
+| `ctrl+l` / `ctrl+t`   | Cycle the generated length (16–64) / charset (letters+digits, +symbols, hex) |
 | `esc`                 | Cancel                                                      |
 
-When editing, leave **Secret** empty to keep the current value. Renaming a secret moves its value to the new name. Names must be unique.
+Fields: **Name**, **Category**, **Secret**, **Expires** (`YYYY-MM-DD`, optional) and **Notes** (optional, e.g. a URL). When editing, leave **Secret** empty to keep the current value. Renaming a secret moves its value to the new name. Names must be unique. A secret that expires within 14 days, or already has, shows a `◷` badge in the list, the detail card and the header.
+
+### Configuration
+
+| Variable                 | Effect                                                              |
+| ------------------------ | ------------------------------------------------------------------- |
+| `PANDORA_LOCK_MINUTES`   | Idle minutes before the screen locks (default `5`, `0` disables)    |
+| `PANDORA_ASCII=1`        | Draw with plain ASCII; also used automatically when the locale is not UTF-8 |
+
+### Terminal size
+
+The interface needs at least 60×18 characters and shows `Terminal too small` below that.
 
 ### Delete confirmation
 
@@ -121,7 +146,7 @@ When editing, leave **Secret** empty to keep the current value. Renaming a secre
 | Data                            | Where                                                              |
 | ------------------------------- | ------------------------------------------------------------------ |
 | Secret values                   | OS keyring, service `pandora-cli`, account = the secret's name     |
-| Name, category, creation date   | `<user config dir>/pandora/metadata.json` (file `0600`, directory `0700`) |
+| Name, category, dates, expiry, notes | `<user config dir>/pandora/metadata.json` (file `0600`, directory `0700`), previous version kept as `metadata.json.bak` |
 
 The user config dir is `~/Library/Application Support` on macOS, `$XDG_CONFIG_HOME` or `~/.config` on Linux and `%AppData%` on Windows. The metadata file never contains secret values, but it does reveal the **names** of your secrets.
 
@@ -132,6 +157,34 @@ security find-generic-password -s pandora-cli -a "<name>" -w
 ```
 
 See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the metadata schema and data flows.
+
+## Command-line mode
+
+`pandora` with no arguments opens the interface. With a command it runs non-interactively, which suits scripts and CI. Data goes to stdout, messages and errors to stderr. Exit codes: `0` success, `1` runtime error (including a refused confirmation), `2` usage error. `pandora help` and `pandora <command> -h` list the flags. Flags may come before or after the arguments.
+
+| Command | What it does |
+| ------- | ------------ |
+| `pandora list [--category C] [--json]` | Titles, categories, creation and expiry dates. Never shows values. |
+| `pandora get <title>` | Prints the value followed by a newline. Exit `1` if the secret does not exist. |
+| `pandora add <title> [-c CATEGORY] [--notes TEXT] [--expires YYYY-MM-DD]` | Stores a new secret. The value is read from stdin when piped (one trailing newline removed) or typed at a hidden prompt on a terminal. Empty values, duplicate titles and invalid dates are rejected. |
+| `pandora rm <title> [-y]` | Deletes a secret. Asks on a terminal; without a terminal it refuses unless `-y` is given. |
+| `pandora run -s TITLE[=ENV_NAME] [-s ...] -- cmd args...` | Runs `cmd` with each secret in an environment variable that exists only for that process. `ENV_NAME` defaults to the title upper-cased with other characters replaced by `_`. Fails before running anything if a secret is missing; exits with the command's exit code. |
+| `pandora export [--values] [-o FILE] [--force]` | Writes the metadata as JSON. With `--values` the values are included and the whole file is encrypted. |
+| `pandora import FILE [--values] [--overwrite]` | Reads an export (`-` for stdin). Existing titles are skipped unless `--overwrite`; values are restored only with `--values`. The whole file is validated before anything is written. |
+| `pandora doctor [--fix] [-y]` | Lists metadata entries whose value is missing from the keyring; `--fix` removes them (asks unless `-y`). Exits `1` while problems remain. |
+
+```sh
+printf '%s' "$TOKEN" | pandora add github-token -c Tokens --expires 2027-01-31
+pandora list --category tokens --json
+pandora run -s github-token=GITHUB_TOKEN -- gh api user
+pandora export -o names.json                # metadata only, plain JSON
+pandora export --values -o backup.age       # prompts twice for a passphrase
+PANDORA_PASSPHRASE=... pandora import backup.age --values --overwrite
+```
+
+**Encrypted exports.** `export --values` never writes plaintext values. The document, titles included, is encrypted with [age](https://age-encryption.org) using a scrypt passphrase recipient and ASCII-armored; `age -d backup.age` can decrypt it too. The passphrase is prompted for twice without echo, or read from `PANDORA_PASSPHRASE` when there is no terminal (environment variables can be visible to other processes of your user, so prefer the prompt where possible; `pandora run` removes the variable from the child's environment). Export files are created with mode `0600`, and an existing file is only replaced with `--force`. Export without `--values` contains names, categories and dates but no values.
+
+**Doctor limitation.** `doctor` can only find metadata entries without a value. The keyring API Pandora uses cannot list entries, so values that exist in the keyring without a metadata entry cannot be detected.
 
 ## Security model
 
@@ -149,7 +202,7 @@ Pandora is designed to reduce accidental exposure, not to defend against a compr
 - protect against malware or other processes running as your user — they can read the keyring subject to your OS's prompts and policies;
 - control clipboard managers or other tools that record clipboard history;
 - hide secret names (they are stored in the metadata file) or wipe memory after use;
-- sync, back up or encrypt exports — there are none yet.
+- sync or back up for you — [`pandora export`](#command-line-mode) is manual, and an export made with `--values` is only as safe as its passphrase.
 
 To report a vulnerability, see [SECURITY.md](SECURITY.md).
 
@@ -157,6 +210,7 @@ To report a vulnerability, see [SECURITY.md](SECURITY.md).
 
 ```
 cmd/pandora/     program entry point
+internal/cli/    command-line mode (list, get, add, rm, run, export, import, doctor)
 internal/store/  keyring access and metadata persistence
 internal/tui/    Bubble Tea model, update logic, views and styles
 docs/            architecture notes and roadmap
@@ -165,7 +219,7 @@ docs/            architecture notes and roadmap
 ## Documentation
 
 - [Architecture](docs/ARCHITECTURE.md) — packages, data flow, persisted schema
-- [Roadmap](docs/ROADMAP.md) — planned features and UI improvements
+- [Roadmap](docs/ROADMAP.md) — what has shipped and what is deliberately left out
 - [Contributing](CONTRIBUTING.md) — development setup and guidelines
 - [Changelog](CHANGELOG.md)
 - [Security policy](SECURITY.md)
@@ -183,7 +237,7 @@ Tests use an in-memory keyring and a temporary config directory; they never touc
 
 ## Built with
 
-[Bubble Tea](https://github.com/charmbracelet/bubbletea), [Bubbles](https://github.com/charmbracelet/bubbles), [Lip Gloss](https://github.com/charmbracelet/lipgloss), [go-keyring](https://github.com/zalando/go-keyring) and [atotto/clipboard](https://github.com/atotto/clipboard).
+[Bubble Tea](https://github.com/charmbracelet/bubbletea), [Bubbles](https://github.com/charmbracelet/bubbles), [Lip Gloss](https://github.com/charmbracelet/lipgloss), [go-keyring](https://github.com/zalando/go-keyring), [age](https://github.com/FiloSottile/age) and [atotto/clipboard](https://github.com/atotto/clipboard).
 
 ## License
 
