@@ -4,7 +4,8 @@
 
 | Package          | Responsibility |
 | ---------------- | -------------- |
-| `cmd/pandora`    | Entry point. Starts the Bubble Tea program on the alternate screen with `tui.New()`; prints errors to stderr and exits 1. |
+| `cmd/pandora`    | Entry point. With arguments it runs `cli.Run`; without, it starts the Bubble Tea program (alternate screen, mouse cell motion) with `tui.New()`. Errors go to stderr, exit code 1. |
+| `internal/cli`   | Non-interactive subcommands (`list`, `get`, `add`, `rm`, `run`, `export`, `import`, `doctor`). Takes its streams as arguments and returns an exit code; never calls `os.Exit`. |
 | `internal/tui`   | The interface, split by Bubble Tea role (below). Talks to storage only through `store`. |
 | `internal/store` | Keyring access and the metadata file. No UI dependencies. |
 
@@ -14,20 +15,31 @@
 | -------- | --------- |
 | `SaveSecret(meta, value)` | Fails with `ErrExists` if the title is recorded. Writes the keyring value, then the metadata; if the metadata write fails the keyring entry is rolled back. |
 | `GetSecretValue(title)` | Reads the value from the keyring. |
-| `UpdateSecret(old, meta, newValue)` | Changes name/category and, when `newValue != nil`, the value. `Created` is preserved. Renaming: set new keyring entry → write metadata → delete old entry (rolls back the new entry if the metadata write fails). `ErrNotFound` / `ErrExists` for a missing source / taken target. |
+| `UpdateSecret(old, meta, newValue)` | Replaces name, category, expiry and notes and, when `newValue != nil`, the value. `Created` is preserved and `Updated` is set to today. Renaming: set new keyring entry → write metadata → delete old entry (rolls back the new entry if the metadata write fails). `ErrNotFound` / `ErrExists` for a missing source / taken target. |
 | `DeleteSecret(title)` | Deletes the keyring entry (already missing is fine), then the metadata entry. `ErrNotFound` if not recorded. |
 | `LoadMetadata()` | Reads `metadata.json`; missing file → empty list; collapses duplicate titles from older versions (last wins). Invalid JSON is an error. |
+| `MissingValues()` | Titles whose keyring value is missing (used by `pandora doctor`). |
+| `RestoreSecrets(...)` | Batch import: values first, then one metadata write; rolls back newly stored values on failure. |
+| `ParseDate`, `SecretMeta.DaysUntilExpiry` | `YYYY-MM-DD` handling shared by the form, list badges and CLI. |
 
-Metadata writes go through a temp file in the same directory and `os.Rename`, so a crash cannot leave a half-written file. Every mutating function loads metadata first and aborts on error, so a corrupt file is never overwritten.
+Metadata writes go through a temp file in the same directory and `os.Rename`, so a crash cannot leave a half-written file; the previous contents are first copied to `metadata.json.bak`. Every mutating function loads metadata first and aborts on error, so a corrupt file is never overwritten.
+
+### `internal/cli`
+
+`cli.Run(args, stdin, stdout, stderr) int` dispatches to one handler per subcommand, each with its own `flag.FlagSet`. Exit codes: `0` ok, `1` runtime error, `2` usage error. `export --values` encrypts with age (scrypt passphrase recipient, armored); `export` without `--values` is plain JSON without values. `run` injects secrets into the child's environment only and forwards signals. Secret values are printed only by `get`.
 
 ### `internal/tui`
 
-| File        | Contents |
-| ----------- | -------- |
-| `model.go`  | `model` state, list `item`, `mode`, `New()`, `reload`, pane/modal width helpers |
-| `update.go` | `Update`, `openForm`, `updateForm`, `saveForm`, `updateConfirmDelete`, `setFocus` |
-| `view.go`   | `View` and the `render*` helpers (header, panes, detail, form, delete dialog, status, help) |
-| `styles.go` | Adaptive colour palette (`accent`, `subtle`, `success`, `danger`, `text`) and lipgloss styles |
+| File          | Contents |
+| ------------- | -------- |
+| `model.go`    | `model` state, list `item`, `mode`, `New()`, `Init`, `reload` (category filter + sort), pane geometry, scroll clamping, orphan check command |
+| `update.go`   | `Update` (scroll/reveal bookkeeping around `update`), the 1 s `tick`, key and mouse handling, form (`openForm`, `updateForm`, `saveForm`), delete confirmation, lock |
+| `view.go`     | `View` and the `render*` helpers: header, panes, list crop + scrollbar, detail card, toast overlay, countdowns, form, help overlay, welcome / error state, footer |
+| `delegate.go` | `rowDelegate`: roomy (3-line) and compact (1-line) list rows, selection fill, orphan / expiry markers |
+| `styles.go`   | Adaptive palette, per-category colours (`categoryColor`), gradient, pane tag border |
+| `icons.go`    | `glyphSet`: Unicode glyphs and the ASCII fallback (`PANDORA_ASCII=1` or a non-UTF-8 locale) |
+| `expiry.go`   | `expiryInfo`: label and level (`far` / `soon` ≤14 days / `expired`) for a secret |
+| `generate.go` | `generateSecret` with `crypto/rand`, lengths and charsets |
 
 **Modes.** `model.mode` decides what the keyboard drives:
 
@@ -38,13 +50,28 @@ stateDiagram-v2
     Form --> Browse: esc, or successful save
     Browse --> ConfirmDelete: d
     ConfirmDelete --> Browse: y (delete) / any other key
+    Browse --> Help: ?
+    Help --> Browse: any key
+    Browse --> Locked: idle timeout
+    Form --> Locked: idle timeout
+    Locked --> Browse: any key (restores the previous mode)
 ```
 
-While the list filter is active, browse-mode keys go to the list unchanged. Any key press clears the status line before it is handled. Failed saves keep the form open so nothing typed is lost.
+While the list filter is active, browse-mode keys go to the list unchanged. Any key press clears the status message before it is handled. Failed saves keep the form open so nothing typed is lost.
 
-**Single source of truth.** After every mutation (add, edit, delete, `r`) the model calls `reload(selectTitle)`, which re-reads `LoadMetadata()` and calls `list.SetItems`; it never patches the list by index, so an active filter cannot cause the wrong item to change. `reload` restores the selection by title.
+**Single source of truth.** After every mutation (add, edit, delete, `r`, `s`, category change) the model calls `reload(selectTitle)`, which re-reads `LoadMetadata()`, applies the category filter and sort, and calls `list.SetItems`; it never patches the list by index. `reload` restores the selection by title.
 
-**Layout.** Computed from the last `tea.WindowSizeMsg`: the list pane gets `max(30, (w-6)*45/100)` columns, the detail pane the rest (6 = two borders per pane plus a 2-column gap). Styles carry no fixed widths; widths are applied at render time. Vertical budget: header (1) + rule (1) + panes (`h-4` including borders) + status (1) + help (1) = `h`. Add/edit/delete dialogs are centred with `lipgloss.Place` with the help line beneath. On narrow terminals the footer drops the least important hints first.
+**Time.** One `tickMsg` per second (started in `Init`) drives everything time-based: reveal auto-hide, the clipboard deadline, toast expiry and the idle lock. State holds *deadlines* (`revealUntil`, `clipUntil`, `toastUntil`, `lastActive`), never per-action timers, so a second copy cannot be cleared by the first copy's timer. `model.now` is injectable for tests.
+
+**Reveal.** Only `revealTitle` is shown, until `revealUntil`. `Update` clears it whenever the selected title differs.
+
+**Clipboard.** `writeClipboard` (a variable, stubbed in tests) is the only clipboard writer. Failures are reported instead of showing `✓ Copied`. The lock screen clears a pending clipboard.
+
+**Orphans.** `Init` and `r` run `checkOrphans` off the UI thread (some keyring backends are slow or prompt); the result (`orphanMsg`) marks rows and the detail card of secrets whose value is missing. A spinner shows in the header meanwhile.
+
+**Layout.** Computed from the last `tea.WindowSizeMsg`: the list pane gets `max(30, (w-6)*45/100)` columns, the detail pane the rest (6 = two borders per pane plus a 2-column gap). Panes fit their content: outer height `clamp(listChrome + n*rowHeight + 4, minPaneOuter, h-4)`, top-aligned, with the status row and footer pinned to the bottom, so the view is always exactly `h` lines. Below 60×18 the view is replaced by `Terminal too small`. The list is a bubbles `list.Model` sized to hold every item on one page; `listView` crops its rendered lines to a window starting at `model.scroll` (the wheel changes only that offset, never the selection), replaces the status bar text with the position indicator, and appends the scrollbar. Toasts are composed over the bottom-right of the detail pane with `ansi.Truncate`/`TruncateLeft`.
+
+**Mouse geometry.** Click hit-testing uses `listTopRow` (8) and the row height; `TestClickGeometryMatchesRenderedList` and `TestCompactRowsGeometry` fail if the rendered list moves.
 
 ## Data flow
 
@@ -57,15 +84,15 @@ sequenceDiagram
     participant S as store
     participant K as OS keyring
     participant F as metadata.json
-    U->>T: enter on last field
-    T->>T: validate (name; secret when adding)
+    U->>T: enter on last field / ctrl+s
+    T->>T: validate (name; secret when adding; expiry date)
     T->>S: SaveSecret / UpdateSecret
     S->>F: LoadMetadata (duplicate check)
     S->>K: Set(service, title, value)
-    S->>F: atomic write
+    S->>F: backup, then atomic write
     S-->>T: nil / ErrExists / error
     T->>S: reload via LoadMetadata
-    T->>T: status "✓ Saved" / "✓ Updated", or error with form kept open
+    T->>T: toast "✓ Saved" / "✓ Updated", or error with form kept open
 ```
 
 ### Delete
@@ -74,11 +101,7 @@ sequenceDiagram
 
 ### Copy
 
-`enter`/`c` → `store.GetSecretValue(title)` → on success `clipboard.WriteAll`, status `✓ Copied…`, and a 15 s `tea.Tick` that delivers `clearClipboardMsg`; the handler writes an empty string to the clipboard. On error the status shows `✗ Could not read secret` and nothing is copied. Each copy schedules its own clear; the earliest one wins.
-
-### Reveal
-
-`v` toggles `showValue`. While set, `renderDetail` fetches the selected secret's value from the keyring on every render; on error the masked value stays.
+`enter`/`c` → `store.GetSecretValue(title)` → `writeClipboard(value)`; on success `clipUntil = now + 15 s` and a countdown bar appears. The tick clears the clipboard when the deadline passes; `x` clears it immediately. A new copy simply moves the deadline.
 
 ## Persisted data
 
@@ -89,7 +112,10 @@ sequenceDiagram
   {
     "title": "githubToken",
     "category": "TOKENS",
-    "created": "2026-11-15"
+    "created": "2026-11-15",
+    "updated": "2026-11-20",
+    "expires": "2027-01-31",
+    "notes": "https://github.com/settings/tokens"
   }
 ]
 ```
@@ -99,16 +125,20 @@ sequenceDiagram
 | `title`    | string | Secret name, unique; also the keyring account |
 | `category` | string | Free-form label |
 | `created`  | string | `YYYY-MM-DD` creation date |
+| `updated`  | string | Optional; set on every edit |
+| `expires`  | string | Optional `YYYY-MM-DD`; drives the warning badges |
+| `notes`    | string | Optional free text (e.g. a URL); never put values here |
 
-Secret values are stored only in the OS keyring, service `pandora-cli`. The JSON field names are a persisted format: changes must be backwards compatible (a missing field must have a sensible default).
+Secret values are stored only in the OS keyring, service `pandora-cli`. The JSON field names are a persisted format: changes must be backwards compatible (a missing field must have a sensible default; the three optional fields are `omitempty`).
 
 ## Testing
 
-Tests replace the keyring with `keyring.MockInit()` and point `HOME`, `XDG_CONFIG_HOME` and `AppData` at a temp dir, so nothing touches the real keychain or config. `internal/tui` tests drive `Update` with key messages and assert on model state and store contents.
+Tests replace the keyring with `keyring.MockInit()`, point `HOME`, `XDG_CONFIG_HOME` and `AppData` at a temp dir, and stub `writeClipboard`, so nothing touches the real keychain, config or clipboard. `internal/tui` tests drive `Update` with key, mouse and tick messages (with an injected clock) and assert on model state, store contents and the rendered view.
 
 ## Known limitations
 
 - A secret deleted or renamed by another Pandora instance is only noticed after `r` (reload); acting on it fails with a status message.
 - Two concurrent instances can race on `metadata.json` (last writer wins).
-- Layout assumes a terminal of roughly 70×24 or larger; very short terminals can overflow the list pane.
-- The reveal toggle is global, not per secret.
+- go-keyring cannot enumerate entries, so `doctor` finds metadata without a value but not keyring entries without metadata.
+- Selecting text with the mouse needs `Shift` (`Alt` in some terminals) because Pandora captures the mouse.
+- The help overlay is taller than very small terminals in single-column layout (below 74 columns).

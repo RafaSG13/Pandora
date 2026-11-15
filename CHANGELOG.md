@@ -13,6 +13,14 @@ All notable changes are documented here. The format follows [Keep a Changelog](h
 - Responsive two-pane layout, adaptive light/dark palette, contextual footer help.
 - Tests for `internal/store` and `internal/tui` using an in-memory keyring.
 - Documentation: README, architecture notes, roadmap, contributing guide and security policy.
+- Help overlay (`?`) and mouse support: click selects a row; the wheel scrolls the list without moving the selection.
+- Per-category colours, full-row selection highlight, bordered detail card, row separators, compact mode (`t`), position indicator and scrollbar, panes that fit their content, toasts, countdown bars, gradient header with keyring backend and status chip, welcome and error screens, spinner, minimum terminal size guard, and an ASCII fallback (`PANDORA_ASCII=1`).
+- Per-item reveal (`v`) with a 10 s auto-hide; copy failures are reported, `x` clears the clipboard now, and a later copy is never cleared by an earlier one.
+- Sort (`s`), category filter (`1`–`9`, `0`) and category autocomplete in the form.
+- Optional **Expires** and **Notes** fields, an `Updated` date, expiry badges in the list, detail card and header, and a random secret generator (`ctrl+g`, `ctrl+l`, `ctrl+t`) in the form.
+- Idle lock (`PANDORA_LOCK_MINUTES`, default 5 minutes) that masks everything and clears a pending clipboard; orphan detection that flags secrets whose keyring value is missing.
+- Command-line mode: `pandora list | get | add | rm | run | export | import | doctor`; `export --values` is encrypted with an age passphrase.
+- `metadata.json.bak`: the previous metadata is kept before every write.
 
 ### Changed
 - Project restructured into `cmd/pandora`, `internal/store` and `internal/tui`.

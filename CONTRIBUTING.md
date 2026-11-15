@@ -20,12 +20,12 @@ make vet
 make test
 ```
 
-Run the app and exercise the path you changed. For UI changes, try a small terminal (about 70×24) as well as a large one.
+Run the app and exercise the path you changed. For UI changes, try the smallest supported terminal (60×18) as well as a large one, and `PANDORA_ASCII=1`.
 
 ## Guidelines
 
-- **Keep the layers separate.** `internal/store` knows nothing about the UI; `internal/tui` never talks to the keyring or the filesystem directly, only through `store`.
-- **Never test against the real keychain.** Tests must call `keyring.MockInit()` and point `HOME` / `XDG_CONFIG_HOME` / `AppData` at `t.TempDir()`. Copy the `setup` helper in `internal/store/keyring_test.go` or `newTestModel` in `internal/tui/update_test.go`.
+- **Keep the layers separate.** `internal/store` knows nothing about the UI; `internal/tui` never talks to the keyring or the filesystem directly, only through `store`; `internal/cli` reaches the keyring through `store` and touches the filesystem only for export/import files.
+- **Never test against the real keychain or clipboard.** Tests must call `keyring.MockInit()` and point `HOME` / `XDG_CONFIG_HOME` / `AppData` at `t.TempDir()`; TUI tests also stub `writeClipboard`. Copy the `setup` helper in `internal/store/keyring_test.go` or `newTestModel` in `internal/tui/update_test.go`.
 - **Test behaviour, not wiring.** Cover boundaries, error paths and state transitions that a user could observe.
 - **Never log or print secret values**, including in error messages.
 - **Persisted format is an API.** `store.SecretMeta` JSON field names live in users' `metadata.json` files; additions must be backwards compatible (missing field = default).

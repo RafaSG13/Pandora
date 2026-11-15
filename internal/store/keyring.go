@@ -7,6 +7,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/zalando/go-keyring"
 )
@@ -22,10 +23,14 @@ var (
 )
 
 // SecretMeta is the non-sensitive description of a secret. It is persisted as JSON; never put values here.
+// Dates are YYYY-MM-DD. Updated, Notes and Expires are optional.
 type SecretMeta struct {
 	Title    string `json:"title"`
 	Category string `json:"category"`
 	Created  string `json:"created"`
+	Updated  string `json:"updated,omitempty"`
+	Expires  string `json:"expires,omitempty"`
+	Notes    string `json:"notes,omitempty"`
 }
 
 // SaveSecret stores value in the OS keyring under meta.Title and records meta in the metadata file.
@@ -53,10 +58,11 @@ func GetSecretValue(title string) (string, error) {
 	return keyring.Get(ServiceName, title)
 }
 
-// UpdateSecret changes the secret recorded as oldTitle. meta.Title and
-// meta.Category replace the stored name and category; meta.Created is ignored
-// and the original date is kept. A non-nil newValue replaces the stored value;
-// nil keeps it. Renaming to a title that is already in use returns ErrExists.
+// UpdateSecret changes the secret recorded as oldTitle. meta.Title,
+// meta.Category, meta.Expires and meta.Notes replace the stored fields;
+// meta.Created is ignored and the original date is kept, and Updated is set to
+// today. A non-nil newValue replaces the stored value; nil keeps it. Renaming
+// to a title that is already in use returns ErrExists.
 func UpdateSecret(oldTitle string, meta SecretMeta, newValue *string) error {
 	items, err := LoadMetadata()
 	if err != nil {
@@ -87,6 +93,7 @@ func UpdateSecret(oldTitle string, meta SecretMeta, newValue *string) error {
 	}
 
 	meta.Created = items[idx].Created
+	meta.Updated = time.Now().Format(DateLayout)
 	items[idx] = meta
 	if err := writeMetadata(items); err != nil {
 		if renamed {
@@ -159,7 +166,8 @@ func metadataPath() (string, error) {
 	return filepath.Join(dir, "pandora", "metadata.json"), nil
 }
 
-// writeMetadata replaces the metadata file atomically (temp file + rename).
+// writeMetadata replaces the metadata file atomically (temp file + rename),
+// first keeping the previous contents as metadata.json.bak.
 func writeMetadata(items []SecretMeta) error {
 	file, err := metadataPath()
 	if err != nil {
@@ -185,6 +193,11 @@ func writeMetadata(items []SecretMeta) error {
 	}
 	if err := tmp.Close(); err != nil {
 		return err
+	}
+	if old, err := os.ReadFile(file); err == nil {
+		if err := os.WriteFile(file+".bak", old, 0600); err != nil {
+			return err
+		}
 	}
 	return os.Rename(tmp.Name(), file) // CreateTemp files are 0600
 }

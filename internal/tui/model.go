@@ -3,8 +3,15 @@ package tui
 
 import (
 	"fmt"
+	"os"
+	"sort"
+	"strconv"
+	"strings"
+	"time"
 
+	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/list"
+	"github.com/charmbracelet/bubbles/spinner"
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -16,11 +23,7 @@ type item struct {
 	meta store.SecretMeta
 }
 
-func (i item) Title() string       { return i.meta.Title }
-func (i item) Description() string { return fmt.Sprintf("%s · %s", i.meta.Category, i.meta.Created) }
 func (i item) FilterValue() string { return i.meta.Title + " " + i.meta.Category }
-
-type clearClipboardMsg struct{}
 
 // mode is what the keyboard currently drives.
 type mode int
@@ -30,73 +33,252 @@ const (
 	modeForm
 	modeConfirmDelete
 	modeHelp
+	modeLocked
+)
+
+// Form fields, in tab order.
+const (
+	fieldName = iota
+	fieldCategory
+	fieldSecret
+	fieldExpires
+	fieldNotes
+	numFields
+)
+
+// sortMode orders the list; s cycles through them.
+type sortMode int
+
+const (
+	sortCreated sortMode = iota
+	sortName
+	sortCategory
+)
+
+func (s sortMode) next() sortMode { return (s + 1) % 3 }
+
+func (s sortMode) String() string {
+	return [...]string{"date added", "name", "category"}[s]
+}
+
+// Timings. The lock timeout can be changed with PANDORA_LOCK_MINUTES (0 disables).
+const (
+	clipboardTTL   = 15 * time.Second
+	revealTTL      = 10 * time.Second
+	toastTTL       = 3 * time.Second
+	defaultLockTTL = 5 * time.Minute
 )
 
 type model struct {
 	list          list.Model
 	width, height int
-	statusMsg     string
-	statusErr     bool
-	showValue     bool
 	mode          mode
-	inputs        []textinput.Model
-	focusIndex    int
-	editing       string // title of the secret being edited; empty when adding
-	deleting      string // title awaiting delete confirmation
+	prevMode      mode // mode to return to when unlocking
+	now           func() time.Time
+
+	statusMsg  string
+	statusErr  bool
+	toastUntil time.Time
+
+	// Per-item reveal: only revealTitle's value is shown, until revealUntil.
+	revealTitle string
+	revealUntil time.Time
+
+	// Clipboard auto-clear deadline; zero when nothing is pending.
+	clipUntil time.Time
+
+	// Idle lock.
+	lockAfter  time.Duration
+	lastActive time.Time
+
+	// List view state.
+	scroll     int // index of the first list item shown; decoupled from the selection
+	sort       sortMode
+	category   string   // active category filter; empty shows all
+	categories []string // distinct categories across all secrets
+	compact    bool
+	total      int // number of secrets, regardless of the category filter
+	expiring   int // secrets expired or expiring soon
+	loadErr    string
+
+	// Orphan detection (metadata entries whose keyring value is missing).
+	orphans  map[string]bool
+	checking bool
+	spinner  spinner.Model
+
+	// Form.
+	inputs     []textinput.Model
+	focusIndex int
+	editing    string // title of the secret being edited; empty when adding
+	genLen     int    // index into genLengths
+	genSet     int    // index into genCharsets
+
+	deleting string // title awaiting delete confirmation
 }
 
 // New returns the root model, populated from the stored metadata.
 func New() tea.Model {
-	delegate := list.NewDefaultDelegate()
-	delegate.Styles.NormalTitle = delegate.Styles.NormalTitle.Foreground(text)
-	delegate.Styles.NormalDesc = delegate.Styles.NormalDesc.Foreground(subtle)
-	delegate.Styles.SelectedTitle = delegate.Styles.SelectedTitle.Foreground(accent).BorderLeftForeground(accent)
-	delegate.Styles.SelectedDesc = delegate.Styles.SelectedDesc.Foreground(subtle).BorderLeftForeground(accent)
-
-	l := list.New(nil, delegate, 40, 14)
+	l := list.New(nil, rowDelegate{}, 40, 14)
 	l.Title = "Secrets"
 	l.Styles.Title = lipgloss.NewStyle().Bold(true).Foreground(accent)
 	l.SetShowHelp(false)
+	l.SetShowPagination(false) // the list is scrolled by model.scroll, not paginated
 
-	inputs := make([]textinput.Model, 3)
-	inputs[0] = textinput.New()
-	inputs[0].Placeholder = "e.g. Stripe API Key"
-	inputs[0].Focus()
-	inputs[1] = textinput.New()
-	inputs[1].Placeholder = "TOKENS / INFRA"
-	inputs[2] = textinput.New()
-	inputs[2].Placeholder = secretPlaceholder
-	inputs[2].EchoMode = textinput.EchoPassword
-	inputs[2].EchoCharacter = '•'
-
-	m := model{list: l, inputs: inputs}
-	if err := m.reload(""); err != nil {
-		m.statusMsg, m.statusErr = fmt.Sprintf("✗ Could not load secrets: %v", err), true
+	inputs := make([]textinput.Model, numFields)
+	for i := range inputs {
+		inputs[i] = textinput.New()
+		inputs[i].Prompt = ""
 	}
+	inputs[fieldName].Placeholder = "e.g. Stripe API Key"
+	inputs[fieldCategory].Placeholder = "TOKENS / INFRA"
+	inputs[fieldCategory].ShowSuggestions = true
+	// tab moves between fields, so accept a category suggestion with →.
+	inputs[fieldCategory].KeyMap.AcceptSuggestion = key.NewBinding(key.WithKeys("right"))
+	inputs[fieldSecret].Placeholder = secretPlaceholder
+	inputs[fieldSecret].EchoMode = textinput.EchoPassword
+	inputs[fieldSecret].EchoCharacter = []rune(g.mask)[0]
+	inputs[fieldExpires].Placeholder = "YYYY-MM-DD (optional)"
+	inputs[fieldExpires].CharLimit = 10
+	inputs[fieldNotes].Placeholder = "URL, account… (optional)"
+
+	sp := spinner.New()
+	sp.Spinner = g.spinner
+	sp.Style = lipgloss.NewStyle().Foreground(accent)
+
+	m := model{
+		list:       l,
+		inputs:     inputs,
+		now:        time.Now,
+		lockAfter:  lockTimeout(os.Getenv("PANDORA_LOCK_MINUTES")),
+		spinner:    sp,
+		genLen:     1,
+		lastActive: time.Now(),
+	}
+	m.setFocus(fieldName)
+	if err := m.reload(""); err != nil {
+		m.notify(fmt.Sprintf("✗ Could not load secrets: %v", err), true)
+	}
+	m.checking = m.total > 0
 	return m
 }
 
-func (m model) Init() tea.Cmd { return nil }
+// lockTimeout parses PANDORA_LOCK_MINUTES; empty or invalid means the default.
+func lockTimeout(v string) time.Duration {
+	n, err := strconv.Atoi(strings.TrimSpace(v))
+	if err != nil || n < 0 {
+		return defaultLockTTL
+	}
+	return time.Duration(n) * time.Minute
+}
+
+func (m model) Init() tea.Cmd {
+	cmds := []tea.Cmd{tickCmd()}
+	if m.checking {
+		cmds = append(cmds, m.spinner.Tick, checkOrphans(m.titles()))
+	}
+	return tea.Batch(cmds...)
+}
+
+var zeroTime time.Time
+
+type tickMsg time.Time
+
+func tickCmd() tea.Cmd {
+	return tea.Tick(time.Second, func(t time.Time) tea.Msg { return tickMsg(t) })
+}
+
+// orphanMsg carries the titles whose keyring value is missing.
+type orphanMsg struct{ missing map[string]bool }
+
+// checkOrphans reads each value from the keyring off the UI thread (some
+// backends are slow or prompt) and reports the ones that are not there.
+func checkOrphans(titles []string) tea.Cmd {
+	return func() tea.Msg {
+		missing := map[string]bool{}
+		for _, t := range titles {
+			if _, err := store.GetSecretValue(t); store.IsValueMissing(err) {
+				missing[t] = true
+			}
+		}
+		return orphanMsg{missing}
+	}
+}
+
+// titles returns every secret's title, regardless of the category filter.
+func (m model) titles() []string {
+	metas, err := store.LoadMetadata()
+	if err != nil {
+		return nil
+	}
+	out := make([]string, len(metas))
+	for i, meta := range metas {
+		out[i] = meta.Title
+	}
+	return out
+}
+
+// notify shows msg as a toast (browse mode) or inline status (forms).
+func (m *model) notify(msg string, isErr bool) {
+	m.statusMsg, m.statusErr = msg, isErr
+	m.toastUntil = m.nowOr().Add(toastTTL)
+}
+
+func (m model) nowOr() time.Time {
+	if m.now == nil {
+		return time.Now()
+	}
+	return m.now()
+}
 
 const (
 	secretPlaceholder     = "Secret value"
 	secretKeepPlaceholder = "Leave empty to keep current"
 )
 
-// List geometry for mouse hit-testing, in 0-based screen coordinates.
-// bubbles' list does not expose these, so they mirror what View renders.
+// Layout and list geometry, in 0-based screen coordinates. bubbles' list does
+// not expose its chrome, so these mirror what View renders.
 const (
 	// listTopRow is the screen row of the first list item: header (0), rule (1),
 	// pane border (2), pane padding (3), list title bar (4–5: title plus one
 	// padding line, from list.DefaultStyles) and status bar (6–7, same shape).
 	listTopRow = 8
-	// itemRows is the rows one item occupies: delegate Height (2) + Spacing (1).
-	itemRows = 3
+	// listChrome is the rows the list spends above its items (title bar plus
+	// status bar, 2 each).
+	listChrome = 4
+	// roomyRows / compactRows are the rows one item occupies: two lines of
+	// text plus a separator line, or a single line.
+	roomyRows   = 3
+	compactRows = 1
+	// minPaneOuter is the shortest pane (border and padding included).
+	minPaneOuter = 18
+	// minWidth and minHeight are the smallest supported terminal.
+	minWidth, minHeight = 60, 18
 )
 
-// reload re-reads the metadata file into the list and selects the secret
-// titled selectTitle, or keeps the current selection when it is empty or
-// no longer exists. On error the list is left untouched.
+// rowsPer is the rows one list item occupies; textLines how many of them are
+// text (the rest is the separator, which the last item omits).
+func (m model) rowsPer() int {
+	if m.compact {
+		return compactRows
+	}
+	return roomyRows
+}
+
+func (m model) textLines() int {
+	if m.compact {
+		return 1
+	}
+	return 2
+}
+
+func (m model) delegate() rowDelegate {
+	return rowDelegate{compact: m.compact, orphans: m.orphans, now: m.nowOr}
+}
+
+// reload re-reads the metadata file into the list, applying the category
+// filter and sort, and selects the secret titled selectTitle, or keeps the
+// current selection when it is empty or no longer exists. On error the list
+// is left untouched.
 func (m *model) reload(selectTitle string) error {
 	if selectTitle == "" {
 		if sel, ok := m.list.SelectedItem().(item); ok {
@@ -106,12 +288,39 @@ func (m *model) reload(selectTitle string) error {
 
 	metas, err := store.LoadMetadata()
 	if err != nil {
+		m.loadErr = err.Error()
 		return err
 	}
-	items := make([]list.Item, len(metas))
-	for i, meta := range metas {
+	m.loadErr = ""
+	m.total = len(metas)
+	m.categories = distinctCategories(metas)
+	if m.category != "" && !containsFold(m.categories, m.category) {
+		m.category = "" // the last secret of that category is gone
+	}
+
+	m.expiring = 0
+	now := m.nowOr()
+	shown := make([]store.SecretMeta, 0, len(metas))
+	for _, meta := range metas {
+		if _, level := expiryInfo(meta, now); level >= expirySoon {
+			m.expiring++
+		}
+		if m.category == "" || strings.EqualFold(strings.TrimSpace(meta.Category), m.category) {
+			shown = append(shown, meta)
+		}
+	}
+	sortMetas(shown, m.sort)
+
+	items := make([]list.Item, len(shown))
+	for i, meta := range shown {
 		items[i] = item{meta: meta}
 	}
+	m.list.Title = "All categories"
+	if m.category != "" {
+		m.list.Title = "Category " + g.sep + " " + m.category
+	}
+	m.list.SetDelegate(m.delegate())
+	m.fitList(len(items))
 	m.list.SetItems(items)
 
 	for i, it := range m.list.VisibleItems() {
@@ -123,6 +332,91 @@ func (m *model) reload(selectTitle string) error {
 	return nil
 }
 
+func sortMetas(metas []store.SecretMeta, mode sortMode) {
+	sort.SliceStable(metas, func(i, j int) bool {
+		a, b := metas[i], metas[j]
+		switch mode {
+		case sortName:
+			return strings.ToLower(a.Title) < strings.ToLower(b.Title)
+		case sortCategory:
+			ca, cb := strings.ToLower(a.Category), strings.ToLower(b.Category)
+			if ca != cb {
+				return ca < cb
+			}
+			return strings.ToLower(a.Title) < strings.ToLower(b.Title)
+		default:
+			return a.Created < b.Created
+		}
+	})
+}
+
+// distinctCategories returns the non-empty categories, de-duplicated ignoring
+// case and sorted.
+func distinctCategories(metas []store.SecretMeta) []string {
+	var out []string
+	for _, meta := range metas {
+		c := strings.TrimSpace(meta.Category)
+		if c != "" && !containsFold(out, c) {
+			out = append(out, c)
+		}
+	}
+	sort.Slice(out, func(i, j int) bool { return strings.ToLower(out[i]) < strings.ToLower(out[j]) })
+	return out
+}
+
+func containsFold(list []string, s string) bool {
+	for _, v := range list {
+		if strings.EqualFold(v, s) {
+			return true
+		}
+	}
+	return false
+}
+
+// paneOuterFor is the outer height of the panes for n secrets: they fit their
+// content, but never shrink below minPaneOuter or outgrow the terminal.
+func (m model) paneOuterFor(n int) int {
+	want := listChrome + n*m.rowsPer() + 4
+	return max(6, min(m.height-4, max(minPaneOuter, want)))
+}
+
+func (m model) paneOuter() int { return m.paneOuterFor(len(m.list.Items())) }
+
+// fitList sizes the list so that all n items fit on a single page. The model
+// scrolls by cropping the rendered list (see listView), which lets the wheel
+// move the viewport without touching the selection; bubbles' list has no
+// scroll offset of its own. Two columns on the right are left for the scrollbar.
+func (m *model) fitList(n int) {
+	left, _ := m.paneWidths()
+	inner := m.paneOuterFor(n) - 4
+	m.list.SetSize(left-4-2, max(inner, listChrome+m.rowsPer()*n+1))
+}
+
+// itemsInView is how many whole items fit in the list pane.
+func (m model) itemsInView() int {
+	areaH := m.paneOuter() - 4 - listChrome
+	return max(1, (areaH+m.rowsPer()-m.textLines())/m.rowsPer())
+}
+
+// clampScroll keeps scroll within the list. With follow it also scrolls the
+// viewport just enough to keep the selected item visible.
+func (m *model) clampScroll(follow bool) {
+	n, view := len(m.list.VisibleItems()), m.itemsInView()
+	if follow {
+		if idx := m.list.Index(); idx < m.scroll {
+			m.scroll = idx
+		} else if idx >= m.scroll+view {
+			m.scroll = idx - view + 1
+		}
+	}
+	m.scroll = max(0, min(m.scroll, n-view))
+}
+
+// revealed reports whether title's value is currently shown.
+func (m model) revealed(title string) bool {
+	return m.revealTitle == title && m.nowOr().Before(m.revealUntil)
+}
+
 // paneWidths splits the terminal width between the list and detail panes.
 // Each pane spends 2 columns on its border; 2 more separate them.
 func (m model) paneWidths() (left, right int) {
@@ -132,4 +426,4 @@ func (m model) paneWidths() (left, right int) {
 }
 
 // modalWidth is the outer width of the modal dialogs.
-func (m model) modalWidth() int { return min(56, m.width-4) }
+func (m model) modalWidth() int { return min(64, m.width-4) }
