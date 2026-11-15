@@ -282,6 +282,11 @@ func (vf vaultFile) unwrap(password string) ([]byte, error) {
 
 // Create makes a new empty vault protected by password and leaves it unlocked.
 func Create(password string) error {
+	release, err := lockVault()
+	if err != nil {
+		return err
+	}
+	defer release()
 	if Exists() {
 		return ErrVaultExists
 	}
@@ -316,6 +321,11 @@ func Unlock(password string) error {
 // data key itself is unchanged, so values already in the keyring stay valid;
 // the previous backup is replaced so it no longer holds the old wrapping.
 func ChangePassword(oldPw, newPw string) error {
+	release, err := lockVault()
+	if err != nil {
+		return err
+	}
+	defer release()
 	vf, err := readVault()
 	if err != nil {
 		return err

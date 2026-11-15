@@ -25,6 +25,11 @@ func RestoreSecrets(entries []Restore) error {
 			}
 		}
 	}
+	release, err := lockVault()
+	if err != nil {
+		return err
+	}
+	defer release()
 	existing, err := loadRecords()
 	if err != nil {
 		return err

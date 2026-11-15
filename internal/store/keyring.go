@@ -88,6 +88,11 @@ func SaveSecret(meta SecretMeta, value string) error {
 	if err := checkValueSize(value); err != nil {
 		return err
 	}
+	release, err := lockVault()
+	if err != nil {
+		return err
+	}
+	defer release()
 	recs, err := loadRecords()
 	if err != nil {
 		return err
@@ -141,6 +146,11 @@ func UpdateSecret(oldTitle string, meta SecretMeta, newValue *string) error {
 			return err
 		}
 	}
+	release, err := lockVault()
+	if err != nil {
+		return err
+	}
+	defer release()
 	recs, err := loadRecords()
 	if err != nil {
 		return err
@@ -187,6 +197,11 @@ func UpdateSecret(oldTitle string, meta SecretMeta, newValue *string) error {
 // A value already missing from the keyring is not an error, so half-deleted
 // secrets can still be cleaned up.
 func DeleteSecret(title string) error {
+	release, err := lockVault()
+	if err != nil {
+		return err
+	}
+	defer release()
 	recs, err := loadRecords()
 	if err != nil {
 		return err

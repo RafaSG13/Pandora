@@ -71,7 +71,7 @@ Never touch the real keychain, config directory or clipboard. Use `keyring.MockI
 | R-24 | Value history | 0.2 | L | R-23 (soft) | todo |
 | R-25 | Import from other tools | 0.2 | M | – | todo |
 | R-26 | Dotenv output and CLI ergonomics | 0.2 | S | – | todo |
-| R-27 | External-change detection and file lock | 0.2 | M | – | todo |
+| R-27 | External-change detection and file lock | 0.2 | M | – | done (unreleased) |
 | R-28 | Keyring index and recovery | 0.2 | L | R-24 (soft) | todo |
 | R-30 | `expiring` command | 0.3 | S | – | todo |
 | R-31 | Unlock challenge | 0.3 | L | R-23 | done (master password) |
@@ -413,13 +413,13 @@ Also state the threat model in one paragraph: shoulder surfing, accidental scree
 **Acceptance.** Quoting round-trips through a dotenv parser test; no value in stderr; exit codes follow the existing convention.
 
 ### R-27 External-change detection and file lock
-**Status** todo · **Size** M · **Depends** –
+**Status** done (unreleased) · **Size** M · **Depends** –
 
-**Why.** Known limitations: a second instance's changes are noticed only after `r`, and concurrent writers race on `metadata.json` (last wins).
+**Why.** A second instance's changes were noticed only after `r`, and concurrent writers raced on `vault.json` (last wins, losing the other's secret).
 
 **Scope.** (a) Advisory lock around the load-modify-write cycle in `store`; (b) the TUI notices an external change (mtime/size poll in the 1 s tick, no new dependency) and reloads or shows a "changed on disk — press r" hint.
 
-**Starting points.** `store/keyring.go` (`writeMetadata`, every mutating function loads first), `tickMsg` handling in `update.go`.
+**Starting points.** `store/lock.go` (`lockVault`, `VaultStamp`), every mutating function in `store` (`keyring.go`, `restore.go`, `migrate.go`, `vault.go`), `tick` and `reload` in `internal/tui`.
 
 **Decisions.**
 - Lock: lock file with `O_EXCL` + stale detection, or `flock`/`LockFileEx` via a small per-OS file. *Recommended:* the OS lock, since a crash must not leave a stale lock.

@@ -118,6 +118,7 @@ type model struct {
 	total      int // number of secrets, regardless of the category filter
 	expiring   int // secrets expired or expiring soon
 	loadErr    string
+	stamp      store.Stamp // vault version the list was last loaded from
 
 	// Orphan detection (metadata entries whose keyring value is missing).
 	orphans  map[string]bool
@@ -362,6 +363,7 @@ func (m *model) reload(selectTitle string) error {
 		}
 	}
 
+	m.stamp, _ = store.VaultStamp() // before the read: a write in between is seen on the next tick
 	metas, err := store.LoadMetadata()
 	if err != nil {
 		m.loadErr = err.Error()
@@ -399,11 +401,16 @@ func (m *model) reload(selectTitle string) error {
 	m.fitList(len(items))
 	m.list.SetItems(items)
 
+	found := false
 	for i, it := range m.list.VisibleItems() {
 		if it.(item).meta.Title == selectTitle {
 			m.list.Select(i)
+			found = true
 			break
 		}
+	}
+	if n := len(items); !found && n > 0 && m.list.Index() >= n {
+		m.list.Select(n - 1) // the selected row was the last one and is gone
 	}
 	return nil
 }
