@@ -4,6 +4,8 @@ All notable changes are documented here. The format follows [Keep a Changelog](h
 
 ## [Unreleased]
 
+## [0.1.0] - 2026-11-15
+
 ### Added
 - Edit a secret (`e`): change name, category and optionally the value; renaming moves the keyring value.
 - Delete a secret (`d`) with a confirmation dialog.
