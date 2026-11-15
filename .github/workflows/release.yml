@@ -26,8 +26,14 @@ jobs:
       - uses: goreleaser/goreleaser-action@v6
         with:
           version: "~> v2"
-          args: release --clean --release-notes=${{ runner.temp }}/notes.md
+          args: release --clean
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           # Fine-grained token with contents:write on RafaSG13/homebrew-tap; empty skips the formula.
           HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+      # Passing --release-notes to GoReleaser left the v0.1.0 body empty (its changelog
+      # is disabled), so the notes are set explicitly after the release exists.
+      - name: Publish release notes
+        run: gh release edit "${GITHUB_REF_NAME}" --notes-file "${RUNNER_TEMP}/notes.md"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
