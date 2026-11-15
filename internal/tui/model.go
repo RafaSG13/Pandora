@@ -29,6 +29,7 @@ const (
 	modeBrowse mode = iota
 	modeForm
 	modeConfirmDelete
+	modeHelp
 )
 
 type model struct {
@@ -80,6 +81,17 @@ func (m model) Init() tea.Cmd { return nil }
 const (
 	secretPlaceholder     = "Secret value"
 	secretKeepPlaceholder = "Leave empty to keep current"
+)
+
+// List geometry for mouse hit-testing, in 0-based screen coordinates.
+// bubbles' list does not expose these, so they mirror what View renders.
+const (
+	// listTopRow is the screen row of the first list item: header (0), rule (1),
+	// pane border (2), pane padding (3), list title bar (4–5: title plus one
+	// padding line, from list.DefaultStyles) and status bar (6–7, same shape).
+	listTopRow = 8
+	// itemRows is the rows one item occupies: delegate Height (2) + Spacing (1).
+	itemRows = 3
 )
 
 // reload re-reads the metadata file into the list and selects the secret

@@ -35,6 +35,12 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m.updateForm(msg)
 		case modeConfirmDelete:
 			return m.updateConfirmDelete(msg)
+		case modeHelp:
+			if msg.String() == "ctrl+c" {
+				return m, tea.Quit
+			}
+			m.mode = modeBrowse
+			return m, nil
 		}
 
 		if m.list.FilterState() == list.Filtering {
@@ -68,6 +74,9 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "v":
 			m.showValue = !m.showValue
 			return m, nil
+		case "?":
+			m.mode = modeHelp
+			return m, nil
 		case "enter", "c":
 			if hasSel {
 				val, err := store.GetSecretValue(sel.meta.Title)
@@ -82,6 +91,12 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				})
 			}
 		}
+
+	case tea.MouseMsg:
+		if m.mode != modeBrowse || m.list.FilterState() == list.Filtering {
+			return m, nil // modals and the filter prompt own the input
+		}
+		return m.updateMouse(msg)
 
 	case clearClipboardMsg:
 		_ = clipboard.WriteAll("")
@@ -207,6 +222,35 @@ func (m model) updateConfirmDelete(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 	m.statusMsg = fmt.Sprintf("✓ Deleted %q", title)
+	return m, nil
+}
+
+// updateMouse handles the wheel (moves the selection) and left clicks (select
+// the item under the pointer) while browsing.
+func (m model) updateMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
+	if msg.Action != tea.MouseActionPress {
+		return m, nil
+	}
+	switch msg.Button {
+	case tea.MouseButtonWheelUp:
+		m.list.CursorUp()
+	case tea.MouseButtonWheelDown:
+		m.list.CursorDown()
+	case tea.MouseButtonLeft:
+		leftW, _ := m.paneWidths()
+		if msg.X < 1 || msg.X > leftW || msg.Y < listTopRow {
+			return m, nil
+		}
+		row, offset := (msg.Y-listTopRow)/itemRows, (msg.Y-listTopRow)%itemRows
+		if offset == itemRows-1 { // blank spacing line between items
+			return m, nil
+		}
+		p := m.list.Paginator
+		if row >= p.ItemsOnPage(len(m.list.VisibleItems())) {
+			return m, nil
+		}
+		m.list.Select(p.Page*p.PerPage + row)
+	}
 	return m, nil
 }
 

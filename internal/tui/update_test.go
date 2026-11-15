@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/charmbracelet/bubbles/list"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/zalando/go-keyring"
 
@@ -178,5 +179,126 @@ func TestReloadPicksUpExternalChangesAndKeepsSelection(t *testing.T) {
 	}
 	if !strings.Contains(m.(model).statusMsg, "Reloaded") {
 		t.Errorf("status = %q", m.(model).statusMsg)
+	}
+}
+
+func click(m tea.Model, x, y int) tea.Model {
+	m, _ = m.Update(tea.MouseMsg{X: x, Y: y, Button: tea.MouseButtonLeft, Action: tea.MouseActionPress})
+	return m
+}
+
+func wheel(m tea.Model, b tea.MouseButton) tea.Model {
+	m, _ = m.Update(tea.MouseMsg{Button: b, Action: tea.MouseActionPress})
+	return m
+}
+
+func selected(m tea.Model) string {
+	return m.(model).list.SelectedItem().(item).meta.Title
+}
+
+func addThree(m tea.Model) tea.Model {
+	m = add(m, "alpha", "X", "1")
+	m = add(m, "bravo", "X", "2")
+	return add(m, "charlie", "X", "3") // charlie selected
+}
+
+func TestHelpOverlayOpensAndAnyKeyCloses(t *testing.T) {
+	m := add(newTestModel(t), "a", "X", "v")
+
+	m = press(m, "?")
+	if m.(model).mode != modeHelp {
+		t.Fatalf("mode = %v, want help", m.(model).mode)
+	}
+	if !strings.Contains(m.View(), "Keyboard & mouse") {
+		t.Errorf("overlay title missing from view:\n%s", m.View())
+	}
+
+	m = press(m, "x")
+	if m.(model).mode != modeBrowse {
+		t.Errorf("mode = %v, want browse after any key", m.(model).mode)
+	}
+	if got := titles(m); len(got) != 1 {
+		t.Errorf("titles = %v, want unchanged", got)
+	}
+}
+
+func TestQuestionMarkIsTextInForm(t *testing.T) {
+	m := press(newTestModel(t), "n", "?")
+	mm := m.(model)
+	if mm.mode != modeForm || mm.inputs[0].Value() != "?" {
+		t.Errorf("mode=%v name=%q, want form with name ?", mm.mode, mm.inputs[0].Value())
+	}
+}
+
+func TestQuestionMarkIsTextWhileFiltering(t *testing.T) {
+	m := press(add(newTestModel(t), "a", "X", "v"), "/", "?")
+	mm := m.(model)
+	if mm.mode != modeBrowse || mm.list.FilterState() != list.Filtering {
+		t.Errorf("mode=%v filter=%v, want browse while filtering", mm.mode, mm.list.FilterState())
+	}
+}
+
+func TestWheelMovesSelection(t *testing.T) {
+	m := addThree(newTestModel(t))
+
+	m = wheel(m, tea.MouseButtonWheelUp)
+	if got := selected(m); got != "bravo" {
+		t.Errorf("after wheel up selected %q, want bravo", got)
+	}
+	m = wheel(m, tea.MouseButtonWheelDown)
+	if got := selected(m); got != "charlie" {
+		t.Errorf("after wheel down selected %q, want charlie", got)
+	}
+}
+
+func TestClickSelectsItemRow(t *testing.T) {
+	m := addThree(newTestModel(t))
+	leftW, _ := m.(model).paneWidths()
+
+	m = click(m, 5, listTopRow)
+	if got := selected(m); got != "alpha" {
+		t.Errorf("click row 0 selected %q, want alpha", got)
+	}
+	m = click(m, 5, listTopRow+itemRows)
+	if got := selected(m); got != "bravo" {
+		t.Errorf("click row 1 selected %q, want bravo", got)
+	}
+
+	for name, pos := range map[string][2]int{
+		"spacing line": {5, listTopRow + itemRows + 2},
+		"past last":    {5, listTopRow + 3*itemRows},
+		"above list":   {5, listTopRow - 1},
+		"detail pane":  {leftW + 10, listTopRow},
+	} {
+		m = click(m, pos[0], pos[1])
+		if got := selected(m); got != "bravo" {
+			t.Errorf("click on %s changed selection to %q", name, got)
+		}
+	}
+}
+
+// Guards the hard-coded geometry: fails if bubbles changes title/status heights.
+func TestClickGeometryMatchesRenderedList(t *testing.T) {
+	m := addThree(newTestModel(t))
+	lines := strings.Split(m.View(), "\n")
+
+	if !strings.Contains(lines[listTopRow], "alpha") {
+		t.Errorf("row %d = %q, want alpha", listTopRow, lines[listTopRow])
+	}
+	if !strings.Contains(lines[listTopRow+itemRows], "bravo") {
+		t.Errorf("row %d = %q, want bravo", listTopRow+itemRows, lines[listTopRow+itemRows])
+	}
+}
+
+func TestMouseIgnoredInModals(t *testing.T) {
+	m := press(addThree(newTestModel(t)), "d")
+
+	m = wheel(m, tea.MouseButtonWheelUp)
+	m = click(m, 5, listTopRow)
+	if m.(model).mode != modeConfirmDelete {
+		t.Errorf("mode = %v, want confirm delete", m.(model).mode)
+	}
+	if got := selected(m); got != "charlie" {
+		t.Errorf("selected %q, want charlie unchanged", got)
 	}
 }
