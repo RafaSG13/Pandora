@@ -4,6 +4,14 @@ All notable changes are documented here. The format follows [Keep a Changelog](h
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-11-15
+
+### Added
+- Homebrew formula, published to `RafaSG13/homebrew-tap` by the release workflow.
+
+### Fixed
+- GitHub release notes are now set explicitly from this changelog (v0.1.0 was published with an empty description).
+
 ## [0.1.0] - 2026-11-15
 
 ### Added
