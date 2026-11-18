@@ -9,6 +9,7 @@
 | `internal/tui`   | The interface, split by Bubble Tea role (below). Talks to storage only through `store`. |
 | `internal/store` | The encrypted vault, the session key, and keyring access. No UI dependencies. |
 | `internal/gen`   | Random secrets (`crypto/rand`): charsets, preset lengths, `Generate`. Used by the form and `pandora gen`. |
+| `internal/config` | `config.json` (next to `vault.json`): `Load` merges built-in defaults, the file and `PANDORA_LOCK_MINUTES` / `PANDORA_ASCII` into `Settings` (environment > file > default) and returns warnings instead of failing. No UI or store dependency. Used by the TUI (`New`) and the CLI (`gen`, `config`). |
 | `internal/version` | Version, commit and date: set with `-ldflags -X` by the release build, falling back to `runtime/debug.ReadBuildInfo` (pseudo-versions of untagged builds report `dev`). |
 
 ### `internal/store`
@@ -47,7 +48,7 @@ Vault writes go through a temp file in the same directory and `os.Rename`, so a 
 | `delegate.go` | `rowDelegate`: roomy (3-line) and compact (1-line) list rows, selection fill, orphan / expiry markers |
 | `styles.go`   | Adaptive palette, per-category colours (`categoryColor`), gradient, pane tag border |
 | `icons.go`    | `glyphSet`: Unicode glyphs and the ASCII fallback (`PANDORA_ASCII=1` or a non-UTF-8 locale); `detectNoColor` / `applyColorMode` (`NO_COLOR` or `TERM=dumb`: forces the Ascii colour profile and adds a selection marker) |
-| `expiry.go`   | `expiryInfo`: label and level (`far` / `soon` ≤14 days / `expired`) for a secret |
+| `expiry.go`   | `expiryInfo`: label and level (`far` / `soon` within `expiry_warn_days` / `expired`) for a secret |
 
 **Modes.** `model.mode` decides what the keyboard drives:
 

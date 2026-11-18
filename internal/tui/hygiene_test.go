@@ -13,6 +13,7 @@ import (
 	"github.com/charmbracelet/x/ansi"
 	"github.com/muesli/termenv"
 
+	"github.com/RafaSG13/Pandora/internal/config"
 	"github.com/RafaSG13/Pandora/internal/store"
 	"github.com/RafaSG13/Pandora/internal/version"
 )
@@ -36,7 +37,7 @@ func TestDeadlineLeavesClipboardChangedSinceCopy(t *testing.T) {
 	clipboardLog = append(clipboardLog, "something else the user copied")
 	writes := len(clipboardLog)
 
-	*now = now.Add(clipboardTTL + time.Second)
+	*now = now.Add(config.DefaultClipboardSeconds*time.Second + time.Second)
 	m = tickAt(m, *now)
 
 	mm := m.(model)
@@ -55,7 +56,7 @@ func TestDeadlineClearsWhenClipboardUnreadable(t *testing.T) {
 	m, now := copied(t)
 	readClipboard = func() (string, error) { return "", errors.New("no paste tool") }
 
-	*now = now.Add(clipboardTTL + time.Second)
+	*now = now.Add(config.DefaultClipboardSeconds*time.Second + time.Second)
 	m = tickAt(m, *now)
 
 	if last := clipboardLog[len(clipboardLog)-1]; last != "" || !m.(model).clipUntil.IsZero() {
@@ -67,7 +68,7 @@ func TestDeadlineClearsClipboardWithTrailingNewline(t *testing.T) {
 	m, now := copied(t)
 	readClipboard = func() (string, error) { return "val\n", nil }
 
-	*now = now.Add(clipboardTTL + time.Second)
+	*now = now.Add(config.DefaultClipboardSeconds*time.Second + time.Second)
 	m = tickAt(m, *now)
 
 	if last := clipboardLog[len(clipboardLog)-1]; last != "" {

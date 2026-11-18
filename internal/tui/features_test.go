@@ -12,6 +12,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/zalando/go-keyring"
 
+	"github.com/RafaSG13/Pandora/internal/config"
 	"github.com/RafaSG13/Pandora/internal/gen"
 	"github.com/RafaSG13/Pandora/internal/store"
 )
@@ -61,7 +62,7 @@ func TestRevealIsPerItemAndAutoHides(t *testing.T) {
 	}
 
 	m = press(m, "v")
-	now = now.Add(revealTTL + time.Second)
+	now = now.Add(config.DefaultRevealSeconds*time.Second + time.Second)
 	m = tickAt(m, now)
 	if m.(model).revealTitle != "" || strings.Contains(m.View(), "hunter2") {
 		t.Error("value still revealed after the auto-hide timeout")
@@ -88,12 +89,12 @@ func TestCopyClearNowAndNoEarlyClearAfterSecondCopy(t *testing.T) {
 	m = press(m, "c")
 	now = t0.Add(10 * time.Second)
 	m = press(m, "c")
-	now = t0.Add(clipboardTTL + time.Second) // past the first deadline only
+	now = t0.Add(config.DefaultClipboardSeconds*time.Second + time.Second) // past the first deadline only
 	m = tickAt(m, now)
 	if last := clipboardLog[len(clipboardLog)-1]; last != "val" || m.(model).clipUntil.IsZero() {
 		t.Errorf("second copy cleared early by the first one's deadline: last=%q", last)
 	}
-	now = t0.Add(10*time.Second + clipboardTTL + time.Second)
+	now = t0.Add(10*time.Second + config.DefaultClipboardSeconds*time.Second + time.Second)
 	m = tickAt(m, now)
 	if last := clipboardLog[len(clipboardLog)-1]; last != "" || !m.(model).clipUntil.IsZero() {
 		t.Errorf("clipboard not cleared after the TTL: last=%q", last)
@@ -255,7 +256,7 @@ func TestExpiryInfo(t *testing.T) {
 		{"2026-06-30", "expires in 15d", expiryFar},
 	}
 	for _, c := range cases {
-		label, level := expiryInfo(store.SecretMeta{Expires: c.expires}, now)
+		label, level := expiryInfo(store.SecretMeta{Expires: c.expires}, now, config.DefaultExpiryWarnDays)
 		if label != c.label || level != c.level {
 			t.Errorf("expires %q: got (%q, %v), want (%q, %v)", c.expires, label, level, c.label, c.level)
 		}
@@ -384,12 +385,14 @@ func TestIdleLockDiscardsAnOpenForm(t *testing.T) {
 	}
 }
 
-func TestLockTimeoutFromEnv(t *testing.T) {
-	cases := map[string]time.Duration{"": defaultLockTTL, "x": defaultLockTTL, "-3": defaultLockTTL, "0": 0, "10": 10 * time.Minute}
-	for in, want := range cases {
-		if got := lockTimeout(in); got != want {
-			t.Errorf("lockTimeout(%q) = %v, want %v", in, got, want)
-		}
+func TestAssignedExpiryWindowDecidesSoon(t *testing.T) {
+	now := time.Date(2025, 6, 1, 12, 0, 0, 0, time.UTC)
+	meta := store.SecretMeta{Expires: "2025-06-06"} // in 5 days
+	if _, level := expiryInfo(meta, now, 3); level != expiryFar {
+		t.Errorf("5 days out with a 3-day window = %v, want expiryFar", level)
+	}
+	if _, level := expiryInfo(meta, now, 5); level != expirySoon {
+		t.Errorf("5 days out with a 5-day window = %v, want expirySoon", level)
 	}
 }
 

@@ -181,7 +181,7 @@ func (m model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					m.notify(fmt.Sprintf("✗ Could not copy: %v", err), true)
 					return m, nil
 				}
-				m.clipUntil = m.nowOr().Add(clipboardTTL)
+				m.clipUntil = m.nowOr().Add(m.cfg.ClipboardTTL)
 				m.clipHash = sha256.Sum256([]byte(val))
 				m.notify("✓ Copied to clipboard", false)
 			}
@@ -453,7 +453,10 @@ func (m model) unlocked(msg unlockedMsg) (tea.Model, tea.Cmd) {
 	}
 	if msg.warning != "" {
 		m.notify("✗ Migrated, but "+msg.warning, true)
+	} else if m.cfgWarn != "" && m.loadErr == "" {
+		m.notify(m.cfgWarn, true)
 	}
+	m.cfgWarn = ""
 	m.checking = m.total > 0
 	if !m.checking {
 		return m, nil

@@ -18,9 +18,10 @@ import (
 //
 // Height and Spacing must stay in sync with roomyRows / compactRows (model.go).
 type rowDelegate struct {
-	compact bool
-	orphans map[string]bool // titles whose keyring value is missing
-	now     func() time.Time
+	compact  bool
+	orphans  map[string]bool // titles whose keyring value is missing
+	now      func() time.Time
+	soonDays int // expiry_warn_days
 }
 
 func (d rowDelegate) Height() int {
@@ -83,7 +84,7 @@ func (d rowDelegate) Render(w io.Writer, m list.Model, index int, it list.Item) 
 		indent = g.marker + strings.Repeat(" ", gutter-lipgloss.Width(g.marker))
 	}
 
-	expLabel, level := expiryInfo(i.meta, now)
+	expLabel, level := expiryInfo(i.meta, now, d.soonDays)
 	var expStyle lipgloss.Style
 	switch {
 	case dimmed || level < expirySoon:

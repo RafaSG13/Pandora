@@ -9,6 +9,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/RafaSG13/Pandora/internal/config"
 	"github.com/RafaSG13/Pandora/internal/gen"
 	"github.com/RafaSG13/Pandora/internal/version"
 )
@@ -50,14 +51,16 @@ func TestHelpListsEveryVisibleCommandAndHidesInternalOnes(t *testing.T) {
 }
 
 func TestGenDefaults(t *testing.T) {
+	isolate(t) // gen reads config.json: never the developer's real one
 	code, stdout, stderr := harness{}.run(t, "gen")
 	lines := strings.Split(strings.TrimSuffix(stdout, "\n"), "\n")
-	if code != 0 || stderr != "" || len(lines) != 1 || len(lines[0]) != defaultGenLength {
-		t.Fatalf("gen = %d %q (stderr %q), want one %d-character line", code, stdout, stderr, defaultGenLength)
+	if code != 0 || stderr != "" || len(lines) != 1 || len(lines[0]) != config.DefaultGenLength {
+		t.Fatalf("gen = %d %q (stderr %q), want one %d-character line", code, stdout, stderr, config.DefaultGenLength)
 	}
 }
 
 func TestGenLengthCharsetAndCount(t *testing.T) {
+	isolate(t)
 	for _, cs := range gen.Charsets {
 		for _, n := range []int{gen.MinLength, 12, gen.MaxLength} {
 			code, stdout, stderr := harness{}.run(t, "gen", "--charset", cs.Key, "--length", strconv.Itoa(n), "--count", "3")
@@ -84,6 +87,7 @@ func TestGenLengthCharsetAndCount(t *testing.T) {
 }
 
 func TestGenCountBounds(t *testing.T) {
+	isolate(t)
 	code, stdout, _ := harness{}.run(t, "gen", "--count", strconv.Itoa(maxGenCount))
 	if code != 0 || strings.Count(stdout, "\n") != maxGenCount {
 		t.Errorf("--count %d: exit %d, %d lines", maxGenCount, code, strings.Count(stdout, "\n"))
@@ -91,6 +95,7 @@ func TestGenCountBounds(t *testing.T) {
 }
 
 func TestGenRejectsBadFlagsAsUsageErrors(t *testing.T) {
+	isolate(t)
 	tests := []struct {
 		name string
 		args []string
@@ -116,6 +121,7 @@ func TestGenRejectsBadFlagsAsUsageErrors(t *testing.T) {
 
 // The command table must describe the flags the commands really define.
 func TestCommandTableMatchesFlagSets(t *testing.T) {
+	isolate(t) // `gen -h` prints the defaults, which come from config.json
 	flagLine := regexp.MustCompile(`(?m)^  -(\S+)`)
 	for _, c := range visibleCommands() {
 		code, stdout, stderr := harness{}.run(t, c.name, "-h")

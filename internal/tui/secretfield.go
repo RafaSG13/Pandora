@@ -94,9 +94,9 @@ func (m *model) hideReveal() {
 	m.revealTitle, m.revealValue, m.revealErr = "", "", nil
 }
 
-// revealSelected shows title's value for revealTTL. The value is read once.
+// revealSelected shows title's value for the configured reveal time. The value is read once.
 func (m *model) revealSelected(title string) {
-	m.revealTitle, m.revealUntil = title, m.nowOr().Add(revealTTL)
+	m.revealTitle, m.revealUntil = title, m.nowOr().Add(m.cfg.RevealTTL)
 	m.revealValue, m.revealErr = store.GetSecretValue(title)
 }
 

@@ -9,6 +9,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
+	"github.com/RafaSG13/Pandora/internal/config"
 	"github.com/RafaSG13/Pandora/internal/store"
 )
 
@@ -172,7 +173,7 @@ func TestRevealedValueIsDroppedWhenHiddenExpiredOrLocked(t *testing.T) {
 	}
 
 	m = press(m, "v")
-	now = now.Add(revealTTL + time.Second)
+	now = now.Add(config.DefaultRevealSeconds*time.Second + time.Second)
 	m = tickAt(m, now)
 	if m.(model).revealValue != "" || strings.Contains(m.View(), "s3cr3t-value") {
 		t.Error("auto-hide kept the plaintext")

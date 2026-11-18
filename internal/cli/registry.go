@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/RafaSG13/Pandora/internal/config"
 	"github.com/RafaSG13/Pandora/internal/gen"
 )
 
@@ -125,11 +126,16 @@ func commands() []command {
 		{
 			name: "gen", summary: "Generate random secrets (printed to stdout, not stored)",
 			flags: []flagSpec{
-				{names: []string{"length"}, help: fmt.Sprintf("length, %d to %d (default %d)", gen.MinLength, gen.MaxLength, defaultGenLength), arg: argSpec{kind: argText}},
-				{names: []string{"charset"}, help: "alphabet (default alnum)", arg: argSpec{kind: argChoice, choices: charsets}},
+				{names: []string{"length"}, help: fmt.Sprintf("length, %d to %d (default %d, or gen_length from the config file)", gen.MinLength, gen.MaxLength, config.DefaultGenLength), arg: argSpec{kind: argText}},
+				{names: []string{"charset"}, help: "alphabet (default alnum, or gen_charset from the config file)", arg: argSpec{kind: argChoice, choices: charsets}},
 				{names: []string{"count"}, help: fmt.Sprintf("how many, 1 to %d (default 1)", maxGenCount), arg: argSpec{kind: argText}},
 			},
 			run: (*app).cmdGen,
+		},
+		{
+			name: "config", summary: "Show the config file path or the effective settings",
+			args: argSpec{kind: argChoice, choices: []string{"path", "get"}},
+			run:  (*app).cmdConfig,
 		},
 		{name: "version", aliases: []string{"--version"}, summary: "Print version information (also --version)", run: (*app).cmdVersion},
 		{
