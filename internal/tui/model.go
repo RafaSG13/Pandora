@@ -26,7 +26,15 @@ type item struct {
 	meta store.SecretMeta
 }
 
-func (i item) FilterValue() string { return i.meta.Title + " " + i.meta.Category }
+// FilterValue is what the "/" filter searches: title first (rows highlight
+// matches inside the title only), then category, tags and notes. The list
+// holds metadata only, so the secret value is never searched.
+func (i item) FilterValue() string {
+	parts := []string{i.meta.Title, i.meta.Category}
+	parts = append(parts, i.meta.Tags...)
+	parts = append(parts, i.meta.Notes)
+	return strings.Join(parts, " ")
+}
 
 // mode is what the keyboard currently drives.
 type mode int

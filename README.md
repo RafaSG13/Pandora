@@ -26,7 +26,7 @@ Pandora keeps API keys, tokens and passwords out of dotfiles, shell history and 
 - **Encrypted storage** — a master password protects everything: names, notes and values are encrypted, and values also live in the OS keyring under random IDs.
 - **Full management** — add, edit (including rename), delete with confirmation, and reload.
 - **Rich metadata** — category (with autocomplete), tags, notes or URL, and an optional expiry date with warning badges.
-- **Fast lookup** — fuzzy filter over name and category, quick category filters (`1`–`9`), a tag filter (`T`), and sorting by name, category or date.
+- **Fast lookup** — fuzzy filter over name, category, tags and notes, quick category filters (`1`–`9`), a tag filter (`T`), and sorting by name, category or date.
 - **Safe copying** — copy to the clipboard, cleared automatically after 15 seconds (or right away with `x`), with a visible countdown; on macOS and Windows the copy is marked so clipboard history skips it.
 - **Masked by default** — the value is revealed one secret at a time and hides again after 10 seconds or when you move.
 - **Secret generator** — `ctrl+g` in the form fills a random password or token (length and charset selectable); `pandora gen` does the same from the shell.
@@ -98,7 +98,7 @@ pandora
 | ----------------- | ------------------------------------------------------ |
 | `↑` `↓` / `j` `k` | Move through the list                                  |
 | `g` / `G`, `pgup` / `pgdn` | First / last, previous / next page            |
-| `/`               | Filter by name or category (`esc` clears the filter)   |
+| `/`               | Filter by name, category, tags or notes (`esc` clears the filter) |
 | `1`–`9`, `0`      | Show only the n-th category (same key again, or `0`, shows all) |
 | `T`               | Cycle the tag filter: each tag in use, then all secrets (combines with the category filter) |
 | `s`               | Cycle sort: date added, name, category                 |

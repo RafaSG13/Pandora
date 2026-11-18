@@ -66,7 +66,7 @@ Never touch the real keychain, config directory or clipboard. Use `keyring.MockI
 | R-11 | Concealed clipboard copies | later | M | – | in-progress (macOS verified; Windows manual QA open) |
 | R-20 | Multiline values | 0.2 | M | – | done (unreleased) |
 | R-21 | Tags | 0.2 | M | – | done (unreleased) |
-| R-22 | Search in notes and tags | 0.2 | S | R-21 (soft) | todo |
+| R-22 | Search in notes and tags | 0.2 | S | R-21 (soft) | done (unreleased) |
 | R-23 | Config file | 0.2 | M | – | todo |
 | R-24 | Value history | 0.2 | L | R-23 (soft) | todo |
 | R-25 | Import from other tools | 0.2 | M | – | todo |
@@ -331,15 +331,15 @@ Also state the threat model in one paragraph: shoulder surfing, accidental scree
 **Acceptance (met).** Old vaults load unchanged; tags survive edit/rename/export/import; filter by tag in TUI and CLI; tests for normalisation and for the old-record shape.
 
 ### R-22 Search in notes and tags
-**Status** todo · **Size** S · **Depends** R-21 (soft)
+**Status** done (unreleased; PR pending) · **Size** S · **Depends** R-21 (soft)
 
-**Why.** `item.FilterValue()` returns only title + category (`model.go`), so notes and tags are not searchable.
+**Outcome.** `item.FilterValue()` (`model.go`) is title, category, tags, then notes. The list holds metadata only, so values cannot be searched; `TestFilterNeverSearchesTheSecretValue` guards it. The row underlines only matches inside the title: indexes from a tag or note match fall past the title and mark nothing (`TestMatchInNotesDoesNotHighlightTheTitle`). Trade-off: the filter is fuzzy (subsequence), so a short query can match across a long note; results are ranked, name matches first, but some noise remains. A substring-only match for tags and notes would remove it, at the cost of a custom `list.Filter`.
 
-**Scope.** Extend `FilterValue` with notes (and tags once R-21 exists). **Never values.**
+**Why.** `item.FilterValue()` returned only title + category, so notes and tags were not searchable.
 
-**Decisions.** Notes are only searched when the filter is active; no change to highlight. Check that match highlighting in the delegate does not mis-highlight when the match is in a field that is not rendered (the row shows title and category/description only).
+**Scope.** Extend `FilterValue` with notes and tags. **Never values.**
 
-**Acceptance.** Filtering by a word that exists only in notes selects that secret; a test guards that values are never part of `FilterValue`.
+**Acceptance (met).** Filtering by a word that exists only in notes (or only in a tag) selects that secret; a test guards that values are never part of `FilterValue`.
 
 ### R-23 Config file
 **Status** todo · **Size** M · **Depends** –
