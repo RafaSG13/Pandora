@@ -25,11 +25,11 @@ func (e *CleanupError) Error() string {
 }
 
 func legacyPath() (string, error) {
-	dir, err := os.UserConfigDir()
+	dir, err := ConfigDir()
 	if err != nil {
 		return "", err
 	}
-	return filepath.Join(dir, "pandora", "metadata.json"), nil
+	return filepath.Join(dir, "metadata.json"), nil
 }
 
 // LegacyExists reports whether a plain-text metadata.json from an older

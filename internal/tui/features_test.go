@@ -12,6 +12,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/zalando/go-keyring"
 
+	"github.com/RafaSG13/Pandora/internal/config"
 	"github.com/RafaSG13/Pandora/internal/gen"
 	"github.com/RafaSG13/Pandora/internal/store"
 )
@@ -255,7 +256,7 @@ func TestExpiryInfo(t *testing.T) {
 		{"2026-06-30", "expires in 15d", expiryFar},
 	}
 	for _, c := range cases {
-		label, level := expiryInfo(store.SecretMeta{Expires: c.expires}, now)
+		label, level := expiryInfo(store.SecretMeta{Expires: c.expires}, now, config.DefaultExpiryWarnDays)
 		if label != c.label || level != c.level {
 			t.Errorf("expires %q: got (%q, %v), want (%q, %v)", c.expires, label, level, c.label, c.level)
 		}
@@ -381,15 +382,6 @@ func TestIdleLockDiscardsAnOpenForm(t *testing.T) {
 	m = submitPassword(t, m, testPassword)
 	if m.(model).mode != modeBrowse {
 		t.Errorf("mode after unlock = %v, want browse (never back into the form)", m.(model).mode)
-	}
-}
-
-func TestLockTimeoutFromEnv(t *testing.T) {
-	cases := map[string]time.Duration{"": defaultLockTTL, "x": defaultLockTTL, "-3": defaultLockTTL, "0": 0, "10": 10 * time.Minute}
-	for in, want := range cases {
-		if got := lockTimeout(in); got != want {
-			t.Errorf("lockTimeout(%q) = %v, want %v", in, got, want)
-		}
 	}
 }
 

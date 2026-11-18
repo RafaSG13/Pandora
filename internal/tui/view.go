@@ -234,7 +234,7 @@ func (m model) renderDetail(w, h int) string {
 	if meta.Updated != "" {
 		rows = append(rows, row("Updated", textStyle.Render(meta.Updated)))
 	}
-	if label, level := expiryInfo(meta, now); level != expiryNone {
+	if label, level := expiryInfo(meta, now, m.expiryDays); level != expiryNone {
 		style := subtleStyle
 		switch level {
 		case expirySoon:
@@ -343,10 +343,10 @@ func (m model) renderCountdowns() string {
 	now := m.nowOr()
 	var parts []string
 	if !m.clipUntil.IsZero() {
-		parts = append(parts, countdown("Copied "+g.sep+" clears in", m.clipUntil.Sub(now), clipboardTTL, success))
+		parts = append(parts, countdown("Copied "+g.sep+" clears in", m.clipUntil.Sub(now), m.clipTTL, success))
 	}
 	if m.revealTitle != "" && now.Before(m.revealUntil) {
-		parts = append(parts, countdown("Value hides in", m.revealUntil.Sub(now), revealTTL, accent))
+		parts = append(parts, countdown("Value hides in", m.revealUntil.Sub(now), m.revealFor, accent))
 	}
 	return lipgloss.NewStyle().MaxWidth(m.width).Render(strings.Join(parts, "   "))
 }

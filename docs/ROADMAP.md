@@ -67,7 +67,7 @@ Never touch the real keychain, config directory or clipboard. Use `keyring.MockI
 | R-20 | Multiline values | 0.2 | M | – | done (unreleased) |
 | R-21 | Tags | 0.2 | M | – | done (unreleased) |
 | R-22 | Search in notes and tags | 0.2 | S | R-21 (soft) | done (unreleased) |
-| R-23 | Config file | 0.2 | M | – | todo |
+| R-23 | Config file | 0.2 | M | – | done (unreleased) |
 | R-24 | Value history | 0.2 | L | R-23 (soft) | todo |
 | R-25 | Import from other tools | 0.2 | M | – | todo |
 | R-26 | Dotenv output and CLI ergonomics | 0.2 | S | – | todo |
@@ -342,23 +342,15 @@ Also state the threat model in one paragraph: shoulder surfing, accidental scree
 **Acceptance (met).** Filtering by a word that exists only in notes (or only in a tag) selects that secret; a test guards that values are never part of `FilterValue`.
 
 ### R-23 Config file
-**Status** todo · **Size** M · **Depends** –
+**Status** done (unreleased; PR pending) · **Size** M · **Depends** –
 
-**Why.** Behaviour is configured only through environment variables (`PANDORA_LOCK_MINUTES`, `PANDORA_ASCII`), which is awkward for a TUI launched from a dock or a menu.
+**Outcome.** New `internal/config` (`Load(dir, getenv)` returns the effective `Config` plus a warning per problem and never fails). Format: **JSON** (`config.json` next to `vault.json`, no new dependency; decided with the user). Keys: `lock_minutes`, `ascii`, `clipboard_seconds`, `reveal_seconds`, `expiry_warn_days`, `gen_length`, `gen_charset`, `sort`, `compact`; numeric keys are bounded, choices are checked, `null` is rejected, unknown keys are ignored with a warning, the file is capped at 64 KB. Precedence env > file > default; `PANDORA_LOCK_MINUTES` and `PANDORA_ASCII=1` keep working (an invalid `PANDORA_LOCK_MINUTES` now falls back to the file instead of straight to the default, with a warning). The TUI copies the result into the model in `New()` (the old timing constants are gone, `lockTimeout` moved into the config package) and shows the warnings once as an 8 s toast after unlocking. `store.ConfigDir()` is the shared directory helper. CLI: `pandora config path` and `config get [KEY]` (no master password). Not done: `config set` (edit the file by hand), applying the generator defaults to `pandora gen`, completion of keys after `config get`, and history depth / audit log keys (those items do not exist yet).
 
-**Scope.** A config file next to `metadata.json`: lock minutes, ASCII, clipboard seconds, reveal seconds, expiry warning days, default generator length/charset, default sort, compact mode, and later history depth, audit log. Precedence: environment > file > built-in default.
+**Why.** Behaviour was configured only through environment variables, which is awkward for a TUI launched from a dock or a menu.
 
-**Starting points.** `lockTimeout` and `New()` in `model.go`, `detectASCII`, `expiryInfo` (the 14-day constant), `genLengths`; `store` for the config dir helper.
+**Scope.** A config file next to `vault.json`: lock minutes, ASCII, clipboard seconds, reveal seconds, expiry warning days, default generator length/charset, default sort, compact mode. Precedence: environment > file > built-in default.
 
-**Decisions.**
-- Format: JSON (`config.json`, no new dependency, same tooling as metadata) vs TOML (friendlier to hand-edit, one dependency). *Recommended: TOML* if the user accepts the dependency; otherwise JSON.
-- Invalid values: warn on the header status once and fall back to defaults; never refuse to start.
-- A `pandora config` command (`path`, `get`, `set`) vs documented manual editing. *Recommended:* `path` and `get` only for now.
-- Never put secrets or secret names in the config.
-
-**Ask the user.** TOML or JSON?
-
-**Acceptance.** Table-driven precedence test; unknown keys ignored with a warning; invalid values fall back; the existing env vars keep working.
+**Acceptance (met).** Table-driven precedence tests (`internal/config`); unknown keys ignored with a warning; invalid values fall back; the existing env vars keep working.
 
 ### R-24 Value history
 **Status** todo · **Size** L · **Depends** R-23 (soft)

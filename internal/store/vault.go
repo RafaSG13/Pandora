@@ -84,12 +84,22 @@ var session struct {
 	key []byte
 }
 
-func vaultPath() (string, error) {
+// ConfigDir is the directory that holds vault.json and config.json: the
+// user config directory plus "pandora".
+func ConfigDir() (string, error) {
 	dir, err := os.UserConfigDir()
 	if err != nil {
 		return "", err
 	}
-	return filepath.Join(dir, "pandora", "vault.json"), nil
+	return filepath.Join(dir, "pandora"), nil
+}
+
+func vaultPath() (string, error) {
+	dir, err := ConfigDir()
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(dir, "vault.json"), nil
 }
 
 // Exists reports whether a vault file is present.

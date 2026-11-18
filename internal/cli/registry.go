@@ -123,6 +123,11 @@ func commands() []command {
 		},
 		{name: "passwd", summary: "Change the master password", run: (*app).cmdPasswd},
 		{
+			name: "config", summary: "Show the settings file path and the effective settings",
+			args: argSpec{kind: argChoice, choices: []string{"path", "get"}},
+			run:  (*app).cmdConfig,
+		},
+		{
 			name: "gen", summary: "Generate random secrets (printed to stdout, not stored)",
 			flags: []flagSpec{
 				{names: []string{"length"}, help: fmt.Sprintf("length, %d to %d (default %d)", gen.MinLength, gen.MaxLength, defaultGenLength), arg: argSpec{kind: argText}},

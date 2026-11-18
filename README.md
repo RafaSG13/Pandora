@@ -147,6 +147,38 @@ Fields: **Name**, **Category**, **Secret**, **Expires** (`YYYY-MM-DD`, optional)
 | `PANDORA_ASCII=1`        | Draw with plain ASCII; also used automatically when the locale is not UTF-8 |
 | `NO_COLOR`               | Any non-empty value turns colour off (also `TERM=dumb`); the selected row is then marked with `▌` (`>` in ASCII mode) and expired secrets show `◷!` in compact rows |
 
+### Settings file
+
+Optional. Put a JSON object in `config.json` inside the Pandora config directory (the same folder as `vault.json`; `pandora config path` prints it). Every key is optional:
+
+```json
+{
+  "lock_minutes": 10,
+  "clipboard_seconds": 30,
+  "reveal_seconds": 10,
+  "expiry_warn_days": 14,
+  "gen_length": 32,
+  "gen_charset": "symbols",
+  "sort": "name",
+  "compact": false,
+  "ascii": false
+}
+```
+
+| Key | Values | Default |
+| --- | ------ | ------- |
+| `lock_minutes` | idle minutes before the lock; `0` disables it | `5` |
+| `clipboard_seconds` | `1`–`600`: how long a copied secret stays on the clipboard | `15` |
+| `reveal_seconds` | `1`–`300`: how long a revealed value stays visible | `10` |
+| `expiry_warn_days` | `1`–`365`: how far ahead an expiry shows a warning | `14` |
+| `gen_length` | `16`, `24`, `32`, `48` or `64`: the form's starting length for `ctrl+g` | `24` |
+| `gen_charset` | `alnum`, `symbols` or `hex`: the form's starting charset | `alnum` |
+| `sort` | `created`, `name` or `category`: the list's starting sort | `created` |
+| `compact` | `true` starts with compact rows | `false` |
+| `ascii` | `true` forces the plain-ASCII look (the locale check still applies when `false`) | `false` |
+
+`PANDORA_LOCK_MINUTES` and `PANDORA_ASCII=1` win over the file. Pandora never refuses to start because of this file: a bad value, an unknown key or an unreadable file is ignored (the default stays), with a notice after unlocking, and `pandora config get` lists the problems on stderr. The file holds settings only, never secrets or secret names; the generator defaults are for the TUI (`pandora gen` has its own flags).
+
 ### Terminal size
 
 The interface needs at least 60×18 characters and shows `Terminal too small` below that.
@@ -183,6 +215,7 @@ See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the vault format and data f
 | `pandora import FILE [--values] [--overwrite]` | Reads an export (`-` for stdin). Existing titles are skipped unless `--overwrite`; values are restored only with `--values`. The whole file is validated before anything is written. |
 | `pandora doctor [--fix] [-y]` | Lists vault entries whose value is missing from the keyring; `--fix` removes them (asks unless `-y`). Exits `1` while problems remain. |
 | `pandora passwd` | Changes the master password (needs a terminal). Values stay valid. |
+| `pandora config path` / `config get [KEY]` | Prints the settings file's path, or the effective settings (`key = value`, or just the value for one key). Needs no master password. |
 | `pandora version` | Prints the version, commit and build date (also `pandora --version`). |
 | `pandora gen [--length 8-128] [--charset alnum\|symbols\|hex] [--count 1-100]` | Prints random secrets (default: one of 24 letters and digits) using `crypto/rand`. Stores nothing. |
 | `pandora completion bash\|zsh\|fish\|powershell` | Prints a shell completion script (see below). |

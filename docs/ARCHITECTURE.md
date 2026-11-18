@@ -5,10 +5,11 @@
 | Package          | Responsibility |
 | ---------------- | -------------- |
 | `cmd/pandora`    | Entry point. With arguments it runs `cli.Run`; without, it starts the Bubble Tea program (alternate screen, mouse cell motion) with `tui.New()`. Errors go to stderr, exit code 1. |
-| `internal/cli`   | Non-interactive subcommands (`list`, `get`, `add`, `rm`, `run`, `gen`, `passwd`, `export`, `import`, `doctor`, `version`, `completion`). Takes its streams as arguments and returns an exit code; never calls `os.Exit`. |
+| `internal/cli`   | Non-interactive subcommands (`list`, `get`, `add`, `rm`, `run`, `gen`, `passwd`, `config`, `export`, `import`, `doctor`, `version`, `completion`). Takes its streams as arguments and returns an exit code; never calls `os.Exit`. |
 | `internal/tui`   | The interface, split by Bubble Tea role (below). Talks to storage only through `store`. |
 | `internal/store` | The encrypted vault, the session key, and keyring access. No UI dependencies. |
 | `internal/gen`   | Random secrets (`crypto/rand`): charsets, preset lengths, `Generate`. Used by the form and `pandora gen`. |
+| `internal/config` | `config.json` next to `vault.json` plus two environment variables. `Load(dir, getenv)` returns the effective `Config` and one warning per problem; it never fails. No UI or store dependencies (the directory comes from `store.ConfigDir()`). |
 | `internal/version` | Version, commit and date: set with `-ldflags -X` by the release build, falling back to `runtime/debug.ReadBuildInfo` (pseudo-versions of untagged builds report `dev`). |
 
 ### `internal/store`
@@ -72,7 +73,9 @@ stateDiagram-v2
 
 **Single source of truth.** After every mutation (add, edit, delete, `r`, `s`, category change) the model calls `reload(selectTitle)`, which re-reads `LoadMetadata()`, applies the category filter and sort, and calls `list.SetItems`; it never patches the list by index. `reload` restores the selection by title (or the new last row when the selected one was the last and is gone) and records the vault's `store.VaultStamp()`. Each tick compares that stamp with the file's: when another process changed the vault and the model is browsing, it reloads and restarts the orphan check; in a form or delete confirmation it waits until the dialog closes.
 
-**Time.** One `tickMsg` per second (started in `Init`) drives everything time-based: reveal auto-hide, the clipboard deadline, toast expiry and the idle lock. State holds *deadlines* (`revealUntil`, `clipUntil`, `toastUntil`, `lastActive`), never per-action timers, so a second copy cannot be cleared by the first copy's timer. `model.now` is injectable for tests.
+**Time.** One `tickMsg` per second (started in `Init`) drives everything time-based: reveal auto-hide, the clipboard deadline, toast expiry and the idle lock. State holds *deadlines* (`revealUntil`, `clipUntil`, `toastUntil`, `lastActive`), never per-action timers, so a second copy cannot be cleared by the first copy's timer. `model.now` is injectable for tests. The durations come from the config (`clipTTL`, `revealFor`, `lockAfter`); the toast time is fixed.
+
+**Settings.** `New()` calls `loadConfig()` once and copies the result into the model: timings, `expiryDays` (passed to `expiryInfo` and the row delegate), the starting sort, compact mode, and the generator's length/charset indexes. `ascii` can only switch the glyphs on (the environment or locale may already have). Precedence per key is environment, then file, then default. The file is untrusted input: at most 64 KB, a JSON object, each key checked and bounded on its own (`null` is rejected because it would decode to 0 and switch the idle lock off). Problems become `configWarn`, shown once as an 8 s toast after unlocking, never as a startup error. `pandora config get` prints the same effective values and warnings without opening the vault.
 
 **Reveal.** Only `revealTitle` is shown, until `revealUntil`. `Update` clears it whenever the selected title differs.
 

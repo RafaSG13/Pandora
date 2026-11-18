@@ -68,6 +68,15 @@ func newGlyphs(ascii bool) glyphSet {
 // g is the active glyph set.
 var g = newGlyphs(detectASCII(os.Getenv))
 
+// useASCII switches to the plain-ASCII glyphs after start-up. paneStyle and
+// modalStyle took their border from the glyph set when the package was
+// initialised, so their borders are redone here.
+func useASCII() {
+	g = newGlyphs(true)
+	paneStyle = paneStyle.Border(g.border)
+	modalStyle = modalStyle.Border(g.border)
+}
+
 // detectNoColor reports whether the environment asks for output without
 // colour: NO_COLOR set to anything non-empty (https://no-color.org), or a
 // dumb terminal.

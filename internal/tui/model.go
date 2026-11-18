@@ -7,7 +7,6 @@ import (
 	"os"
 	"slices"
 	"sort"
-	"strconv"
 	"strings"
 	"time"
 
@@ -19,6 +18,8 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
+	"github.com/RafaSG13/Pandora/internal/config"
+	"github.com/RafaSG13/Pandora/internal/gen"
 	"github.com/RafaSG13/Pandora/internal/store"
 )
 
@@ -74,12 +75,11 @@ func (s sortMode) String() string {
 	return [...]string{"date added", "name", "category"}[s]
 }
 
-// Timings. The lock timeout can be changed with PANDORA_LOCK_MINUTES (0 disables).
+// toastTTL is how long a status message stays; configToastTTL is longer for
+// the one-off notice about problems in config.json.
 const (
-	clipboardTTL   = 15 * time.Second
-	revealTTL      = 10 * time.Second
 	toastTTL       = 3 * time.Second
-	defaultLockTTL = 5 * time.Minute
+	configToastTTL = 8 * time.Second
 )
 
 type model struct {
@@ -150,10 +150,20 @@ type model struct {
 	deleting string // title awaiting delete confirmation
 
 	helpScroll int // first help line shown when the overlay does not fit
+
+	// Settings from config.json and the environment (internal/config).
+	clipTTL    time.Duration // how long a copy stays on the clipboard
+	revealFor  time.Duration // how long a revealed value stays visible
+	expiryDays int           // how far ahead an expiry starts to warn
+	configWarn string        // problems found loading the config, shown once
 }
 
 // New returns the root model, populated from the stored metadata.
 func New() tea.Model {
+	cfg, warns := loadConfig()
+	if cfg.ASCII && !g.ascii { // the environment may already have asked for it
+		useASCII()
+	}
 	applyColorMode(detectNoColor(os.Getenv)) // before any style can resolve a colour
 
 	l := list.New(nil, rowDelegate{}, 40, 14)
@@ -187,15 +197,23 @@ func New() tea.Model {
 		inputs:     inputs,
 		secret:     newSecretArea(),
 		now:        time.Now,
-		lockAfter:  lockTimeout(os.Getenv("PANDORA_LOCK_MINUTES")),
+		lockAfter:  time.Duration(cfg.LockMinutes) * time.Minute,
 		spinner:    sp,
-		genLen:     1,
+		genLen:     max(0, slices.Index(gen.Lengths, cfg.GenLength)),
+		genSet:     charsetIndex(cfg.GenCharset),
+		sort:       sortFromName(cfg.Sort),
+		compact:    cfg.Compact,
+		clipTTL:    time.Duration(cfg.ClipboardSeconds) * time.Second,
+		revealFor:  time.Duration(cfg.RevealSeconds) * time.Second,
+		expiryDays: cfg.ExpiryWarnDays,
+		configWarn: configWarning(warns),
 		lastActive: time.Now(),
 	}
 	m.pwInput, m.pwConfirm = newPasswordInput(), newPasswordInput()
 	m.setFocus(fieldName)
 	switch {
 	case store.IsUnlocked():
+		m.showConfigWarning()
 		if err := m.reload(""); err != nil {
 			m.notify(fmt.Sprintf("✗ Could not load secrets: %v", err), true)
 		}
@@ -252,13 +270,53 @@ func (m *model) setReveal(show bool) {
 	m.pwInput.EchoMode, m.pwConfirm.EchoMode = mode, mode
 }
 
-// lockTimeout parses PANDORA_LOCK_MINUTES; empty or invalid means the default.
-func lockTimeout(v string) time.Duration {
-	n, err := strconv.Atoi(strings.TrimSpace(v))
-	if err != nil || n < 0 {
-		return defaultLockTTL
+// loadConfig reads config.json from the Pandora config directory and the
+// environment. Problems come back as warnings, never as errors.
+func loadConfig() (config.Config, []string) {
+	dir, _ := store.ConfigDir() // "" without a config dir: environment only
+	return config.Load(dir, os.Getenv)
+}
+
+// sortFromName maps a config sort name to a sortMode.
+func sortFromName(name string) sortMode {
+	switch name {
+	case "name":
+		return sortName
+	case "category":
+		return sortCategory
 	}
-	return time.Duration(n) * time.Minute
+	return sortCreated
+}
+
+// charsetIndex is the position of the gen.Charsets entry with the given key.
+func charsetIndex(key string) int {
+	for i, cs := range gen.Charsets {
+		if cs.Key == key {
+			return i
+		}
+	}
+	return 0
+}
+
+// configWarning folds the config problems into one line for a toast.
+func configWarning(warns []string) string {
+	switch len(warns) {
+	case 0:
+		return ""
+	case 1:
+		return warns[0]
+	}
+	return fmt.Sprintf("%s (+%d more: run pandora config get)", warns[0], len(warns)-1)
+}
+
+// showConfigWarning shows the config problems once, as a longer toast.
+func (m *model) showConfigWarning() {
+	if m.configWarn == "" {
+		return
+	}
+	m.notify(m.configWarn, true)
+	m.toastUntil = m.nowOr().Add(configToastTTL)
+	m.configWarn = ""
 }
 
 func (m model) Init() tea.Cmd {
@@ -362,7 +420,7 @@ func (m model) textLines() int {
 }
 
 func (m model) delegate() rowDelegate {
-	return rowDelegate{compact: m.compact, orphans: m.orphans, now: m.nowOr}
+	return rowDelegate{compact: m.compact, orphans: m.orphans, now: m.nowOr, soonDays: m.expiryDays}
 }
 
 // reload re-reads the metadata file into the list, applying the category
@@ -397,7 +455,7 @@ func (m *model) reload(selectTitle string) error {
 	now := m.nowOr()
 	shown := make([]store.SecretMeta, 0, len(metas))
 	for _, meta := range metas {
-		if _, level := expiryInfo(meta, now); level >= expirySoon {
+		if _, level := expiryInfo(meta, now, m.expiryDays); level >= expirySoon {
 			m.expiring++
 		}
 		if (m.category == "" || strings.EqualFold(strings.TrimSpace(meta.Category), m.category)) &&

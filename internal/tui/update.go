@@ -181,7 +181,7 @@ func (m model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					m.notify(fmt.Sprintf("✗ Could not copy: %v", err), true)
 					return m, nil
 				}
-				m.clipUntil = m.nowOr().Add(clipboardTTL)
+				m.clipUntil = m.nowOr().Add(m.clipTTL)
 				m.clipHash = sha256.Sum256([]byte(val))
 				m.notify("✓ Copied to clipboard", false)
 			}
@@ -448,6 +448,7 @@ func (m model) unlocked(msg unlockedMsg) (tea.Model, tea.Cmd) {
 	}
 	m.mode, m.migrating = modeBrowse, false
 	m.lastActive = m.nowOr()
+	m.showConfigWarning()
 	if err := m.reload(""); err != nil {
 		m.notify(fmt.Sprintf("✗ Could not load secrets: %v", err), true)
 	}

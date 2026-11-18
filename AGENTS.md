@@ -30,7 +30,7 @@ internal/store  (no UI deps)
 - `internal/store/` vault, session, keyring, value chunking (`chunks.go`), migration, restore, doctor, date helpers.
 - `internal/cli/` commands, registry, unlock/passwd, export/import (age), `run`, completion.
 - `internal/tui/` Bubble Tea UI: `model.go` (state, `New`, layout), `update.go` (`update`, `tick`, `lock`, auth, form), `view.go` (render, footer), `secretfield.go` (secret textarea helpers), `clipboard.go` + `clipboard_{darwin,windows,other}.go` (`writeSecretClipboard`: concealed copy per OS, stub it in tests), `delegate.go` (list rows), `styles.go`, `icons.go` (`glyphSet` `g`, NO_COLOR), `expiry.go`.
-- `internal/gen/` `crypto/rand` secret generator; `internal/version/` build metadata.
+- `internal/gen/` `crypto/rand` secret generator; `internal/config/` `config.json` loader (`Load`, never fails, returns warnings); `internal/version/` build metadata.
 - `docs/` `ARCHITECTURE.md` (vault format, data flows), `ROADMAP.md` (workflow + items), `QA.md` (manual checklist). `scripts/release-notes.sh`.
 
 ## Development Commands
@@ -47,7 +47,7 @@ go test ./internal/tui -run '^TestIdleLockHidesEverythingAndNeedsThePassword$' -
 
 There is no linter config: `gofmt`, `go vet`, tests are the gate. Never run the real keyring on a dev machine except deliberately; the one real-keyring test is CI-only (`PANDORA_INTEGRATION=1 go test -tags integration -run TestRealKeyring ./internal/store`).
 
-Env vars: `PANDORA_MASTER_PASSWORD` (CLI, no terminal), `PANDORA_PASSPHRASE` (age export/import), `PANDORA_LOCK_MINUTES` (default 5, `0` disables), `PANDORA_ASCII=1`, `NO_COLOR`. `run` strips both password variables from the child's environment.
+Env vars: `PANDORA_MASTER_PASSWORD` (CLI, no terminal), `PANDORA_PASSPHRASE` (age export/import), `PANDORA_LOCK_MINUTES` (default 5, `0` disables), `PANDORA_ASCII=1`, `NO_COLOR`. `run` strips both password variables from the child's environment. Optional `config.json` (next to `vault.json`) sets timings, sort, compact, generator defaults and `ascii`; precedence is env > file > default, and a bad file never stops startup (see `internal/config`). Tests that need timings use the `clipboardTTL` / `revealTTL` constants in `update_test.go` (the defaults) or write a config with `writeConfig` / `configuredModel`.
 
 ## Code Conventions & Common Patterns
 

@@ -5,13 +5,21 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/charmbracelet/bubbles/list"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/zalando/go-keyring"
 
+	"github.com/RafaSG13/Pandora/internal/config"
 	"github.com/RafaSG13/Pandora/internal/store"
+)
+
+// The built-in timings; tests move the clock by them.
+const (
+	clipboardTTL = config.DefaultClipboardSeconds * time.Second
+	revealTTL    = config.DefaultRevealSeconds * time.Second
 )
 
 // testPassword is the master password of the vault newTestModel creates.
