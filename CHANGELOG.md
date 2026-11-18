@@ -8,12 +8,16 @@ All notable changes are documented here. The format follows [Keep a Changelog](h
 - **Multi-line secrets** (SSH keys, certificates, JSON credentials), up to 32 KB. In the form, **Secret** is a multi-line editor: paste or press `enter` for a new line, `tab` moves on, `ctrl+s` saves, `ctrl+r` shows or hides the text (it is bullets otherwise). `pandora add <title> < file` reads any number of lines from stdin; `get`, `run`, `export` and `import` keep them intact.
 - Long values are stored in several keyring entries so they fit the Windows (2560 bytes) and macOS limits. Records written by 0.2.0 load unchanged.
 - The TUI notices when another process (the CLI, a second window) changes the vault and refreshes the list within a second, keeping the selection; a form or a delete confirmation is never interrupted, and the list updates once it closes.
+- Copying a secret in the TUI now marks it as concealed so clipboard managers that respect the marker skip it: `org.nspasteboard.ConcealedType` on macOS; on Windows it is kept out of clipboard history (`Win+V`) and cloud clipboard sync. If the marker cannot be set the copy still happens without it. Linux has no such convention, so nothing changes there.
+- **Tags.** A secret can have several tags besides its category (form field **Tags**, comma-separated, e.g. `prod, db`; lowercase, at most 10 of 24 characters, no spaces). `T` in the TUI cycles the tag filter, the detail card lists them, `pandora add --tag` and `pandora list --tag` (repeat for "all of") use them, `list --json` includes `tags`, and they round-trip through export and import. Old vaults and exports load unchanged. Going back to an older version and saving drops the tags.
+- The `/` filter now also searches tags and notes (never the secret value). Matches in the name rank first; a match in a tag or note shows the row without underlining anything.
 
 ### Fixed
 - Two Pandora processes writing at the same time no longer lose each other's changes: every write takes an exclusive lock on `vault.lock` (released automatically if a process dies). A writer that cannot get it within 10 seconds fails with "vault is busy" and changes nothing; reads never wait.
 - Deleting the last row of the list no longer leaves nothing selected.
 
 ### Changed
+- Pressing `enter` in **Notes** now moves to the new **Tags** field; `enter` there saves. `pandora list` prints a trailing `TAGS` column.
 - Replacing a value (edit, import) now writes the new value first and removes the old one afterwards, so a failure can no longer leave a half-replaced value. In the detail card a long revealed value shows its first lines and how many more there are; `c` still copies all of it.
 - In the form's **Secret** field `enter` inserts a newline; use `tab` to move to the next field.
 

@@ -25,9 +25,9 @@ Pandora keeps API keys, tokens and passwords out of dotfiles, shell history and 
 
 - **Encrypted storage** — a master password protects everything: names, notes and values are encrypted, and values also live in the OS keyring under random IDs.
 - **Full management** — add, edit (including rename), delete with confirmation, and reload.
-- **Rich metadata** — category (with autocomplete), notes or URL, and an optional expiry date with warning badges.
-- **Fast lookup** — fuzzy filter over name and category, quick category filters (`1`–`9`), and sorting by name, category or date.
-- **Safe copying** — copy to the clipboard, cleared automatically after 15 seconds (or right away with `x`), with a visible countdown.
+- **Rich metadata** — category (with autocomplete), tags, notes or URL, and an optional expiry date with warning badges.
+- **Fast lookup** — fuzzy filter over name, category, tags and notes, quick category filters (`1`–`9`), a tag filter (`T`), and sorting by name, category or date.
+- **Safe copying** — copy to the clipboard, cleared automatically after 15 seconds (or right away with `x`), with a visible countdown; on macOS and Windows the copy is marked so clipboard history skips it.
 - **Masked by default** — the value is revealed one secret at a time and hides again after 10 seconds or when you move.
 - **Secret generator** — `ctrl+g` in the form fills a random password or token (length and charset selectable); `pandora gen` does the same from the shell.
 - **Idle lock** — after 5 idle minutes everything is masked, the secrets are dropped from memory, a pending clipboard is cleared, and the master password is required again.
@@ -86,7 +86,7 @@ pandora
 ```
 
 0. The first time, Pandora asks you to create a **master password** (at least 10 characters). It cannot be recovered. If you used an older version, your secrets are migrated to the encrypted vault at this point.
-1. Press `n`, fill in a name, a category and the secret value (or press `ctrl+g` to generate one), and press `enter` through the optional **Expires** and **Notes** fields to save.
+1. Press `n`, fill in a name, a category and the secret value (or press `ctrl+g` to generate one), and press `enter` through the optional **Expires**, **Notes** and **Tags** fields to save.
 2. Move with `↑`/`↓` (or `j`/`k`), press `v` to reveal the value, `c` or `enter` to copy it.
 3. Press `/` to filter, `s` to sort, `e` to edit, `d` to delete, `?` for every key, `q` to quit.
 
@@ -98,8 +98,9 @@ pandora
 | ----------------- | ------------------------------------------------------ |
 | `↑` `↓` / `j` `k` | Move through the list                                  |
 | `g` / `G`, `pgup` / `pgdn` | First / last, previous / next page            |
-| `/`               | Filter by name or category (`esc` clears the filter)   |
+| `/`               | Filter by name, category, tags or notes (`esc` clears the filter) |
 | `1`–`9`, `0`      | Show only the n-th category (same key again, or `0`, shows all) |
+| `T`               | Cycle the tag filter: each tag in use, then all secrets (combines with the category filter) |
 | `s`               | Cycle sort: date added, name, category                 |
 | `t`               | Toggle compact one-line rows                           |
 | `enter` / `c`     | Copy the selected secret to the clipboard (cleared after 15 s) |
@@ -135,7 +136,7 @@ Mouse input is ignored while a dialog, the form or the filter prompt is open. Be
 | `ctrl+l` / `ctrl+t`   | Cycle the generated length (16–64) / charset (letters+digits, +symbols, hex) |
 | `esc`                 | Cancel                                                      |
 
-Fields: **Name**, **Category**, **Secret**, **Expires** (`YYYY-MM-DD`, optional) and **Notes** (optional, e.g. a URL). The **Secret** can have several lines (SSH keys, certificates, JSON credentials; up to 32 KB): paste it, or type `enter` for a new line. It is shown as bullets until you press `ctrl+r`; `↑`/`↓` move through its lines and leave it from the first or last line, and `tab` moves on. When editing, leave **Secret** empty to keep the current value. Renaming a secret keeps its value. Names must be unique. A secret that expires within 14 days, or already has, shows a `◷` badge in the list, the detail card and the header. Revealing a long value in the detail card shows its first lines and says how many more there are; `c` always copies all of it.
+Fields: **Name**, **Category**, **Secret**, **Expires** (`YYYY-MM-DD`, optional), **Notes** (optional, e.g. a URL) and **Tags** (optional, comma-separated, e.g. `prod, db`). Tags are stored lowercase, trimmed, unique and sorted; a tag cannot contain spaces or commas, is at most 24 characters, and a secret has at most 10. The **Secret** can have several lines (SSH keys, certificates, JSON credentials; up to 32 KB): paste it, or type `enter` for a new line. It is shown as bullets until you press `ctrl+r`; `↑`/`↓` move through its lines and leave it from the first or last line, and `tab` moves on. When editing, leave **Secret** empty to keep the current value. Renaming a secret keeps its value. Names must be unique. A secret that expires within 14 days, or already has, shows a `◷` badge in the list, the detail card and the header. Revealing a long value in the detail card shows its first lines and says how many more there are; `c` always copies all of it.
 
 ### Configuration
 
@@ -173,9 +174,9 @@ See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the vault format and data f
 
 | Command | What it does |
 | ------- | ------------ |
-| `pandora list [--category C] [--json]` | Titles, categories, creation and expiry dates. Never shows values. |
+| `pandora list [--category C] [--tag T] [--json]` | Titles, categories, creation and expiry dates, and tags. Never shows values. `--tag` (`-t`) keeps secrets that have the tag; repeat it or separate with commas to require several. `--json` always includes `tags` (an empty list when there are none). |
 | `pandora get <title>` | Prints the value followed by a newline, so `add` then `get` reproduces the file you piped in. Exit `1` if the secret does not exist. |
-| `pandora add <title> [-c CATEGORY] [--notes TEXT] [--expires YYYY-MM-DD]` | Stores a new secret. The value is read from stdin when piped (any number of lines, one trailing newline removed; `pandora add key < id_ed25519`) or typed at a hidden prompt on a terminal (one line). Empty values, values over 32 KB, duplicate titles and invalid dates are rejected. |
+| `pandora add <title> [-c CATEGORY] [--tag TAG] [--notes TEXT] [--expires YYYY-MM-DD]` | Stores a new secret. The value is read from stdin when piped (any number of lines, one trailing newline removed; `pandora add key < id_ed25519`) or typed at a hidden prompt on a terminal (one line). `--tag` (`-t`) may be repeated or comma-separated. Empty values, values over 32 KB, duplicate titles, invalid dates and invalid tags are rejected. |
 | `pandora rm <title> [-y]` | Deletes a secret. Asks on a terminal; without a terminal it refuses unless `-y` is given. |
 | `pandora run -s TITLE[=ENV_NAME] [-s ...] -- cmd args...` | Runs `cmd` with each secret in an environment variable that exists only for that process. `ENV_NAME` defaults to the title upper-cased with other characters replaced by `_`. Fails before running anything if a secret is missing; exits with the command's exit code. |
 | `pandora export [--values] [-o FILE] [--force]` | Writes the metadata as JSON. With `--values` the values are included and the whole file is encrypted. |
@@ -189,6 +190,7 @@ See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the vault format and data f
 ```sh
 printf '%s' "$TOKEN" | pandora add github-token -c Tokens --expires 2027-01-31
 pandora list --category tokens --json
+pandora list --tag prod --tag db            # secrets with both tags
 pandora run -s github-token=GITHUB_TOKEN -- gh api user
 pandora export -o names.json                # metadata only, plain JSON
 pandora export --values -o backup.age       # prompts twice for a passphrase
@@ -220,6 +222,7 @@ Pandora is designed to reduce accidental exposure, not to defend against a compr
 
 - require a master password to see anything, and keep values in the OS keyring instead of files;
 - mask values on screen until revealed, and clear the clipboard 15 seconds after copying — but only if the clipboard still holds what Pandora copied (it compares a SHA-256 and keeps no plaintext), so something you copied meanwhile is left alone;
+- mark copied values as concealed: `org.nspasteboard.ConcealedType` on macOS, and excluded from clipboard history (`Win+V`) and cloud clipboard sync on Windows;
 - never log, print or transmit values, and never open network connections;
 - write the vault atomically with owner-only permissions (`0600`/`0700` on macOS and Linux; Windows relies on the per-user profile directory's ACLs);
 - encrypt names, categories, notes, expiry dates and values under a key that only your master password unlocks, and store the keyring entries under random IDs, so neither `security dump-keychain` nor the config directory reveals your titles.
@@ -227,7 +230,7 @@ Pandora is designed to reduce accidental exposure, not to defend against a compr
 **It does not**
 
 - protect against malware or other processes running as your user — they can read the keyring subject to your OS's prompts and policies;
-- control clipboard managers or other tools that record clipboard history;
+- control clipboard managers or other tools that record clipboard history — a tool may ignore the concealed marker, and Linux has no such convention at all;
 - wipe memory reliably after use, or stop someone who can read your keyring and guess a weak master password offline (use a long, unique one; the key derivation is Argon2id with 64 MiB, 3 passes);
 - sync or back up for you — [`pandora export`](#command-line-mode) is manual, and an export made with `--values` is only as safe as its passphrase.
 

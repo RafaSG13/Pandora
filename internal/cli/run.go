@@ -11,11 +11,11 @@ import (
 	"syscall"
 )
 
-// secretFlag collects repeated -s TITLE[=ENV_NAME] values.
-type secretFlag []string
+// repeatFlag collects every occurrence of a repeatable flag, in order.
+type repeatFlag []string
 
-func (s *secretFlag) String() string     { return strings.Join(*s, ",") }
-func (s *secretFlag) Set(v string) error { *s = append(*s, v); return nil }
+func (s *repeatFlag) String() string     { return strings.Join(*s, ",") }
+func (s *repeatFlag) Set(v string) error { *s = append(*s, v); return nil }
 
 type injection struct{ title, env string }
 
@@ -31,7 +31,7 @@ func (a *app) cmdRun(args []string) error {
 	}
 
 	fs := flag.NewFlagSet("run", flag.ContinueOnError)
-	var specs secretFlag
+	var specs repeatFlag
 	fs.Var(&specs, "s", "secret to inject, `TITLE[=ENV_NAME]`; ENV_NAME defaults to the title upper-cased with other characters as _ (repeatable)")
 	fs.Var(&specs, "secret", "same as -s")
 	if _, err := a.parse("run", usage, fs, args, 0, 0); err != nil {

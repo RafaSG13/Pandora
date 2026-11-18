@@ -46,8 +46,9 @@ func newModelFor(t *testing.T, createVault bool, w, h int) tea.Model {
 	}
 
 	clipboardLog = nil
-	origWrite, origRead := writeClipboard, readClipboard
+	origWrite, origSecret, origRead := writeClipboard, writeSecretClipboard, readClipboard
 	writeClipboard = func(s string) error { clipboardLog = append(clipboardLog, s); return nil }
+	writeSecretClipboard = writeClipboard
 	// The stub clipboard holds whatever was written last, like a real one.
 	readClipboard = func() (string, error) {
 		if len(clipboardLog) == 0 {
@@ -55,7 +56,7 @@ func newModelFor(t *testing.T, createVault bool, w, h int) tea.Model {
 		}
 		return clipboardLog[len(clipboardLog)-1], nil
 	}
-	t.Cleanup(func() { writeClipboard, readClipboard = origWrite, origRead })
+	t.Cleanup(func() { writeClipboard, writeSecretClipboard, readClipboard = origWrite, origSecret, origRead })
 
 	// Keep the developer's NO_COLOR / TERM out of the tests; New applies them.
 	t.Setenv("NO_COLOR", "")
@@ -88,9 +89,9 @@ func press(m tea.Model, keys ...string) tea.Model {
 	return m
 }
 
-// add fills name, category and secret, skips Expires and Notes, and saves.
+// add fills name, category and secret, skips Expires, Notes and Tags, and saves.
 func add(m tea.Model, name, category, secret string) tea.Model {
-	return press(m, "n", name, "enter", category, "enter", secret, "tab", "enter", "enter")
+	return press(m, "n", name, "enter", category, "enter", secret, "tab", "enter", "enter", "enter")
 }
 
 func titles(m tea.Model) []string {
@@ -151,7 +152,7 @@ func TestEditPrefillsAndEmptySecretKeepsValue(t *testing.T) {
 
 	// Replace the one-character name, change category; leave secret empty.
 	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyBackspace})
-	m = press(m, "renamed", "enter", "Z", "enter", "tab", "enter", "enter")
+	m = press(m, "renamed", "enter", "Z", "enter", "tab", "enter", "enter", "enter")
 
 	if got := titles(m); len(got) != 1 || got[0] != "renamed" {
 		t.Fatalf("titles = %v, want [renamed]", got)

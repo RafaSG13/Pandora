@@ -24,14 +24,16 @@ var (
 )
 
 // SecretMeta is the non-sensitive description of a secret. It is persisted as JSON (encrypted); never put values here.
-// Dates are YYYY-MM-DD. Updated, Notes and Expires are optional.
+// Dates are YYYY-MM-DD. Updated, Notes, Expires and Tags are optional; writers
+// store Tags in the form NormalizeTags returns.
 type SecretMeta struct {
-	Title    string `json:"title"`
-	Category string `json:"category"`
-	Created  string `json:"created"`
-	Updated  string `json:"updated,omitempty"`
-	Expires  string `json:"expires,omitempty"`
-	Notes    string `json:"notes,omitempty"`
+	Title    string   `json:"title"`
+	Category string   `json:"category"`
+	Created  string   `json:"created"`
+	Updated  string   `json:"updated,omitempty"`
+	Expires  string   `json:"expires,omitempty"`
+	Notes    string   `json:"notes,omitempty"`
+	Tags     []string `json:"tags,omitempty"`
 }
 
 var errCorruptValue = errors.New("stored value is corrupt or was not written by Pandora")
@@ -82,7 +84,7 @@ func openValue(id, stored string) (string, error) {
 // ErrExists if a secret with the same title is already recorded and
 // ErrValueTooLarge above MaxValueBytes.
 func SaveSecret(meta SecretMeta, value string) error {
-	if err := validateMeta(meta); err != nil {
+	if err := prepareMeta(&meta); err != nil {
 		return err
 	}
 	if err := checkValueSize(value); err != nil {
@@ -130,7 +132,7 @@ func GetSecretValue(title string) (string, error) {
 }
 
 // UpdateSecret changes the secret recorded as oldTitle. meta.Title,
-// meta.Category, meta.Expires and meta.Notes replace the stored fields;
+// meta.Category, meta.Expires, meta.Notes and meta.Tags replace the stored fields;
 // meta.Created is ignored and the original date is kept, and Updated is set to
 // today. A non-nil newValue replaces the stored value; nil keeps it. Renaming
 // to a title that is already in use returns ErrExists. A rename only touches
@@ -138,7 +140,7 @@ func GetSecretValue(title string) (string, error) {
 // a fresh ID and the old entries are removed only after the vault points at
 // the new ones, so a failure never leaves a half-replaced value.
 func UpdateSecret(oldTitle string, meta SecretMeta, newValue *string) error {
-	if err := validateMeta(meta); err != nil {
+	if err := prepareMeta(&meta); err != nil {
 		return err
 	}
 	if newValue != nil {

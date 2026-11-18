@@ -102,7 +102,7 @@ func TestCopyClearNowAndNoEarlyClearAfterSecondCopy(t *testing.T) {
 
 func TestCopyReportsClipboardFailure(t *testing.T) {
 	m := add(newTestModel(t), "a", "X", "val")
-	writeClipboard = func(string) error { return errors.New("no xclip") }
+	writeSecretClipboard = func(string) error { return errors.New("no xclip") }
 
 	m = press(m, "c")
 	mm := m.(model)
@@ -170,16 +170,16 @@ func TestCategoryFilterResetsWhenCategoryDisappears(t *testing.T) {
 }
 
 func TestFormSavesExpiresAndNotesAndEditSetsUpdated(t *testing.T) {
-	m := press(newTestModel(t), "n", "a", "enter", "X", "enter", "v", "tab", "2030-01-31", "enter", "see https://x.example", "enter")
+	m := press(newTestModel(t), "n", "a", "enter", "X", "enter", "v", "tab", "2030-01-31", "enter", "see https://x.example", "enter", "Prod, db,PROD", "enter")
 
 	metas, _ := store.LoadMetadata()
-	if len(metas) != 1 || metas[0].Expires != "2030-01-31" || metas[0].Notes != "see https://x.example" || metas[0].Updated != "" {
+	if len(metas) != 1 || metas[0].Expires != "2030-01-31" || metas[0].Notes != "see https://x.example" || metas[0].Updated != "" || strings.Join(metas[0].Tags, ",") != "db,prod" {
 		t.Fatalf("saved metadata = %+v", metas)
 	}
 
 	m = press(m, "e")
 	mm := m.(model)
-	if mm.inputs[fieldExpires].Value() != "2030-01-31" || mm.inputs[fieldNotes].Value() != "see https://x.example" {
+	if mm.inputs[fieldExpires].Value() != "2030-01-31" || mm.inputs[fieldNotes].Value() != "see https://x.example" || mm.inputs[fieldTags].Value() != "db, prod" {
 		t.Fatalf("edit form not prefilled: expires=%q notes=%q", mm.inputs[fieldExpires].Value(), mm.inputs[fieldNotes].Value())
 	}
 	m = ctrl(m, tea.KeyCtrlS)
@@ -187,13 +187,13 @@ func TestFormSavesExpiresAndNotesAndEditSetsUpdated(t *testing.T) {
 		t.Fatalf("ctrl+s did not save: mode=%v status=%q", m.(model).mode, m.(model).statusMsg)
 	}
 	metas, _ = store.LoadMetadata()
-	if metas[0].Updated != time.Now().Format(store.DateLayout) || metas[0].Expires != "2030-01-31" {
+	if metas[0].Updated != time.Now().Format(store.DateLayout) || metas[0].Expires != "2030-01-31" || strings.Join(metas[0].Tags, ",") != "db,prod" {
 		t.Errorf("after edit: %+v, want Updated=today and Expires kept", metas[0])
 	}
 }
 
 func TestInvalidExpiresKeepsFormOpen(t *testing.T) {
-	m := press(newTestModel(t), "n", "a", "enter", "X", "enter", "v", "tab", "tomorrow", "enter", "", "enter")
+	m := press(newTestModel(t), "n", "a", "enter", "X", "enter", "v", "tab", "tomorrow", "enter", "", "enter", "", "enter")
 	mm := m.(model)
 	if mm.mode != modeForm || !mm.statusErr || !strings.Contains(mm.statusMsg, "Expires") {
 		t.Errorf("mode=%v status=%q, want open form with an Expires error", mm.mode, mm.statusMsg)
@@ -264,7 +264,7 @@ func TestExpiryInfo(t *testing.T) {
 
 func TestExpiryShownInListHeaderAndDetail(t *testing.T) {
 	soon := time.Now().AddDate(0, 0, 3).Format(store.DateLayout)
-	m := press(newTestModel(t), "n", "a", "enter", "X", "enter", "v", "tab", soon, "enter", "", "enter")
+	m := press(newTestModel(t), "n", "a", "enter", "X", "enter", "v", "tab", soon, "enter", "", "enter", "", "enter")
 
 	out := m.View()
 	if !strings.Contains(out, "1 expiring") {

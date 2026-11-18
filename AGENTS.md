@@ -29,7 +29,7 @@ internal/store  (no UI deps)
 - `cmd/pandora/` entry point.
 - `internal/store/` vault, session, keyring, value chunking (`chunks.go`), migration, restore, doctor, date helpers.
 - `internal/cli/` commands, registry, unlock/passwd, export/import (age), `run`, completion.
-- `internal/tui/` Bubble Tea UI: `model.go` (state, `New`, layout), `update.go` (`update`, `tick`, `lock`, auth, form), `view.go` (render, footer), `secretfield.go` (secret textarea helpers), `delegate.go` (list rows), `styles.go`, `icons.go` (`glyphSet` `g`, NO_COLOR), `expiry.go`.
+- `internal/tui/` Bubble Tea UI: `model.go` (state, `New`, layout), `update.go` (`update`, `tick`, `lock`, auth, form), `view.go` (render, footer), `secretfield.go` (secret textarea helpers), `clipboard.go` + `clipboard_{darwin,windows,other}.go` (`writeSecretClipboard`: concealed copy per OS, stub it in tests), `delegate.go` (list rows), `styles.go`, `icons.go` (`glyphSet` `g`, NO_COLOR), `expiry.go`.
 - `internal/gen/` `crypto/rand` secret generator; `internal/version/` build metadata.
 - `docs/` `ARCHITECTURE.md` (vault format, data flows), `ROADMAP.md` (workflow + items), `QA.md` (manual checklist). `scripts/release-notes.sh`.
 
@@ -66,6 +66,7 @@ Env vars: `PANDORA_MASTER_PASSWORD` (CLI, no terminal), `PANDORA_PASSPHRASE` (ag
   - Messages that must not scroll to the selection (`tick`, spinner, orphan) are listed in the `Update` wrapper switch.
   - If list chrome changes, update `listTopRow`, `listChrome`, `itemsInView` and `rowDelegate.Height()` together (mouse hit-testing).
   - The form's secret is a `bubbles/textarea` (`model.secret`; `inputs[fieldSecret]` is an unused slot that keeps field indices stable). `enter` = newline, `tab` next field, `ctrl+s` save, `ctrl+r` show/hide; it cannot mask, so masked state is drawn by `maskedLines`. Its height `clamp(h-18+1, 1, 8)` is what keeps the form exactly window-high at 60×18: don't add form rows without re-checking that. The textarea's default 99-row / 500-column caps are lifted on purpose (they silently cut keys and tokens).
+  - The form has six fields (`Tags` is last): `enter` moves on and saves from the last one, and at 60×18 it has no spare row left (the status line sits directly under the hints).
   - A revealed value is read once into `revealValue` and must be dropped via `hideReveal()` (hide, expiry, lock, delete, save), never re-fetched per frame: chunked values cost several keychain calls.
 - **Naming:** unexported helpers, `cmdXxx` for commands, `renderXxx` for views, `TestXxx` that states the behaviour. Keep exported identifiers documented.
 - **Commits/PRs:** short imperative subject, body explains why; update `CHANGELOG.md` under `[Unreleased]` for user-visible changes.

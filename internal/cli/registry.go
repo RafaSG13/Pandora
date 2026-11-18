@@ -64,6 +64,7 @@ func commands() []command {
 			name: "list", summary: "List secrets (metadata only)",
 			flags: []flagSpec{
 				{names: []string{"c", "category"}, help: "only secrets in this category", arg: argSpec{kind: argCategory}},
+				{names: []string{"t", "tag"}, help: "only secrets with this tag (repeat or comma-separate to require several)", arg: argSpec{kind: argText}, repeat: true},
 				{names: []string{"json"}, help: "print JSON instead of a table"},
 			},
 			run: (*app).cmdList,
@@ -73,6 +74,7 @@ func commands() []command {
 			name: "add", summary: "Add a secret (value from stdin or a hidden prompt)",
 			flags: []flagSpec{
 				{names: []string{"c", "category"}, help: "category", arg: argSpec{kind: argCategory}},
+				{names: []string{"t", "tag"}, help: "tag (repeat or comma-separate for several)", arg: argSpec{kind: argText}, repeat: true},
 				{names: []string{"notes"}, help: "free-form notes", arg: argSpec{kind: argText}},
 				{names: []string{"expires"}, help: "expiry date, YYYY-MM-DD", arg: argSpec{kind: argText}},
 			},

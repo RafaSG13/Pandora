@@ -76,7 +76,7 @@ stateDiagram-v2
 
 **Reveal.** Only `revealTitle` is shown, until `revealUntil`. `Update` clears it whenever the selected title differs.
 
-**Clipboard.** `writeClipboard` and `readClipboard` (variables, stubbed in tests) are the only clipboard access. Failures are reported instead of showing `✓ Copied`. Copying stores a SHA-256 of the value (`clipHash`), never the value. Clearing (deadline, `x`, lock) reads the clipboard first and clears only when it still matches (trailing newlines ignored); a read error clears anyway, and content that no longer matches is left alone (`x` says so; the automatic paths are silent). The lock screen clears a pending clipboard the same way.
+**Clipboard.** `writeSecretClipboard`, `writeClipboard` and `readClipboard` (variables, stubbed in tests) are the only clipboard access. Copying a secret uses `writeSecretClipboard` (`clipboard.go`, per-OS `clipboard_<os>.go`), which marks the entry for clipboard managers: macOS runs `/usr/bin/osascript` with a JXA script (value on stdin, never argv) that sets the text plus `org.nspasteboard.ConcealedType`; Windows sets `CF_UNICODETEXT` plus `ExcludeClipboardContentFromMonitorProcessing`, `CanIncludeInClipboardHistory` = 0 and `CanUploadToCloudClipboard` = 0 via `golang.org/x/sys/windows` (no cgo); other systems write plainly. If the marked write fails before the text is set, it falls back to a plain `atotto/clipboard` write. Reads and clears use `readClipboard`/`writeClipboard("")` (atotto). Failures are reported instead of showing `✓ Copied`. Copying stores a SHA-256 of the value (`clipHash`), never the value. Clearing (deadline, `x`, lock) reads the clipboard first and clears only when it still matches (trailing newlines ignored); a read error clears anyway, and content that no longer matches is left alone (`x` says so; the automatic paths are silent). The lock screen clears a pending clipboard the same way.
 
 **Orphans.** After unlock and on `r`, the model runs `checkOrphans` off the UI thread (some keyring backends are slow or prompt); the result (`orphanMsg`) marks rows and the detail card of secrets whose value is missing. A spinner shows in the header meanwhile. A result arriving while locked is dropped.
 
@@ -114,7 +114,7 @@ sequenceDiagram
 
 ### Copy
 
-`enter`/`c` → `store.GetSecretValue(title)` → `writeClipboard(value)`; on success `clipUntil = now + 15 s`, `clipHash` records the value's hash and a countdown bar appears. The tick clears the clipboard when the deadline passes (see *Clipboard* above); `x` clears it immediately. A new copy simply moves the deadline and the hash.
+`enter`/`c` → `store.GetSecretValue(title)` → `writeSecretClipboard(value)`; on success `clipUntil = now + 15 s`, `clipHash` records the value's hash and a countdown bar appears. The tick clears the clipboard when the deadline passes (see *Clipboard* above); `x` clears it immediately. A new copy simply moves the deadline and the hash.
 
 ## Persisted data
 
@@ -128,13 +128,14 @@ sequenceDiagram
 ```
 
 - `wrapped_key` is a random 32-byte data key sealed with XChaCha20-Poly1305 under the key Argon2id derives from the master password (AAD `pandora-v2-key`). A failed open is "wrong password".
-- `data` is the same AEAD under the data key (AAD `pandora-v2-meta`, fresh nonce on every write) over a JSON array of records `{id, chunks?, title, category, created, updated?, expires?, notes?}`. `id` is 32 lowercase hex characters from `crypto/rand`; it is the keyring account of the first piece of the value. `chunks` is the number of keyring entries and is omitted for one, so records written before multi-line values load unchanged.
+- `data` is the same AEAD under the data key (AAD `pandora-v2-meta`, fresh nonce on every write) over a JSON array of records `{id, chunks?, title, category, created, updated?, expires?, notes?, tags?}`. `id` is 32 lowercase hex characters from `crypto/rand`; it is the keyring account of the first piece of the value. `chunks` is the number of keyring entries and is omitted for one, so records written before multi-line values load unchanged. `tags` is omitted when empty, so records written before tags existed load unchanged and a secret without tags still writes the old shape.
 - KDF parameters are read from the file, which is untrusted input: `alg` must be `argon2id`, `time` 1–10, `memory_kib` 8–1048576, `threads` 1–16, otherwise the file is rejected before any key derivation.
 - Keyring values are `pv2:` + base64(nonce24 || XChaCha20-Poly1305(dataKey, value, AAD = id)). Binding the id stops ciphertexts being swapped between entries. The string is split into pieces of at most 2000 characters, stored as accounts `<id>`, `<id>.1`, `<id>.2`, … because the OS keyrings cap one entry (Windows Credential Manager 2560 bytes; macOS about 4 KB per `security` command after go-keyring's own base64). The AAD covers the whole concatenation, so reordered, truncated or foreign pieces fail to decrypt.
 - A corrupt or tampered `data` field is an error and is never overwritten. `vault.json.bak` holds the previous (still encrypted) version.
-- Titles, categories and notes must not contain control characters (`store.ValidateText`), so imported files cannot inject terminal escape sequences.
+- Titles, categories, notes and tags must not contain control characters (`store.ValidateText`), so imported files cannot inject terminal escape sequences. Writers (`SaveSecret`, `UpdateSecret`, `RestoreSecrets`) normalise tags through `store.NormalizeTags` (trim, lowercase, drop empties and duplicates, sort; no whitespace or commas inside, at most 24 characters, at most 10); `parseExport` does the same before anything is written.
+- Tags are additive: the vault stays at version 2. An older Pandora opens the file and ignores `tags`, but its next write drops them, so downgrading after using tags loses them.
 
-`store.SecretMeta` (`title`, `category`, `created`, `updated`, `expires`, `notes`) is still the shape used by `export`/`import` and by the callers; the id exists only inside the store:
+`store.SecretMeta` (`title`, `category`, `created`, `updated`, `expires`, `notes`, `tags`) is still the shape used by `export`/`import` and by the callers; the id exists only inside the store:
 
 | Field      | Type   | Meaning |
 | ---------- | ------ | ------- |
@@ -144,12 +145,13 @@ sequenceDiagram
 | `updated`  | string | Optional; set on every edit |
 | `expires`  | string | Optional `YYYY-MM-DD`; drives the warning badges |
 | `notes`    | string | Optional free text (e.g. a URL); never put values here |
+| `tags`     | []string | Optional; normalised (see above); filtered by `T` in the TUI and `--tag` in the CLI |
 
 Secret values are stored only in the OS keyring, service `pandora-cli`, encrypted as above. Older versions used `metadata.json` plus keyring accounts named after the titles; `store.MigrateLegacy` converts that on first start (re-encrypting each value under a fresh id, then deleting the old accounts and files; removal is not secure erasure on SSD/APFS).
 
 ## Testing
 
-Tests replace the keyring with `keyring.MockInit()`, point `HOME`, `XDG_CONFIG_HOME` and `AppData` at a temp dir, call `store.FastKDFForTests()` (cheap Argon2 parameters; tests only), create a vault and unlock it, and stub `writeClipboard` / `readClipboard`, so nothing touches the real keychain, config or clipboard. The CLI harness locks the store before every run so each invocation behaves like a new process. `internal/tui` tests drive `Update` with key, mouse and tick messages (with an injected clock) and assert on model state, store contents and the rendered view. The single exception is `internal/store/integration_test.go` (build tag `integration`, and it also needs `PANDORA_INTEGRATION=1`): it talks to the real OS keyring and only runs in the Linux CI job, inside a throwaway D-Bus session. Release QA on real keychains and terminals is a manual checklist: [QA.md](QA.md).
+Tests replace the keyring with `keyring.MockInit()`, point `HOME`, `XDG_CONFIG_HOME` and `AppData` at a temp dir, call `store.FastKDFForTests()` (cheap Argon2 parameters; tests only), create a vault and unlock it, and stub `writeClipboard` / `writeSecretClipboard` / `readClipboard`, so nothing touches the real keychain, config or clipboard. The CLI harness locks the store before every run so each invocation behaves like a new process. `internal/tui` tests drive `Update` with key, mouse and tick messages (with an injected clock) and assert on model state, store contents and the rendered view. The single exception is `internal/store/integration_test.go` (build tag `integration`, and it also needs `PANDORA_INTEGRATION=1`): it talks to the real OS keyring and only runs in the Linux CI job, inside a throwaway D-Bus session. Release QA on real keychains and terminals is a manual checklist: [QA.md](QA.md).
 
 ## Known limitations
 
@@ -159,4 +161,5 @@ Tests replace the keyring with `keyring.MockInit()`, point `HOME`, `XDG_CONFIG_H
 - go-keyring cannot enumerate entries, so `doctor` finds vault entries without a value but not keyring entries without a vault record.
 - The master password cannot be recovered; `export --values` is the backup route.
 - `ChangePassword` re-wraps the same data key, so someone who knew the old password and kept an old copy of `vault.json` (not the `.bak`, which is replaced) can still open that old copy. Rotating the data key would need every keyring value re-encrypted.
+- The concealed clipboard marker only helps with clipboard managers that honour it; Linux has no convention, so copies there are plain. On macOS each copy starts `osascript` (~100 ms); if it fails, the copy falls back to an unmarked write.
 - Selecting text with the mouse needs `Shift` (`Alt` in some terminals) because Pandora captures the mouse.

@@ -14,7 +14,7 @@ Never include real secret values in a report.
 
 In scope: ways Pandora could leak or corrupt secret values or metadata, expose titles, notes or values without the master password, weaken the vault encryption or its key derivation, bypass the OS keyring, leave values in the clipboard longer than documented, or write files with unsafe permissions.
 
-Out of scope: threats Pandora does not claim to handle (see *Security model* in the [README](README.md)) — malware running as the same user, clipboard history tools, secret values visible to a program started with `pandora run` (it receives them in its environment), `PANDORA_MASTER_PASSWORD` or `PANDORA_PASSPHRASE` being readable by other processes of your user, a weak master password guessed offline, memory that is not wiped after the idle lock, an older plain-text copy of the data left on disk after migration (deletion is not secure erasure), and weaknesses in the OS keyring itself.
+Out of scope: threats Pandora does not claim to handle (see *Security model* in the [README](README.md)) — malware running as the same user, clipboard history tools (copies are marked concealed on macOS and Windows, but a tool may ignore that, and Linux has no marker), secret values visible to a program started with `pandora run` (it receives them in its environment), `PANDORA_MASTER_PASSWORD` or `PANDORA_PASSPHRASE` being readable by other processes of your user, a weak master password guessed offline, memory that is not wiped after the idle lock, an older plain-text copy of the data left on disk after migration (deletion is not secure erasure), and weaknesses in the OS keyring itself.
 
 ## Supported versions
 

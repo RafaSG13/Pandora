@@ -1,5 +1,7 @@
 package store
 
+import "slices"
+
 // Restore is one secret to bring back with RestoreSecrets. A nil Value leaves
 // the keyring untouched for that title.
 type Restore struct {
@@ -15,12 +17,13 @@ type Restore struct {
 // ones; if a keyring write or the vault write fails, everything stored by the
 // batch is removed again and nothing that existed is touched.
 func RestoreSecrets(entries []Restore) error {
-	for _, e := range entries {
-		if err := validateMeta(e.Meta); err != nil {
+	entries = slices.Clone(entries) // prepareMeta normalises Tags in place
+	for i := range entries {
+		if err := prepareMeta(&entries[i].Meta); err != nil {
 			return err
 		}
-		if e.Value != nil {
-			if err := checkValueSize(*e.Value); err != nil {
+		if v := entries[i].Value; v != nil {
+			if err := checkValueSize(*v); err != nil {
 				return err
 			}
 		}

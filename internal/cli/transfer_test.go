@@ -3,6 +3,7 @@ package cli
 import (
 	"os"
 	"path/filepath"
+	"reflect"
 	"runtime"
 	"strings"
 	"testing"
@@ -20,7 +21,10 @@ const (
 
 func seed(t *testing.T) {
 	t.Helper()
-	mustSave(t, "alpha", "Tokens", valueA)
+	meta := store.SecretMeta{Title: "alpha", Category: "Tokens", Created: "2026-01-02", Expires: "2031-03-04", Notes: "note alpha", Tags: []string{"db", "prod"}}
+	if err := store.SaveSecret(meta, valueA); err != nil {
+		t.Fatal(err)
+	}
 	mustSave(t, "bravo", "Infra", valueB)
 }
 
@@ -187,8 +191,8 @@ func TestEncryptedExportImportRoundTrip(t *testing.T) {
 		t.Fatalf("import: %d %q %q", code, stdout, stderr)
 	}
 	after, _ := store.LoadMetadata()
-	if len(after) != 2 || after[0] != before[0] || after[1] != before[1] {
-		t.Errorf("metadata after = %+v, want %+v (dates and notes preserved)", after, before)
+	if len(after) != 2 || !reflect.DeepEqual(after, before) || len(after[0].Tags) != 2 {
+		t.Errorf("metadata after = %+v, want %+v (dates, notes and tags preserved)", after, before)
 	}
 	for title, want := range map[string]string{"alpha": valueA, "bravo": valueB} {
 		if got, err := store.GetSecretValue(title); err != nil || got != want {
@@ -343,6 +347,7 @@ func TestImportValidatesWholeFileBeforeWriting(t *testing.T) {
 		"wrong format": `{"format":"other","version":1,"secrets":[{"title":"ok"}]}`,
 		"new version":  `{"format":"pandora-export","version":99,"secrets":[{"title":"ok"}]}`,
 		"not json":     `hello`,
+		"bad tag":      `{"format":"pandora-export","version":1,"secrets":[{"title":"ok"},{"title":"b","tags":["two words"]}]}`,
 	} {
 		file := filepath.Join(t.TempDir(), "in.json")
 		if err := os.WriteFile(file, []byte(doc), 0600); err != nil {
@@ -354,6 +359,24 @@ func TestImportValidatesWholeFileBeforeWriting(t *testing.T) {
 		if got := titlesOf(t); len(got) != 0 {
 			t.Errorf("%s: invalid file partially imported: %v", name, got)
 		}
+	}
+}
+
+func TestImportNormalisesTagsAndAcceptsFilesWithoutThem(t *testing.T) {
+	isolate(t)
+	doc := `{"format":"pandora-export","version":1,"secrets":[
+		{"title":"old","created":"2026-01-02"},
+		{"title":"new","created":"2026-01-02","tags":["Prod"," db ","prod"]}]}`
+	if code, _, e := (harness{stdin: doc}).run(t, "import", "-"); code != 0 {
+		t.Fatal(e)
+	}
+	metas, _ := store.LoadMetadata()
+	got := map[string][]string{}
+	for _, m := range metas {
+		got[m.Title] = m.Tags
+	}
+	if got["old"] != nil || !reflect.DeepEqual(got["new"], []string{"db", "prod"}) {
+		t.Errorf("tags after import = %q", got)
 	}
 }
 
