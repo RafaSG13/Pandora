@@ -47,7 +47,7 @@ An item is `done` only when its **Acceptance** list holds *and*:
 
 ### Testing rules
 
-Never touch the real keychain, config directory or clipboard. Use `keyring.MockInit()`, temp `HOME` / `XDG_CONFIG_HOME` / `AppData`, and the stubbed `writeClipboard` (see `internal/store/keyring_test.go`, `internal/tui/update_test.go`, `internal/tui/features_test.go`). Test behaviour, boundaries and error paths; do not pin wording or wiring.
+Never touch the real keychain, config directory or clipboard. Use `keyring.MockInit()`, temp `HOME` / `XDG_CONFIG_HOME` / `AppData`, and the stubbed `writeClipboard` / `writeSecretClipboard` (see `internal/store/keyring_test.go`, `internal/tui/update_test.go`, `internal/tui/features_test.go`). Test behaviour, boundaries and error paths; do not pin wording or wiring.
 
 ## Index
 
@@ -63,7 +63,7 @@ Never touch the real keychain, config directory or clipboard. Use `keyring.MockI
 | R-08 | Shell completions | 0.1.0 | M | – | done (v0.1.0, PR #6) |
 | R-09 | `pandora gen` | 0.1.0 | S | – | done (v0.1.0, PR #6) |
 | R-10 | `NO_COLOR` and small-terminal help | 0.1.0 | S | – | done (v0.1.0, PR #6) |
-| R-11 | Concealed clipboard copies | later | M | – | todo |
+| R-11 | Concealed clipboard copies | later | M | – | in-progress (macOS verified; Windows manual QA open) |
 | R-20 | Multiline values | 0.2 | M | – | done (unreleased) |
 | R-21 | Tags | 0.2 | M | – | todo |
 | R-22 | Search in notes and tags | 0.2 | S | R-21 (soft) | todo |
@@ -278,7 +278,9 @@ Also state the threat model in one paragraph: shoulder surfing, accidental scree
 **Acceptance.** `NO_COLOR=1` output contains no SGR colour codes (selection still distinguishable); at 60×18 every help line is reachable and the view is exactly 18 lines.
 
 ### R-11 Concealed clipboard copies
-**Status** todo · **Size** M · **Depends** –
+**Status** in-progress (macOS verified; Windows needs the `docs/QA.md` check on a real machine) · **Size** M · **Depends** –
+
+**Outcome so far.** Secret copies go through `writeSecretClipboard` (`internal/tui/clipboard.go`); `writeClipboard`/`readClipboard` stay for reads and clears. Per-OS files, no cgo, no new dependency: macOS runs `/usr/bin/osascript` (JXA, value on stdin) to set `public.utf8-plain-text` plus `org.nspasteboard.ConcealedType` (~100 ms per copy); Windows sets `CF_UNICODETEXT` plus `ExcludeClipboardContentFromMonitorProcessing`, `CanIncludeInClipboardHistory` = 0 and `CanUploadToCloudClipboard` = 0 through `golang.org/x/sys/windows`; Linux and others write plainly. Any failure before the text is set falls back to `atotto/clipboard`. Verified on macOS in a real TUI (pasteboard types include the marker; `x` still clears); Windows only cross-builds and vets so far.
 
 **Why.** Part (b) of the old R-07: while a secret sits on the clipboard, clipboard-history tools can record it.
 

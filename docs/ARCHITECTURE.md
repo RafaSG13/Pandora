@@ -76,7 +76,7 @@ stateDiagram-v2
 
 **Reveal.** Only `revealTitle` is shown, until `revealUntil`. `Update` clears it whenever the selected title differs.
 
-**Clipboard.** `writeClipboard` and `readClipboard` (variables, stubbed in tests) are the only clipboard access. Failures are reported instead of showing `✓ Copied`. Copying stores a SHA-256 of the value (`clipHash`), never the value. Clearing (deadline, `x`, lock) reads the clipboard first and clears only when it still matches (trailing newlines ignored); a read error clears anyway, and content that no longer matches is left alone (`x` says so; the automatic paths are silent). The lock screen clears a pending clipboard the same way.
+**Clipboard.** `writeSecretClipboard`, `writeClipboard` and `readClipboard` (variables, stubbed in tests) are the only clipboard access. Copying a secret uses `writeSecretClipboard` (`clipboard.go`, per-OS `clipboard_<os>.go`), which marks the entry for clipboard managers: macOS runs `/usr/bin/osascript` with a JXA script (value on stdin, never argv) that sets the text plus `org.nspasteboard.ConcealedType`; Windows sets `CF_UNICODETEXT` plus `ExcludeClipboardContentFromMonitorProcessing`, `CanIncludeInClipboardHistory` = 0 and `CanUploadToCloudClipboard` = 0 via `golang.org/x/sys/windows` (no cgo); other systems write plainly. If the marked write fails before the text is set, it falls back to a plain `atotto/clipboard` write. Reads and clears use `readClipboard`/`writeClipboard("")` (atotto). Failures are reported instead of showing `✓ Copied`. Copying stores a SHA-256 of the value (`clipHash`), never the value. Clearing (deadline, `x`, lock) reads the clipboard first and clears only when it still matches (trailing newlines ignored); a read error clears anyway, and content that no longer matches is left alone (`x` says so; the automatic paths are silent). The lock screen clears a pending clipboard the same way.
 
 **Orphans.** After unlock and on `r`, the model runs `checkOrphans` off the UI thread (some keyring backends are slow or prompt); the result (`orphanMsg`) marks rows and the detail card of secrets whose value is missing. A spinner shows in the header meanwhile. A result arriving while locked is dropped.
 
@@ -114,7 +114,7 @@ sequenceDiagram
 
 ### Copy
 
-`enter`/`c` → `store.GetSecretValue(title)` → `writeClipboard(value)`; on success `clipUntil = now + 15 s`, `clipHash` records the value's hash and a countdown bar appears. The tick clears the clipboard when the deadline passes (see *Clipboard* above); `x` clears it immediately. A new copy simply moves the deadline and the hash.
+`enter`/`c` → `store.GetSecretValue(title)` → `writeSecretClipboard(value)`; on success `clipUntil = now + 15 s`, `clipHash` records the value's hash and a countdown bar appears. The tick clears the clipboard when the deadline passes (see *Clipboard* above); `x` clears it immediately. A new copy simply moves the deadline and the hash.
 
 ## Persisted data
 
@@ -149,7 +149,7 @@ Secret values are stored only in the OS keyring, service `pandora-cli`, encrypte
 
 ## Testing
 
-Tests replace the keyring with `keyring.MockInit()`, point `HOME`, `XDG_CONFIG_HOME` and `AppData` at a temp dir, call `store.FastKDFForTests()` (cheap Argon2 parameters; tests only), create a vault and unlock it, and stub `writeClipboard` / `readClipboard`, so nothing touches the real keychain, config or clipboard. The CLI harness locks the store before every run so each invocation behaves like a new process. `internal/tui` tests drive `Update` with key, mouse and tick messages (with an injected clock) and assert on model state, store contents and the rendered view. The single exception is `internal/store/integration_test.go` (build tag `integration`, and it also needs `PANDORA_INTEGRATION=1`): it talks to the real OS keyring and only runs in the Linux CI job, inside a throwaway D-Bus session. Release QA on real keychains and terminals is a manual checklist: [QA.md](QA.md).
+Tests replace the keyring with `keyring.MockInit()`, point `HOME`, `XDG_CONFIG_HOME` and `AppData` at a temp dir, call `store.FastKDFForTests()` (cheap Argon2 parameters; tests only), create a vault and unlock it, and stub `writeClipboard` / `writeSecretClipboard` / `readClipboard`, so nothing touches the real keychain, config or clipboard. The CLI harness locks the store before every run so each invocation behaves like a new process. `internal/tui` tests drive `Update` with key, mouse and tick messages (with an injected clock) and assert on model state, store contents and the rendered view. The single exception is `internal/store/integration_test.go` (build tag `integration`, and it also needs `PANDORA_INTEGRATION=1`): it talks to the real OS keyring and only runs in the Linux CI job, inside a throwaway D-Bus session. Release QA on real keychains and terminals is a manual checklist: [QA.md](QA.md).
 
 ## Known limitations
 
@@ -159,4 +159,5 @@ Tests replace the keyring with `keyring.MockInit()`, point `HOME`, `XDG_CONFIG_H
 - go-keyring cannot enumerate entries, so `doctor` finds vault entries without a value but not keyring entries without a vault record.
 - The master password cannot be recovered; `export --values` is the backup route.
 - `ChangePassword` re-wraps the same data key, so someone who knew the old password and kept an old copy of `vault.json` (not the `.bak`, which is replaced) can still open that old copy. Rotating the data key would need every keyring value re-encrypted.
+- The concealed clipboard marker only helps with clipboard managers that honour it; Linux has no convention, so copies there are plain. On macOS each copy starts `osascript` (~100 ms); if it fails, the copy falls back to an unmarked write.
 - Selecting text with the mouse needs `Shift` (`Alt` in some terminals) because Pandora captures the mouse.

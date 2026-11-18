@@ -16,8 +16,9 @@ import (
 	"github.com/RafaSG13/Pandora/internal/store"
 )
 
-// writeClipboard and readClipboard are the system clipboard accessors;
-// variables so tests never touch the developer's real clipboard.
+// writeClipboard and readClipboard are the plain system clipboard accessors
+// (reads and clears); variables so tests never touch the developer's real
+// clipboard. Secret copies go through writeSecretClipboard (clipboard.go).
 var (
 	writeClipboard = clipboard.WriteAll
 	readClipboard  = clipboard.ReadAll
@@ -173,7 +174,7 @@ func (m model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					m.notify(fmt.Sprintf("✗ Could not read secret: %v", err), true)
 					return m, nil
 				}
-				if err := writeClipboard(val); err != nil {
+				if err := writeSecretClipboard(val); err != nil {
 					m.notify(fmt.Sprintf("✗ Could not copy: %v", err), true)
 					return m, nil
 				}

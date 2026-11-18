@@ -28,6 +28,8 @@ Use a throwaway test vault: start with a clean `HOME`-level config (move `~/Libr
 | Copy, then copy something else yourself, wait 15 s | **Your other text is untouched.** |
 | `x` right after copying | Clipboard cleared immediately. |
 | Copy, then let the idle lock trigger | Clipboard cleared. |
+| macOS: `c`, then `osascript -l JavaScript -e "ObjC.import('AppKit'); $.NSPasteboard.generalPasteboard.types.js.map(function(t){return ObjC.unwrap(t)}).join(',')"` | Lists `org.nspasteboard.ConcealedType`; a clipboard manager that honours it (e.g. Maccy) does not record the entry; pasting works. |
+| Windows: `c`, then `Win+V` | The secret is not in clipboard history; pasting works. |
 | Linux without `xclip`/`xsel`/`wl-clipboard` | `✗ Could not copy` toast, not `✓ Copied`. |
 
 ## 3. Terminals

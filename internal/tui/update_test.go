@@ -46,8 +46,9 @@ func newModelFor(t *testing.T, createVault bool, w, h int) tea.Model {
 	}
 
 	clipboardLog = nil
-	origWrite, origRead := writeClipboard, readClipboard
+	origWrite, origSecret, origRead := writeClipboard, writeSecretClipboard, readClipboard
 	writeClipboard = func(s string) error { clipboardLog = append(clipboardLog, s); return nil }
+	writeSecretClipboard = writeClipboard
 	// The stub clipboard holds whatever was written last, like a real one.
 	readClipboard = func() (string, error) {
 		if len(clipboardLog) == 0 {
@@ -55,7 +56,7 @@ func newModelFor(t *testing.T, createVault bool, w, h int) tea.Model {
 		}
 		return clipboardLog[len(clipboardLog)-1], nil
 	}
-	t.Cleanup(func() { writeClipboard, readClipboard = origWrite, origRead })
+	t.Cleanup(func() { writeClipboard, writeSecretClipboard, readClipboard = origWrite, origSecret, origRead })
 
 	// Keep the developer's NO_COLOR / TERM out of the tests; New applies them.
 	t.Setenv("NO_COLOR", "")

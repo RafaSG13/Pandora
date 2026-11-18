@@ -8,6 +8,7 @@ All notable changes are documented here. The format follows [Keep a Changelog](h
 - **Multi-line secrets** (SSH keys, certificates, JSON credentials), up to 32 KB. In the form, **Secret** is a multi-line editor: paste or press `enter` for a new line, `tab` moves on, `ctrl+s` saves, `ctrl+r` shows or hides the text (it is bullets otherwise). `pandora add <title> < file` reads any number of lines from stdin; `get`, `run`, `export` and `import` keep them intact.
 - Long values are stored in several keyring entries so they fit the Windows (2560 bytes) and macOS limits. Records written by 0.2.0 load unchanged.
 - The TUI notices when another process (the CLI, a second window) changes the vault and refreshes the list within a second, keeping the selection; a form or a delete confirmation is never interrupted, and the list updates once it closes.
+- Copying a secret in the TUI now marks it as concealed so clipboard managers that respect the marker skip it: `org.nspasteboard.ConcealedType` on macOS; on Windows it is kept out of clipboard history (`Win+V`) and cloud clipboard sync. If the marker cannot be set the copy still happens without it. Linux has no such convention, so nothing changes there.
 
 ### Fixed
 - Two Pandora processes writing at the same time no longer lose each other's changes: every write takes an exclusive lock on `vault.lock` (released automatically if a process dies). A writer that cannot get it within 10 seconds fails with "vault is busy" and changes nothing; reads never wait.

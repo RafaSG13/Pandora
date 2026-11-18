@@ -27,7 +27,7 @@ Pandora keeps API keys, tokens and passwords out of dotfiles, shell history and 
 - **Full management** — add, edit (including rename), delete with confirmation, and reload.
 - **Rich metadata** — category (with autocomplete), notes or URL, and an optional expiry date with warning badges.
 - **Fast lookup** — fuzzy filter over name and category, quick category filters (`1`–`9`), and sorting by name, category or date.
-- **Safe copying** — copy to the clipboard, cleared automatically after 15 seconds (or right away with `x`), with a visible countdown.
+- **Safe copying** — copy to the clipboard, cleared automatically after 15 seconds (or right away with `x`), with a visible countdown; on macOS and Windows the copy is marked so clipboard history skips it.
 - **Masked by default** — the value is revealed one secret at a time and hides again after 10 seconds or when you move.
 - **Secret generator** — `ctrl+g` in the form fills a random password or token (length and charset selectable); `pandora gen` does the same from the shell.
 - **Idle lock** — after 5 idle minutes everything is masked, the secrets are dropped from memory, a pending clipboard is cleared, and the master password is required again.
@@ -220,6 +220,7 @@ Pandora is designed to reduce accidental exposure, not to defend against a compr
 
 - require a master password to see anything, and keep values in the OS keyring instead of files;
 - mask values on screen until revealed, and clear the clipboard 15 seconds after copying — but only if the clipboard still holds what Pandora copied (it compares a SHA-256 and keeps no plaintext), so something you copied meanwhile is left alone;
+- mark copied values as concealed: `org.nspasteboard.ConcealedType` on macOS, and excluded from clipboard history (`Win+V`) and cloud clipboard sync on Windows;
 - never log, print or transmit values, and never open network connections;
 - write the vault atomically with owner-only permissions (`0600`/`0700` on macOS and Linux; Windows relies on the per-user profile directory's ACLs);
 - encrypt names, categories, notes, expiry dates and values under a key that only your master password unlocks, and store the keyring entries under random IDs, so neither `security dump-keychain` nor the config directory reveals your titles.
@@ -227,7 +228,7 @@ Pandora is designed to reduce accidental exposure, not to defend against a compr
 **It does not**
 
 - protect against malware or other processes running as your user — they can read the keyring subject to your OS's prompts and policies;
-- control clipboard managers or other tools that record clipboard history;
+- control clipboard managers or other tools that record clipboard history — a tool may ignore the concealed marker, and Linux has no such convention at all;
 - wipe memory reliably after use, or stop someone who can read your keyring and guess a weak master password offline (use a long, unique one; the key derivation is Argon2id with 64 MiB, 3 passes);
 - sync or back up for you — [`pandora export`](#command-line-mode) is manual, and an export made with `--values` is only as safe as its passphrase.
 

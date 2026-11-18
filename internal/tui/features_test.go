@@ -102,7 +102,7 @@ func TestCopyClearNowAndNoEarlyClearAfterSecondCopy(t *testing.T) {
 
 func TestCopyReportsClipboardFailure(t *testing.T) {
 	m := add(newTestModel(t), "a", "X", "val")
-	writeClipboard = func(string) error { return errors.New("no xclip") }
+	writeSecretClipboard = func(string) error { return errors.New("no xclip") }
 
 	m = press(m, "c")
 	mm := m.(model)

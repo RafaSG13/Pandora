@@ -29,7 +29,7 @@ internal/store  (no UI deps)
 - `cmd/pandora/` entry point.
 - `internal/store/` vault, session, keyring, value chunking (`chunks.go`), migration, restore, doctor, date helpers.
 - `internal/cli/` commands, registry, unlock/passwd, export/import (age), `run`, completion.
-- `internal/tui/` Bubble Tea UI: `model.go` (state, `New`, layout), `update.go` (`update`, `tick`, `lock`, auth, form), `view.go` (render, footer), `secretfield.go` (secret textarea helpers), `delegate.go` (list rows), `styles.go`, `icons.go` (`glyphSet` `g`, NO_COLOR), `expiry.go`.
+- `internal/tui/` Bubble Tea UI: `model.go` (state, `New`, layout), `update.go` (`update`, `tick`, `lock`, auth, form), `view.go` (render, footer), `secretfield.go` (secret textarea helpers), `clipboard.go` + `clipboard_{darwin,windows,other}.go` (`writeSecretClipboard`: concealed copy per OS, stub it in tests), `delegate.go` (list rows), `styles.go`, `icons.go` (`glyphSet` `g`, NO_COLOR), `expiry.go`.
 - `internal/gen/` `crypto/rand` secret generator; `internal/version/` build metadata.
 - `docs/` `ARCHITECTURE.md` (vault format, data flows), `ROADMAP.md` (workflow + items), `QA.md` (manual checklist). `scripts/release-notes.sh`.
 
