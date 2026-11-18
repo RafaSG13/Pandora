@@ -128,13 +128,14 @@ sequenceDiagram
 ```
 
 - `wrapped_key` is a random 32-byte data key sealed with XChaCha20-Poly1305 under the key Argon2id derives from the master password (AAD `pandora-v2-key`). A failed open is "wrong password".
-- `data` is the same AEAD under the data key (AAD `pandora-v2-meta`, fresh nonce on every write) over a JSON array of records `{id, chunks?, title, category, created, updated?, expires?, notes?}`. `id` is 32 lowercase hex characters from `crypto/rand`; it is the keyring account of the first piece of the value. `chunks` is the number of keyring entries and is omitted for one, so records written before multi-line values load unchanged.
+- `data` is the same AEAD under the data key (AAD `pandora-v2-meta`, fresh nonce on every write) over a JSON array of records `{id, chunks?, title, category, created, updated?, expires?, notes?, tags?}`. `id` is 32 lowercase hex characters from `crypto/rand`; it is the keyring account of the first piece of the value. `chunks` is the number of keyring entries and is omitted for one, so records written before multi-line values load unchanged. `tags` is omitted when empty, so records written before tags existed load unchanged and a secret without tags still writes the old shape.
 - KDF parameters are read from the file, which is untrusted input: `alg` must be `argon2id`, `time` 1–10, `memory_kib` 8–1048576, `threads` 1–16, otherwise the file is rejected before any key derivation.
 - Keyring values are `pv2:` + base64(nonce24 || XChaCha20-Poly1305(dataKey, value, AAD = id)). Binding the id stops ciphertexts being swapped between entries. The string is split into pieces of at most 2000 characters, stored as accounts `<id>`, `<id>.1`, `<id>.2`, … because the OS keyrings cap one entry (Windows Credential Manager 2560 bytes; macOS about 4 KB per `security` command after go-keyring's own base64). The AAD covers the whole concatenation, so reordered, truncated or foreign pieces fail to decrypt.
 - A corrupt or tampered `data` field is an error and is never overwritten. `vault.json.bak` holds the previous (still encrypted) version.
-- Titles, categories and notes must not contain control characters (`store.ValidateText`), so imported files cannot inject terminal escape sequences.
+- Titles, categories, notes and tags must not contain control characters (`store.ValidateText`), so imported files cannot inject terminal escape sequences. Writers (`SaveSecret`, `UpdateSecret`, `RestoreSecrets`) normalise tags through `store.NormalizeTags` (trim, lowercase, drop empties and duplicates, sort; no whitespace or commas inside, at most 24 characters, at most 10); `parseExport` does the same before anything is written.
+- Tags are additive: the vault stays at version 2. An older Pandora opens the file and ignores `tags`, but its next write drops them, so downgrading after using tags loses them.
 
-`store.SecretMeta` (`title`, `category`, `created`, `updated`, `expires`, `notes`) is still the shape used by `export`/`import` and by the callers; the id exists only inside the store:
+`store.SecretMeta` (`title`, `category`, `created`, `updated`, `expires`, `notes`, `tags`) is still the shape used by `export`/`import` and by the callers; the id exists only inside the store:
 
 | Field      | Type   | Meaning |
 | ---------- | ------ | ------- |
@@ -144,6 +145,7 @@ sequenceDiagram
 | `updated`  | string | Optional; set on every edit |
 | `expires`  | string | Optional `YYYY-MM-DD`; drives the warning badges |
 | `notes`    | string | Optional free text (e.g. a URL); never put values here |
+| `tags`     | []string | Optional; normalised (see above); filtered by `T` in the TUI and `--tag` in the CLI |
 
 Secret values are stored only in the OS keyring, service `pandora-cli`, encrypted as above. Older versions used `metadata.json` plus keyring accounts named after the titles; `store.MigrateLegacy` converts that on first start (re-encrypting each value under a fresh id, then deleting the old accounts and files; removal is not secure erasure on SSD/APFS).
 

@@ -6,6 +6,7 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"slices"
 	"strings"
 	"text/tabwriter"
 	"time"
@@ -16,22 +17,30 @@ import (
 )
 
 type listEntry struct {
-	Title    string `json:"title"`
-	Category string `json:"category"`
-	Created  string `json:"created"`
-	Expires  string `json:"expires"`
+	Title    string   `json:"title"`
+	Category string   `json:"category"`
+	Created  string   `json:"created"`
+	Expires  string   `json:"expires"`
+	Tags     []string `json:"tags"`
 }
 
 func (a *app) cmdList(args []string) error {
-	const usage = "list [--category C] [--json]"
+	const usage = "list [--category C] [--tag T] [--json]"
 	fs := flag.NewFlagSet("list", flag.ContinueOnError)
 	var category string
+	var tagArgs repeatFlag
 	var asJSON bool
 	fs.StringVar(&category, "category", "", "only secrets in this category (case-insensitive)")
 	fs.StringVar(&category, "c", "", "shorthand for --category")
+	fs.Var(&tagArgs, "tag", "only secrets with this tag; repeat or comma-separate to require several")
+	fs.Var(&tagArgs, "t", "shorthand for --tag")
 	fs.BoolVar(&asJSON, "json", false, "print JSON instead of a table")
 	if _, err := a.parse("list", usage, fs, args, 0, 0); err != nil {
 		return err
+	}
+	want, err := store.ParseTags(strings.Join(tagArgs, ","))
+	if err != nil {
+		return usageErrorf("list: invalid --tag: %v", err)
 	}
 
 	if err := a.unlock(); err != nil {
@@ -46,7 +55,14 @@ func (a *app) cmdList(args []string) error {
 		if category != "" && !strings.EqualFold(m.Category, strings.TrimSpace(category)) {
 			continue
 		}
-		entries = append(entries, listEntry{m.Title, m.Category, m.Created, m.Expires})
+		if !hasAllTags(m.Tags, want) {
+			continue
+		}
+		tags := m.Tags
+		if tags == nil {
+			tags = []string{}
+		}
+		entries = append(entries, listEntry{m.Title, m.Category, m.Created, m.Expires, tags})
 	}
 
 	if asJSON {
@@ -58,11 +74,22 @@ func (a *app) cmdList(args []string) error {
 		return nil
 	}
 	tw := tabwriter.NewWriter(a.out, 0, 4, 2, ' ', 0)
-	fmt.Fprintln(tw, "TITLE\tCATEGORY\tCREATED\tEXPIRES")
+	fmt.Fprintln(tw, "TITLE\tCATEGORY\tCREATED\tEXPIRES\tTAGS")
 	for _, e := range entries {
-		fmt.Fprintf(tw, "%s\t%s\t%s\t%s\n", e.Title, e.Category, e.Created, e.Expires)
+		fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\n", e.Title, e.Category, e.Created, e.Expires, strings.Join(e.Tags, ","))
 	}
 	return tw.Flush()
+}
+
+// hasAllTags reports whether have contains every tag in want (both are in
+// normalised form).
+func hasAllTags(have, want []string) bool {
+	for _, w := range want {
+		if !slices.Contains(have, w) {
+			return false
+		}
+	}
+	return true
 }
 
 func (a *app) cmdGet(args []string) error {
@@ -92,11 +119,14 @@ func secretValue(title string) (string, error) {
 }
 
 func (a *app) cmdAdd(args []string) error {
-	const usage = "add <title> [-c CATEGORY] [--notes TEXT] [--expires YYYY-MM-DD]"
+	const usage = "add <title> [-c CATEGORY] [--tag TAG] [--notes TEXT] [--expires YYYY-MM-DD]"
 	fs := flag.NewFlagSet("add", flag.ContinueOnError)
 	var category, notes, expires string
+	var tagArgs repeatFlag
 	fs.StringVar(&category, "c", "", "category")
 	fs.StringVar(&category, "category", "", "category")
+	fs.Var(&tagArgs, "t", "tag; repeat or comma-separate for several")
+	fs.Var(&tagArgs, "tag", "tag; repeat or comma-separate for several")
 	fs.StringVar(&notes, "notes", "", "free-form notes")
 	fs.StringVar(&expires, "expires", "", "expiry date, YYYY-MM-DD")
 	pos, err := a.parse("add", usage, fs, args, 1, 1)
@@ -111,6 +141,10 @@ func (a *app) cmdAdd(args []string) error {
 	expires = strings.TrimSpace(expires)
 	if _, err := store.ParseDate(expires); err != nil {
 		return usageErrorf("add: invalid --expires %q: %v", expires, err)
+	}
+	tags, err := store.ParseTags(strings.Join(tagArgs, ","))
+	if err != nil {
+		return usageErrorf("add: invalid --tag: %v", err)
 	}
 
 	if err := a.unlock(); err != nil {
@@ -130,6 +164,7 @@ func (a *app) cmdAdd(args []string) error {
 		Created:  time.Now().Format(store.DateLayout),
 		Expires:  expires,
 		Notes:    notes,
+		Tags:     tags,
 	}
 	if err := store.SaveSecret(meta, value); err != nil {
 		switch {

@@ -244,6 +244,9 @@ func (m model) renderDetail(w, h int) string {
 		}
 		rows = append(rows, row("Expires", textStyle.Render(meta.Expires)+"  "+style.Render(g.clock+" "+label)))
 	}
+	if len(meta.Tags) > 0 {
+		rows = append(rows, row("Tags", textStyle.Render(truncate("#"+strings.Join(meta.Tags, " #"), max(1, w-10)))))
+	}
 
 	// The notes decide how many lines the value box may use.
 	var tail []string
@@ -409,7 +412,7 @@ const formLabelW = 10
 
 func (m model) renderForm() string {
 	inner := m.modalWidth() - 8
-	labels := [numFields]string{"Name", "Category", "Secret", "Expires", "Notes"}
+	labels := [numFields]string{"Name", "Category", "Secret", "Expires", "Notes", "Tags"}
 
 	title := "New secret"
 	if m.editing != "" {
@@ -444,7 +447,7 @@ func (m model) renderForm() string {
 	b.WriteString(subtleStyle.Render(keyStyle.Render("ctrl+g") + " generate " + g.sep + " " + keyStyle.Render("ctrl+r") + " show/hide"))
 	b.WriteString("\n")
 	b.WriteString(subtleStyle.Render(fmt.Sprintf("%s %d chars %s %s %s", keyStyle.Render("ctrl+l"), gen.Lengths[m.genLen], g.sep, keyStyle.Render("ctrl+t"), gen.Charsets[m.genSet].Name)))
-	b.WriteString("\n\n")
+	b.WriteString("\n") // status sits right under the hints: the Tags row took the spare line at 60×18
 	b.WriteString(m.renderStatus())
 
 	return modalStyle.Width(m.modalWidth()).Render(lipgloss.NewStyle().MaxWidth(inner).Render(b.String()))
@@ -478,6 +481,7 @@ var helpColumns = [][]helpGroup{
 			{"/", "filter"},
 			{"esc", "clear filter"},
 			{"1-9 / 0", "category filter"},
+			{"T", "cycle tag filter"},
 			{"s", "cycle sort"},
 			{"t", "compact rows"},
 			{"enter/c", "copy"},

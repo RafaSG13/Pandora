@@ -375,6 +375,11 @@ func parseExport(data []byte) (*exportFile, error) {
 				return nil, fmt.Errorf("secret #%d: %w", i+1, err)
 			}
 		}
+		tags, err := store.NormalizeTags(s.Tags)
+		if err != nil {
+			return nil, fmt.Errorf("secret #%d: %w", i+1, err)
+		}
+		s.Tags = tags
 		if seen[s.Title] {
 			return nil, fmt.Errorf("secret %q appears more than once", s.Title)
 		}

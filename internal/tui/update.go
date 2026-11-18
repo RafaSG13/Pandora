@@ -4,6 +4,7 @@ import (
 	"crypto/sha256"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 	"unicode/utf8"
 
@@ -142,6 +143,8 @@ func (m model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			m.notify("Sorted by "+m.sort.String(), false)
 			return m, nil
+		case "T":
+			return m.cycleTag(), nil
 		case "t":
 			m.compact = !m.compact
 			m.list.SetDelegate(m.delegate())
@@ -313,6 +316,7 @@ func (m *model) lock() {
 	m.orphans, m.checking = nil, false
 	m.total, m.expiring, m.loadErr = 0, 0, ""
 	m.categories, m.category, m.scroll = nil, "", 0
+	m.tags, m.tag = nil, ""
 	m.editing, m.deleting = "", ""
 	for i := range m.inputs {
 		m.inputs[i].SetValue("")
@@ -518,6 +522,34 @@ func (m model) pickCategory(n int) model {
 	return m
 }
 
+// cycleTag moves the tag filter to the next tag in use: every tag in turn,
+// then back to all secrets.
+func (m model) cycleTag() model {
+	if len(m.tags) == 0 {
+		m.notify("No tags yet — add some in the form", false)
+		return m
+	}
+	next := ""
+	switch i := slices.Index(m.tags, m.tag); {
+	case m.tag == "":
+		next = m.tags[0]
+	case i >= 0 && i+1 < len(m.tags):
+		next = m.tags[i+1]
+	}
+	m.tag = next
+	m.scroll = 0
+	if err := m.reload(""); err != nil {
+		m.notify(fmt.Sprintf("✗ Could not reload: %v", err), true)
+		return m
+	}
+	if m.tag == "" {
+		m.notify("All tags", false)
+	} else {
+		m.notify("Tag: #"+m.tag, false)
+	}
+	return m
+}
+
 // openForm shows the form. editTitle is the secret being edited, or "" to add;
 // meta prefills the fields. The secret field always starts empty and masked.
 func (m *model) openForm(editTitle string, meta store.SecretMeta) {
@@ -533,6 +565,7 @@ func (m *model) openForm(editTitle string, meta store.SecretMeta) {
 	}
 	m.inputs[fieldExpires].SetValue(meta.Expires)
 	m.inputs[fieldNotes].SetValue(meta.Notes)
+	m.inputs[fieldTags].SetValue(strings.Join(meta.Tags, ", "))
 	m.setFocus(fieldName)
 }
 
@@ -629,6 +662,11 @@ func (m model) saveForm() (tea.Model, tea.Cmd) {
 		m.notify("✗ Expires must be a date like 2026-12-31", true)
 		return m, nil
 	}
+	tags, err := store.ParseTags(m.inputs[fieldTags].Value())
+	if err != nil {
+		m.notify(fmt.Sprintf("✗ Tags: %v", err), true)
+		return m, nil
+	}
 
 	meta := store.SecretMeta{
 		Title:    name,
@@ -636,9 +674,9 @@ func (m model) saveForm() (tea.Model, tea.Cmd) {
 		Created:  m.nowOr().Format(store.DateLayout),
 		Expires:  expires,
 		Notes:    strings.TrimSpace(m.inputs[fieldNotes].Value()),
+		Tags:     tags,
 	}
 
-	var err error
 	if adding {
 		err = store.SaveSecret(meta, val)
 	} else {

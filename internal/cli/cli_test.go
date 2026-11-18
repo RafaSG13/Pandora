@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"runtime"
+	"slices"
 	"strings"
 	"testing"
 
@@ -102,7 +103,7 @@ func skipWithoutSh(t *testing.T) {
 
 func TestAddThenGetRoundTrip(t *testing.T) {
 	isolate(t)
-	code, _, stderr := harness{stdin: "s3cret value\n"}.run(t, "add", "github", "-c", "Tokens", "--notes", "ci", "--expires", "2031-05-06")
+	code, _, stderr := harness{stdin: "s3cret value\n"}.run(t, "add", "github", "-c", "Tokens", "--notes", "ci", "--expires", "2031-05-06", "--tag", "Prod,db", "-t", "ci")
 	if code != 0 {
 		t.Fatalf("add exit %d: %s", code, stderr)
 	}
@@ -112,8 +113,8 @@ func TestAddThenGetRoundTrip(t *testing.T) {
 	}
 
 	items, _ := store.LoadMetadata()
-	want := store.SecretMeta{Title: "github", Category: "Tokens", Created: items[0].Created, Expires: "2031-05-06", Notes: "ci"}
-	if len(items) != 1 || items[0] != want || items[0].Created == "" {
+	want := store.SecretMeta{Title: "github", Category: "Tokens", Created: items[0].Created, Expires: "2031-05-06", Notes: "ci", Tags: []string{"ci", "db", "prod"}}
+	if len(items) != 1 || !reflect.DeepEqual(items[0], want) || items[0].Created == "" {
 		t.Errorf("metadata = %+v, want %+v", items, want)
 	}
 }
@@ -171,6 +172,19 @@ func TestAddRejectsDuplicateEmptyValueAndBadDate(t *testing.T) {
 	}
 }
 
+func TestAddRejectsBadTagsWithUsageError(t *testing.T) {
+	isolate(t)
+	for _, tag := range []string{"two words", strings.Repeat("x", store.MaxTagLen+1), "a\x1b[2J"} {
+		code, _, stderr := harness{stdin: "v"}.run(t, "add", "bad", "--tag", tag)
+		if code != 2 || !strings.Contains(stderr, "--tag") {
+			t.Errorf("--tag %q: code %d, stderr %q; want usage error 2", tag, code, stderr)
+		}
+	}
+	if got := titlesOf(t); len(got) != 0 {
+		t.Errorf("rejected adds left entries behind: %v", got)
+	}
+}
+
 func TestAddPromptsHiddenOnTerminal(t *testing.T) {
 	isolate(t)
 	code, _, stderr := harness{tty: true, hidden: []string{"typed secret"}}.run(t, "add", "prompted")
@@ -208,13 +222,66 @@ func TestListNeverShowsValuesAndFiltersByCategory(t *testing.T) {
 	if err := json.Unmarshal([]byte(stdout), &got); err != nil {
 		t.Fatal(err)
 	}
-	want := []listEntry{{Title: "one", Category: "Tokens", Created: "2026-01-02", Expires: "2031-03-04"}}
+	want := []listEntry{{Title: "one", Category: "Tokens", Created: "2026-01-02", Expires: "2031-03-04", Tags: []string{}}}
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("got %+v, want %+v", got, want)
 	}
 
 	if _, stdout, _ = (harness{}).run(t, "list", "--category", "none", "--json"); strings.TrimSpace(stdout) != "[]" {
 		t.Errorf("empty result = %q, want []", stdout)
+	}
+}
+
+func TestListFiltersByTagsAndShowsThemInJSON(t *testing.T) {
+	isolate(t)
+	for title, tags := range map[string][]string{
+		"both":  {"prod", "db"},
+		"prod":  {"prod"},
+		"plain": nil,
+	} {
+		if err := store.SaveSecret(store.SecretMeta{Title: title, Created: "2026-01-02", Tags: tags}, "v"); err != nil {
+			t.Fatal(err)
+		}
+	}
+	titlesFor := func(args ...string) []string {
+		t.Helper()
+		code, stdout, stderr := harness{}.run(t, append([]string{"list", "--json"}, args...)...)
+		if code != 0 {
+			t.Fatalf("list %v: %d %s", args, code, stderr)
+		}
+		var got []listEntry
+		if err := json.Unmarshal([]byte(stdout), &got); err != nil {
+			t.Fatal(err)
+		}
+		var out []string
+		for _, e := range got {
+			out = append(out, e.Title)
+		}
+		slices.Sort(out)
+		return out
+	}
+	for _, c := range []struct {
+		args []string
+		want []string
+	}{
+		{[]string{"--tag", "prod"}, []string{"both", "prod"}},
+		{[]string{"-t", "PROD"}, []string{"both", "prod"}}, // case-insensitive
+		{[]string{"--tag", "prod", "--tag", "db"}, []string{"both"}},
+		{[]string{"--tag", "prod,db"}, []string{"both"}}, // all of them, not any
+		{[]string{"--tag", "nope"}, nil},
+		{nil, []string{"both", "plain", "prod"}},
+	} {
+		if got := titlesFor(c.args...); !reflect.DeepEqual(got, c.want) {
+			t.Errorf("list %v = %v, want %v", c.args, got, c.want)
+		}
+	}
+
+	code, stdout, _ := harness{}.run(t, "list", "--tag", "db")
+	if code != 0 || !strings.Contains(stdout, "TAGS") || !strings.Contains(stdout, "db,prod") {
+		t.Errorf("table = %q, want a TAGS column with db,prod", stdout)
+	}
+	if code, _, stderr := (harness{}).run(t, "list", "--tag", "two words"); code != 2 || !strings.Contains(stderr, "--tag") {
+		t.Errorf("bad filter tag: code %d, stderr %q", code, stderr)
 	}
 }
 

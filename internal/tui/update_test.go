@@ -89,9 +89,9 @@ func press(m tea.Model, keys ...string) tea.Model {
 	return m
 }
 
-// add fills name, category and secret, skips Expires and Notes, and saves.
+// add fills name, category and secret, skips Expires, Notes and Tags, and saves.
 func add(m tea.Model, name, category, secret string) tea.Model {
-	return press(m, "n", name, "enter", category, "enter", secret, "tab", "enter", "enter")
+	return press(m, "n", name, "enter", category, "enter", secret, "tab", "enter", "enter", "enter")
 }
 
 func titles(m tea.Model) []string {
@@ -152,7 +152,7 @@ func TestEditPrefillsAndEmptySecretKeepsValue(t *testing.T) {
 
 	// Replace the one-character name, change category; leave secret empty.
 	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyBackspace})
-	m = press(m, "renamed", "enter", "Z", "enter", "tab", "enter", "enter")
+	m = press(m, "renamed", "enter", "Z", "enter", "tab", "enter", "enter", "enter")
 
 	if got := titles(m); len(got) != 1 || got[0] != "renamed" {
 		t.Fatalf("titles = %v, want [renamed]", got)

@@ -65,7 +65,7 @@ Never touch the real keychain, config directory or clipboard. Use `keyring.MockI
 | R-10 | `NO_COLOR` and small-terminal help | 0.1.0 | S | – | done (v0.1.0, PR #6) |
 | R-11 | Concealed clipboard copies | later | M | – | in-progress (macOS verified; Windows manual QA open) |
 | R-20 | Multiline values | 0.2 | M | – | done (unreleased) |
-| R-21 | Tags | 0.2 | M | – | todo |
+| R-21 | Tags | 0.2 | M | – | done (unreleased) |
 | R-22 | Search in notes and tags | 0.2 | S | R-21 (soft) | todo |
 | R-23 | Config file | 0.2 | M | – | todo |
 | R-24 | Value history | 0.2 | L | R-23 (soft) | todo |
@@ -320,22 +320,15 @@ Also state the threat model in one paragraph: shoulder surfing, accidental scree
 **Acceptance.** Round-trip test through store, CLI and export/import with newlines and trailing newline preserved; TUI test: multi-line add, edit, reveal; layout still exactly `h` lines at 60×18.
 
 ### R-21 Tags
-**Status** todo · **Size** M · **Depends** –
+**Status** done (unreleased; PR pending) · **Size** M · **Depends** –
+
+**Outcome.** `store.SecretMeta.Tags` (`omitempty`, so the vault stays at version 2 and old vaults and exports load unchanged); writers normalise through `store.NormalizeTags` (lowercase, trimmed, unique, sorted; no whitespace or commas inside; at most 10 tags of 24 characters) and `parseExport` does too. TUI: **Tags** form field after Notes (comma-separated), `T` cycles the tag filter (one tag at a time, combined with the category filter, shown in the list title; `g`/`G` stay the list's first/last keys), tags in the detail card. CLI: `add --tag/-t`, `list --tag/-t` (repeat or comma-separate: all of them), `list --json` always carries `tags`, plain `list` has a trailing `TAGS` column. Decisions taken: additive field, category unchanged and kept alongside (tags are not meant to replace categories); a cycling key instead of a picker overlay, since `/` search will cover tags (R-22). Downgrade caveat: an older version saving the vault drops `tags` (documented in `docs/ARCHITECTURE.md`). Not done: shell completion of existing tags, tag autocomplete in the form.
 
 **Why.** A single free-form category runs out quickly.
 
 **Scope.** Zero or more tags per secret, kept alongside the existing category. Filter by tag; CLI `--tag`.
 
-**Starting points.** `store.SecretMeta` (add `Tags []string` `omitempty`), form fields (`fieldCategory` pattern, autocomplete), `reload` (category filter), `cli list --category`.
-
-**Decisions.**
-- Additive field, category unchanged. *Recommended* (no migration, old versions ignore it; mind that an old version saving the file would drop `tags`: document that downgrade loses tags, or keep unknown fields — check how `LoadMetadata` decodes).
-- Normalisation: lowercase, trimmed, unique, no commas/spaces inside; max count and length.
-- Filter UI: `/` filter already exists; add a tag picker (`g`?) rather than more number keys.
-
-**Ask the user.** Should tags eventually replace categories (and the colours/badges tied to them)?
-
-**Acceptance.** Old `metadata.json` loads unchanged; tags survive edit/rename/export/import; filter by tag in TUI and CLI; tests for normalisation and for the old-file path.
+**Acceptance (met).** Old vaults load unchanged; tags survive edit/rename/export/import; filter by tag in TUI and CLI; tests for normalisation and for the old-record shape.
 
 ### R-22 Search in notes and tags
 **Status** todo · **Size** S · **Depends** R-21 (soft)

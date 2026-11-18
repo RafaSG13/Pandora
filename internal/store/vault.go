@@ -436,15 +436,6 @@ func ValidateText(s string) error {
 	return nil
 }
 
-func validateMeta(m SecretMeta) error {
-	for _, s := range []string{m.Title, m.Category, m.Notes} {
-		if err := ValidateText(s); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
 // writeFileAtomic replaces path with data through a temp file and rename,
 // first keeping the previous contents as path+".bak".
 func writeFileAtomic(path string, data []byte) error {

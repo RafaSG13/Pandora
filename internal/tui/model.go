@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"fmt"
 	"os"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -46,6 +47,7 @@ const (
 	fieldSecret
 	fieldExpires
 	fieldNotes
+	fieldTags
 	numFields
 )
 
@@ -114,6 +116,8 @@ type model struct {
 	sort       sortMode
 	category   string   // active category filter; empty shows all
 	categories []string // distinct categories across all secrets
+	tag        string   // active tag filter; empty shows all
+	tags       []string // distinct tags across all secrets, sorted
 	compact    bool
 	total      int // number of secrets, regardless of the category filter
 	expiring   int // secrets expired or expiring soon
@@ -164,6 +168,7 @@ func New() tea.Model {
 	inputs[fieldExpires].Placeholder = "YYYY-MM-DD (optional)"
 	inputs[fieldExpires].CharLimit = 10
 	inputs[fieldNotes].Placeholder = "URL, account… (optional)"
+	inputs[fieldTags].Placeholder = "comma-separated (optional)"
 
 	sp := spinner.New()
 	sp.Spinner = g.spinner
@@ -375,6 +380,10 @@ func (m *model) reload(selectTitle string) error {
 	if m.category != "" && !containsFold(m.categories, m.category) {
 		m.category = "" // the last secret of that category is gone
 	}
+	m.tags = distinctTags(metas)
+	if m.tag != "" && !slices.Contains(m.tags, m.tag) {
+		m.tag = "" // the last secret with that tag is gone
+	}
 
 	m.expiring = 0
 	now := m.nowOr()
@@ -383,7 +392,8 @@ func (m *model) reload(selectTitle string) error {
 		if _, level := expiryInfo(meta, now); level >= expirySoon {
 			m.expiring++
 		}
-		if m.category == "" || strings.EqualFold(strings.TrimSpace(meta.Category), m.category) {
+		if (m.category == "" || strings.EqualFold(strings.TrimSpace(meta.Category), m.category)) &&
+			(m.tag == "" || slices.Contains(meta.Tags, m.tag)) {
 			shown = append(shown, meta)
 		}
 	}
@@ -394,8 +404,14 @@ func (m *model) reload(selectTitle string) error {
 		items[i] = item{meta: meta}
 	}
 	m.list.Title = "All categories"
-	if m.category != "" {
+	switch {
+	case m.category != "":
 		m.list.Title = "Category " + g.sep + " " + m.category
+		if m.tag != "" {
+			m.list.Title += " " + g.sep + " #" + m.tag
+		}
+	case m.tag != "":
+		m.list.Title = "Tag " + g.sep + " #" + m.tag
 	}
 	m.list.SetDelegate(m.delegate())
 	m.fitList(len(items))
@@ -444,6 +460,21 @@ func distinctCategories(metas []store.SecretMeta) []string {
 		}
 	}
 	sort.Slice(out, func(i, j int) bool { return strings.ToLower(out[i]) < strings.ToLower(out[j]) })
+	return out
+}
+
+// distinctTags returns every tag in use, sorted. Stored tags are already
+// normalised, so no case folding is needed.
+func distinctTags(metas []store.SecretMeta) []string {
+	var out []string
+	for _, meta := range metas {
+		for _, t := range meta.Tags {
+			if !slices.Contains(out, t) {
+				out = append(out, t)
+			}
+		}
+	}
+	slices.Sort(out)
 	return out
 }
 
