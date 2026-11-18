@@ -140,6 +140,36 @@ Fields: **Name**, **Category**, **Secret**, **Expires** (`YYYY-MM-DD`, optional)
 
 ### Configuration
 
+Optional settings live in `config.json` next to `vault.json` (`pandora config path` prints the location; on macOS `~/Library/Application Support/pandora/`, on Linux `~/.config/pandora/`, on Windows `%AppData%\pandora\`). Every key is optional; the file never contains secrets. **Precedence: environment variable, then the file, then the built-in default.** A broken file never stops Pandora: invalid values, unknown keys and a malformed file are reported once (a toast after unlocking in the TUI, `pandora: warning:` on stderr in the CLI) and the defaults stay in force.
+
+```json
+{
+  "lock_minutes": 10,
+  "ascii": false,
+  "clipboard_seconds": 15,
+  "reveal_seconds": 10,
+  "expiry_warn_days": 14,
+  "gen_length": 24,
+  "gen_charset": "alnum",
+  "sort": "created",
+  "compact": false
+}
+```
+
+| Key                 | Default   | Valid values                                   | Effect |
+| ------------------- | --------- | ---------------------------------------------- | ------ |
+| `lock_minutes`      | `5`       | `0`–`10080` (`0` disables)                     | Idle minutes before the screen locks (env `PANDORA_LOCK_MINUTES`) |
+| `ascii`             | by locale | `true`, `false`                                | Plain ASCII drawing; `false` also overrides a non-UTF-8 locale (env `PANDORA_ASCII=1` forces it on) |
+| `clipboard_seconds` | `15`      | `1`–`3600`                                     | Seconds before a copied secret is cleared from the clipboard |
+| `reveal_seconds`    | `10`      | `1`–`3600`                                     | Seconds before a revealed value hides again |
+| `expiry_warn_days`  | `14`      | `0`–`3650`                                     | How many days ahead an expiry counts as "soon" |
+| `gen_length`        | `24`      | `8`–`128`                                      | Default for `pandora gen --length`; the form's generator starts at the nearest preset (16, 24, 32, 48, 64) |
+| `gen_charset`       | `alnum`   | `alnum`, `symbols`, `hex`                      | Default for `pandora gen --charset` and the form's generator |
+| `sort`              | `created` | `created`, `name`, `category`                  | Initial list order |
+| `compact`           | `false`   | `true`, `false`                                | Start with one-line rows |
+
+The environment variables below remain available and win over the file.
+
 | Variable                 | Effect                                                              |
 | ------------------------ | ------------------------------------------------------------------- |
 | `PANDORA_LOCK_MINUTES`   | Idle minutes before the screen locks (default `5`, `0` disables)    |
@@ -185,6 +215,7 @@ See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the vault format and data f
 | `pandora passwd` | Changes the master password (needs a terminal). Values stay valid. |
 | `pandora version` | Prints the version, commit and build date (also `pandora --version`). |
 | `pandora gen [--length 8-128] [--charset alnum\|symbols\|hex] [--count 1-100]` | Prints random secrets (default: one of 24 letters and digits) using `crypto/rand`. Stores nothing. |
+| `pandora config path` / `config get [KEY]` | Prints where `config.json` lives (the file need not exist), or the effective settings after merging environment, file and defaults (one `key = value` per line, or just the value for one key). Read-only: edit the file by hand. |
 | `pandora completion bash\|zsh\|fish\|powershell` | Prints a shell completion script (see below). |
 
 ```sh

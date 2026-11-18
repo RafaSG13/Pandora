@@ -12,16 +12,14 @@ type expiryLevel int
 
 const (
 	expiryNone    expiryLevel = iota // no (valid) expiry set
-	expiryFar                        // more than expirySoonDays away
-	expirySoon                       // within expirySoonDays
+	expiryFar                        // more than the configured warning window away
+	expirySoon                       // within the warning window (expiry_warn_days)
 	expiryExpired                    // already past
 )
 
-// expirySoonDays is how far ahead an expiry starts to warn.
-const expirySoonDays = 14
-
 // expiryInfo describes meta's expiry relative to now, e.g. "expires in 5d".
-func expiryInfo(meta store.SecretMeta, now time.Time) (label string, level expiryLevel) {
+// An expiry within soonDays days (or today) is expirySoon.
+func expiryInfo(meta store.SecretMeta, now time.Time, soonDays int) (label string, level expiryLevel) {
 	days, ok := meta.DaysUntilExpiry(now)
 	switch {
 	case !ok:
@@ -30,7 +28,7 @@ func expiryInfo(meta store.SecretMeta, now time.Time) (label string, level expir
 		return fmt.Sprintf("expired %dd ago", -days), expiryExpired
 	case days == 0:
 		return "expires today", expirySoon
-	case days <= expirySoonDays:
+	case days <= soonDays:
 		return fmt.Sprintf("expires in %dd", days), expirySoon
 	default:
 		return fmt.Sprintf("expires in %dd", days), expiryFar

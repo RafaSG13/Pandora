@@ -44,6 +44,7 @@ Run the TUI in each terminal you can reach: Terminal.app, iTerm2, Windows Termin
 | Resize down to 60×18 and up again | No garbled layout; below the minimum the "Terminal too small" screen shows. |
 | `?` help at 60×18 | Every line is reachable by scrolling. |
 | `PANDORA_ASCII=1` and `NO_COLOR=1` | ASCII glyphs only / no colour; the selected row is still distinguishable. |
+| `config.json` with `{"compact":true,"ascii":true,"lock_minutes":"x"}` | Starts with one-line rows and ASCII glyphs; after the password a toast `config.json: lock_minutes: must be an integer` appears and the lock stays at 5 minutes. `pandora config get` lists the effective values. |
 | `q` / `ctrl+c` | Terminal restored (cursor visible, mouse reporting off, no leftover alternate screen). |
 
 ## 4. Install artefacts

@@ -7,7 +7,6 @@ import (
 	"os"
 	"slices"
 	"sort"
-	"strconv"
 	"strings"
 	"time"
 
@@ -19,6 +18,8 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
+	"github.com/RafaSG13/Pandora/internal/config"
+	"github.com/RafaSG13/Pandora/internal/gen"
 	"github.com/RafaSG13/Pandora/internal/store"
 )
 
@@ -74,19 +75,16 @@ func (s sortMode) String() string {
 	return [...]string{"date added", "name", "category"}[s]
 }
 
-// Timings. The lock timeout can be changed with PANDORA_LOCK_MINUTES (0 disables).
-const (
-	clipboardTTL   = 15 * time.Second
-	revealTTL      = 10 * time.Second
-	toastTTL       = 3 * time.Second
-	defaultLockTTL = 5 * time.Minute
-)
+// Timings. The others come from config.Settings (config.json).
+const toastTTL = 3 * time.Second
 
 type model struct {
 	list          list.Model
 	width, height int
 	mode          mode
 	now           func() time.Time
+	cfg           config.Settings
+	cfgWarn       string // config warning waiting for the vault to unlock
 
 	// Master-password screens (modeUnlock, modeSetup).
 	pwInput, pwConfirm textinput.Model
@@ -156,6 +154,18 @@ type model struct {
 func New() tea.Model {
 	applyColorMode(detectNoColor(os.Getenv)) // before any style can resolve a colour
 
+	cfg, warns := config.Load(os.Getenv)
+	if cfg.ASCII != nil && os.Getenv("PANDORA_ASCII") != "1" {
+		useGlyphs(*cfg.ASCII) // before any g use below; PANDORA_ASCII=1 already set it at init
+	}
+	var warning string
+	if len(warns) > 0 {
+		warning = "✗ " + warns[0]
+		if len(warns) > 1 {
+			warning += fmt.Sprintf(" (+%d more)", len(warns)-1)
+		}
+	}
+
 	l := list.New(nil, rowDelegate{}, 40, 14)
 	l.Title = "Secrets"
 	l.Styles.Title = lipgloss.NewStyle().Bold(true).Foreground(accent)
@@ -187,24 +197,34 @@ func New() tea.Model {
 		inputs:     inputs,
 		secret:     newSecretArea(),
 		now:        time.Now,
-		lockAfter:  lockTimeout(os.Getenv("PANDORA_LOCK_MINUTES")),
+		lockAfter:  cfg.LockAfter,
+		cfg:        cfg,
+		sort:       sortModeByName(cfg.Sort),
+		compact:    cfg.Compact,
 		spinner:    sp,
-		genLen:     1,
+		genLen:     nearestLengthIndex(cfg.GenLength),
+		genSet:     charsetIndex(cfg.GenCharset),
 		lastActive: time.Now(),
 	}
 	m.pwInput, m.pwConfirm = newPasswordInput(), newPasswordInput()
 	m.setFocus(fieldName)
 	switch {
 	case store.IsUnlocked():
-		if err := m.reload(""); err != nil {
-			m.notify(fmt.Sprintf("✗ Could not load secrets: %v", err), true)
+		reloadErr := m.reload("")
+		if reloadErr != nil {
+			m.notify(fmt.Sprintf("✗ Could not load secrets: %v", reloadErr), true)
 		}
 		m.checking = m.total > 0
+		if reloadErr == nil && warning != "" {
+			m.notify(warning, true)
+		}
 	case store.Exists():
 		m.mode = modeUnlock
+		m.cfgWarn = warning // shown once the vault is unlocked: toasts expire in 3 s
 		m.focusPassword(0)
 	default:
 		m.mode = modeSetup
+		m.cfgWarn = warning
 		m.migrating = store.LegacyExists()
 		m.legacyN = store.LegacyCount()
 		m.focusPassword(0)
@@ -252,13 +272,45 @@ func (m *model) setReveal(show bool) {
 	m.pwInput.EchoMode, m.pwConfirm.EchoMode = mode, mode
 }
 
-// lockTimeout parses PANDORA_LOCK_MINUTES; empty or invalid means the default.
-func lockTimeout(v string) time.Duration {
-	n, err := strconv.Atoi(strings.TrimSpace(v))
-	if err != nil || n < 0 {
-		return defaultLockTTL
+// sortModeByName maps a config.json sort name to its mode.
+func sortModeByName(name string) sortMode {
+	switch name {
+	case "name":
+		return sortName
+	case "category":
+		return sortCategory
 	}
-	return time.Duration(n) * time.Minute
+	return sortCreated
+}
+
+// nearestLengthIndex returns the index in gen.Lengths closest to n (ties go to
+// the shorter preset).
+func nearestLengthIndex(n int) int {
+	best := 0
+	for i, l := range gen.Lengths {
+		if abs(l-n) < abs(gen.Lengths[best]-n) {
+			best = i
+		}
+	}
+	return best
+}
+
+func abs(n int) int {
+	if n < 0 {
+		return -n
+	}
+	return n
+}
+
+// charsetIndex returns the index in gen.Charsets of the charset with the given
+// key, or 0 when there is none.
+func charsetIndex(key string) int {
+	for i, cs := range gen.Charsets {
+		if cs.Key == key {
+			return i
+		}
+	}
+	return 0
 }
 
 func (m model) Init() tea.Cmd {
@@ -362,7 +414,7 @@ func (m model) textLines() int {
 }
 
 func (m model) delegate() rowDelegate {
-	return rowDelegate{compact: m.compact, orphans: m.orphans, now: m.nowOr}
+	return rowDelegate{compact: m.compact, orphans: m.orphans, now: m.nowOr, soonDays: m.cfg.ExpiryWarnDays}
 }
 
 // reload re-reads the metadata file into the list, applying the category
@@ -397,7 +449,7 @@ func (m *model) reload(selectTitle string) error {
 	now := m.nowOr()
 	shown := make([]store.SecretMeta, 0, len(metas))
 	for _, meta := range metas {
-		if _, level := expiryInfo(meta, now); level >= expirySoon {
+		if _, level := expiryInfo(meta, now, m.cfg.ExpiryWarnDays); level >= expirySoon {
 			m.expiring++
 		}
 		if (m.category == "" || strings.EqualFold(strings.TrimSpace(meta.Category), m.category)) &&

@@ -31,6 +31,7 @@ internal/store  (no UI deps)
 - `internal/cli/` commands, registry, unlock/passwd, export/import (age), `run`, completion.
 - `internal/tui/` Bubble Tea UI: `model.go` (state, `New`, layout), `update.go` (`update`, `tick`, `lock`, auth, form), `view.go` (render, footer), `secretfield.go` (secret textarea helpers), `clipboard.go` + `clipboard_{darwin,windows,other}.go` (`writeSecretClipboard`: concealed copy per OS, stub it in tests), `delegate.go` (list rows), `styles.go`, `icons.go` (`glyphSet` `g`, NO_COLOR), `expiry.go`.
 - `internal/gen/` `crypto/rand` secret generator; `internal/version/` build metadata.
+- `internal/config/` `config.json` loader (`Load` → `Settings` + warnings; env > file > default, never fails). The TUI reads it once in `New` (`model.cfg`; `useGlyphs` applies `ascii`), the CLI through `app.loadConfig`. Tests that run `gen` or `config` must call `isolate(t)` so they never read the developer's real file; a new setting needs a key in `config.Keys`, a case in `set` and `Get`, and a README row.
 - `docs/` `ARCHITECTURE.md` (vault format, data flows), `ROADMAP.md` (workflow + items), `QA.md` (manual checklist). `scripts/release-notes.sh`.
 
 ## Development Commands
@@ -47,7 +48,7 @@ go test ./internal/tui -run '^TestIdleLockHidesEverythingAndNeedsThePassword$' -
 
 There is no linter config: `gofmt`, `go vet`, tests are the gate. Never run the real keyring on a dev machine except deliberately; the one real-keyring test is CI-only (`PANDORA_INTEGRATION=1 go test -tags integration -run TestRealKeyring ./internal/store`).
 
-Env vars: `PANDORA_MASTER_PASSWORD` (CLI, no terminal), `PANDORA_PASSPHRASE` (age export/import), `PANDORA_LOCK_MINUTES` (default 5, `0` disables), `PANDORA_ASCII=1`, `NO_COLOR`. `run` strips both password variables from the child's environment.
+Env vars: `PANDORA_MASTER_PASSWORD` (CLI, no terminal), `PANDORA_PASSPHRASE` (age export/import), `PANDORA_LOCK_MINUTES` (default 5, `0` disables), `PANDORA_ASCII=1`, `NO_COLOR`. `run` strips both password variables from the child's environment. Other settings come from `config.json` (see Architecture); precedence is env > file > default.
 
 ## Code Conventions & Common Patterns
 

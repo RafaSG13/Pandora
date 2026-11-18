@@ -4,7 +4,12 @@ All notable changes are documented here. The format follows [Keep a Changelog](h
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-11-18
+
+**Upgrade note.** No migration is needed: `vault.json` stays at version 2 and 0.2.0 vaults load unchanged. Going back to 0.2.0 afterwards loses data: saving with 0.2.0 drops the tags, and a value longer than 2000 characters, which 0.3.0 stores in several keyring entries, is not readable by 0.2.0 (0.2.0 has no chunking). Back up first with `pandora export --values -o backup.age` if you may need to go back.
+
 ### Added
+- **Config file.** Optional `config.json` next to `vault.json` sets the idle lock, ASCII mode, clipboard and reveal timeouts, the expiry warning window, the generator defaults (`pandora gen` and the form), the initial sort and compact rows. Precedence is environment, then file, then default; an invalid file or value is reported once (a toast after unlocking, `pandora: warning:` on stderr) and never stops Pandora. `pandora config path` and `pandora config get [KEY]` show the location and the effective settings. See the README "Configuration" section.
 - **Multi-line secrets** (SSH keys, certificates, JSON credentials), up to 32 KB. In the form, **Secret** is a multi-line editor: paste or press `enter` for a new line, `tab` moves on, `ctrl+s` saves, `ctrl+r` shows or hides the text (it is bullets otherwise). `pandora add <title> < file` reads any number of lines from stdin; `get`, `run`, `export` and `import` keep them intact.
 - Long values are stored in several keyring entries so they fit the Windows (2560 bytes) and macOS limits. Records written by 0.2.0 load unchanged.
 - The TUI notices when another process (the CLI, a second window) changes the vault and refreshes the list within a second, keeping the selection; a form or a delete confirmation is never interrupted, and the list updates once it closes.

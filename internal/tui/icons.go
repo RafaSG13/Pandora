@@ -68,6 +68,14 @@ func newGlyphs(ascii bool) glyphSet {
 // g is the active glyph set.
 var g = newGlyphs(detectASCII(os.Getenv))
 
+// useGlyphs switches the active glyph set, including the borders baked into
+// the shared pane styles.
+func useGlyphs(ascii bool) {
+	g = newGlyphs(ascii)
+	paneStyle = paneStyle.Border(g.border)
+	modalStyle = modalStyle.Border(g.border)
+}
+
 // detectNoColor reports whether the environment asks for output without
 // colour: NO_COLOR set to anything non-empty (https://no-color.org), or a
 // dumb terminal.

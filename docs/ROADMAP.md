@@ -1,6 +1,6 @@
 # Roadmap
 
-Everything planned before the first release is implemented (see the [changelog](../CHANGELOG.md)). This file is the forward plan, written to be **read by an engineer or an AI agent that then produces a detailed implementation plan** for the next item. Read [How to use this document](#how-to-use-this-document) first.
+Releases 0.1.x, 0.2.0 and 0.3.0 are published (see [Release plan](#release-plan)). This file is the forward plan, written to be **read by an engineer or an AI agent that then produces a detailed implementation plan** for the next item. Read [How to use this document](#how-to-use-this-document) first.
 
 ## How to use this document
 
@@ -51,39 +51,55 @@ Never touch the real keychain, config directory or clipboard. Use `keyring.MockI
 
 ## Index
 
-| ID | Item | Milestone | Size | Depends | Status |
+| ID | Item | Release | Size | Depends | Status |
 | --- | --- | --- | --- | --- | --- |
 | R-01 | Version information | 0.1.0 | S | – | done (v0.1.0, PR #6) |
 | R-02 | Go module path | 0.1.0 | S | – | done (v0.1.0, PR #6) |
 | R-03 | Release pipeline | 0.1.0 | M | R-01, R-02 | done (v0.1.0) |
 | R-04 | Homebrew tap and install docs | 0.1.0 | S | R-03 | done (v0.1.1) |
-| R-05 | Real-environment QA | 0.1.0 | M | – | in-progress (macOS keyring and clipboard done; other terminals and OSes open) |
 | R-06 | Security model hardening (docs) | 0.1.0 | S | – | done (v0.1.0, PR #6) |
 | R-07 | Clipboard hygiene | 0.1.0 | M | – | done, part (a) only; part (b) is R-11 |
 | R-08 | Shell completions | 0.1.0 | M | – | done (v0.1.0, PR #6) |
 | R-09 | `pandora gen` | 0.1.0 | S | – | done (v0.1.0, PR #6) |
 | R-10 | `NO_COLOR` and small-terminal help | 0.1.0 | S | – | done (v0.1.0, PR #6) |
-| R-11 | Concealed clipboard copies | later | M | – | in-progress (macOS verified; Windows manual QA open) |
-| R-20 | Multiline values | 0.2 | M | – | done (unreleased) |
-| R-21 | Tags | 0.2 | M | – | done (unreleased) |
-| R-22 | Search in notes and tags | 0.2 | S | R-21 (soft) | done (unreleased) |
-| R-23 | Config file | 0.2 | M | – | todo |
-| R-24 | Value history | 0.2 | L | R-23 (soft) | todo |
-| R-25 | Import from other tools | 0.2 | M | – | todo |
-| R-26 | Dotenv output and CLI ergonomics | 0.2 | S | – | todo |
-| R-27 | External-change detection and file lock | 0.2 | M | – | done (unreleased) |
-| R-28 | Keyring index and recovery | 0.2 | L | R-24 (soft) | todo |
-| R-30 | `expiring` command | 0.3 | S | – | todo |
-| R-31 | Unlock challenge | 0.3 | L | R-23 | done (master password) |
-| R-32 | Local audit log | 0.3 | M | R-23 | todo |
-| R-40 | TOTP codes | later | L | R-20 (soft) | todo |
-| R-41 | Folder-sync vault file | later | L | R-23, R-28 | todo |
+| R-31 | Unlock challenge | 0.2.0 | L | – | done (v0.2.0; master password) |
+| R-05 | Real-environment QA | gate of every release | M | – | in-progress (macOS keyring and clipboard done; other terminals and OSes open) |
+| R-20 | Multiline values | 0.3.0 | M | – | done (v0.3.0) |
+| R-21 | Tags | 0.3.0 | M | – | done (v0.3.0) |
+| R-22 | Search in notes and tags | 0.3.0 | S | R-21 (soft) | done (v0.3.0) |
+| R-23 | Config file | 0.3.0 | M | – | done (v0.3.0) |
+| R-27 | External-change detection and file lock | 0.3.0 | M | – | done (v0.3.0) |
+| R-11 | Concealed clipboard copies | 0.3.0 | M | – | in-progress (macOS verified; Windows manual QA open) |
+| R-26 | Dotenv output and CLI ergonomics | 0.4.0 | S | – | todo |
+| R-30 | `expiring` command | 0.4.0 | S | R-23 (done) | todo |
+| R-25 | Import from other tools | 0.4.0 | M | R-26 (soft) | todo |
+| R-24 | Value history | 0.5.0 | L | R-23 (done) | todo |
+| R-28 | Keyring index and recovery | 0.5.0 (if re-scoped) | L → S–M | – | blocked (premise obsolete; needs a decision) |
+| R-32 | Local audit log | 0.6.0 | M | R-23 (done); after R-25, R-26 | todo |
+| R-40 | TOTP codes | later | L | R-20 (done) | todo |
+| R-41 | Folder-sync vault file | later | L | R-23 (done), R-28 (soft) | todo |
 
-Milestones are a suggested cut, not a contract: **0.1.0** is "safe and easy to install", **0.2** is data model and workflows, **0.3** is security hardening and automation.
+The index is ordered by release, then by the order to build inside it; "first `todo` item whose `Depends` are `done`" therefore walks the plan top to bottom. The section order below matches.
+
+## Release plan
+
+Versions are SemVer `0.x`. `v0.1.0`, `v0.1.1`, `v0.2.0` and `v0.3.0` are published; `0.3.0` rather than `0.2.1` because it added features and extended the persisted records (tags, values split over several keyring entries, `config.json`). Cutting a release is in CONTRIBUTING; **no tag is pushed unless the user asks for it**. Every release needs: `[Unreleased]` renamed to `## [X.Y.Z] - date` in the changelog (the heading format matters to `scripts/release-notes.sh`), the R-05 checklist (`docs/QA.md`) run on macOS for what changed, the `keyring-linux` CI job green, and an upgrade note when a downgrade would lose data.
+
+| Release | Theme | Items (build in this order) | Gate before tagging |
+| --- | --- | --- | --- |
+| **0.3.0** (published) | Multi-line secrets, tags and search, config file, safe concurrent writers, concealed clipboard copies | R-20, R-21, R-22, R-23, R-27, R-11 | Shipped with the automated suite and CLI and pty smoke runs; the full `docs/QA.md` macOS pass and the Windows concealed-copy check were **not** done before tagging (R-11 and R-05 stay open for them). Known open bug, not from this release: the empty-vault welcome screen is 23 lines tall at 60×18. |
+| **0.4.0** | Scripting and adoption, no format change | R-26, then R-30, then R-25 | R-26 first because its dotenv quoting rules are reused by the R-25 dotenv parser. R-30 reads `expiry_warn_days`. R-25 starts with `dotenv` plus one password-manager format and needs redacted sample exports from the user. New commands go through `commands()` so the completion drift tests cover them; README command table updated. |
+| **0.5.0** | Data safety | R-24 (design first), R-28 only if re-scoped | R-24 adds an `omitempty` field to the encrypted record and a `history_depth` config key; the vault stays `version: 2` unless the plan finds a reason to bump it. The plan must state what a downgrade does with history entries. R-28 is skipped until the user picks option A or B. |
+| **0.6.0** | Auditability | R-32 | After 0.4.0 so every new command (`env`, `get --copy`, imports) calls the single `audit.Record` from the start. Opt-in through an `audit_log` config key; a test greps the file for the test secret. |
+| later | | R-40, R-41 | Each needs the user's answer to its `Ask the user` question before planning. |
+
+**1.0.0** is not scheduled. Candidate criteria: R-05 fully done on macOS, Linux and Windows, persisted formats unchanged through 0.5 and 0.6, no `blocked` item left.
+
+Sizing rule used for the cut: a release holds at most one L item, or up to three S/M items, so a slipping item never holds back a finished one; move it to the next release instead.
 
 ---
 
-## Milestone 0.1.0 — publishable
+## Shipped in 0.1.x — publishable
 
 ### R-01 Version information
 **Status** done · **Size** S · **Depends** –
@@ -277,29 +293,21 @@ Also state the threat model in one paragraph: shoulder surfing, accidental scree
 
 **Acceptance.** `NO_COLOR=1` output contains no SGR colour codes (selection still distinguishable); at 60×18 every help line is reachable and the view is exactly 18 lines.
 
-### R-11 Concealed clipboard copies
-**Status** in-progress (macOS verified; Windows needs the `docs/QA.md` check on a real machine) · **Size** M · **Depends** –
+---
 
-**Outcome so far.** Secret copies go through `writeSecretClipboard` (`internal/tui/clipboard.go`); `writeClipboard`/`readClipboard` stay for reads and clears. Per-OS files, no cgo, no new dependency: macOS runs `/usr/bin/osascript` (JXA, value on stdin) to set `public.utf8-plain-text` plus `org.nspasteboard.ConcealedType` (~100 ms per copy); Windows sets `CF_UNICODETEXT` plus `ExcludeClipboardContentFromMonitorProcessing`, `CanIncludeInClipboardHistory` = 0 and `CanUploadToCloudClipboard` = 0 through `golang.org/x/sys/windows`; Linux and others write plainly. Any failure before the text is set falls back to `atotto/clipboard`. Verified on macOS in a real TUI (pasteboard types include the marker; `x` still clears); Windows only cross-builds and vets so far.
+## Shipped in 0.2.0 — master password
 
-**Why.** Part (b) of the old R-07: while a secret sits on the clipboard, clipboard-history tools can record it.
+### R-31 Unlock challenge
+**Status** done (v0.2.0; superseded by the master-password vault) · **Size** L · **Depends** –
 
-**Scope.** Mark the copy as concealed/transient where the OS supports it so managers skip it: macOS `org.nspasteboard.ConcealedType`, Windows `ExcludeClipboardContentFromMonitorProcessing` / `CanIncludeInClipboardHistory`. Linux has no standard.
-
-**Starting points.** `writeClipboard` in `internal/tui/update.go` (currently `atotto/clipboard`, which cannot set types), `readClipboard`.
-
-**Decisions.** Per-OS files with build tags and a native call (cgo or a small dependency) versus leaving it documented as a limitation. Evaluate the cost first; a cgo dependency would also break the CGO-off release builds, so prefer pure-Go options (e.g. a clipboard library that supports it).
-
-**Ask the user.** Accept per-OS code and possibly a new dependency?
-
-**Acceptance.** On each supported OS the copy carries the concealed marker (verified manually per `docs/QA.md`); release builds stay `CGO_ENABLED=0`; README security text updated.
+**Outcome.** Instead of a UI-only gate, a master password now protects the data itself: `vault.json` holds encrypted names and metadata, keyring values are encrypted under the same key, and both the TUI (including after the idle lock) and the CLI ask for the password. Argon2id + XChaCha20-Poly1305 (`golang.org/x/crypto`); no recovery, so `export --values` is the backup route. See README "Security model" and `docs/ARCHITECTURE.md` "Persisted data". Biometrics and a failed-attempt backoff were not built; the KDF cost is the brake.
 
 ---
 
-## Milestone 0.2 — data model and workflows
+## Shipped in 0.3.0
 
 ### R-20 Multiline values
-**Status** done (unreleased; PR pending) · **Size** M · **Depends** –
+**Status** done (v0.3.0) · **Size** M · **Depends** –
 
 **Outcome.** The form's secret is a `textarea` (`enter` = newline, `ctrl+s` saves, `ctrl+r` shows/hides, masked as bullets otherwise); `add` reads any number of lines from stdin; `get`/`run`/export/import round-trip them. Decisions taken: textarea (not `$EDITOR`); text only, no binary values; a 32 KB cap (`store.MaxValueBytes`). The Windows (2560 B) and macOS (~4 KB `security` command) per-entry limits, made tighter by the encrypted base64 form, are handled by splitting the stored value over several keyring entries (`chunks` in the vault record) rather than by a small hard limit. The detail card shows the first lines of a long revealed value and says how many more (no scrolling). Details: `docs/ARCHITECTURE.md` "Persisted data" and "Secret field".
 
@@ -320,7 +328,7 @@ Also state the threat model in one paragraph: shoulder surfing, accidental scree
 **Acceptance.** Round-trip test through store, CLI and export/import with newlines and trailing newline preserved; TUI test: multi-line add, edit, reveal; layout still exactly `h` lines at 60×18.
 
 ### R-21 Tags
-**Status** done (unreleased; PR pending) · **Size** M · **Depends** –
+**Status** done (v0.3.0) · **Size** M · **Depends** –
 
 **Outcome.** `store.SecretMeta.Tags` (`omitempty`, so the vault stays at version 2 and old vaults and exports load unchanged); writers normalise through `store.NormalizeTags` (lowercase, trimmed, unique, sorted; no whitespace or commas inside; at most 10 tags of 24 characters) and `parseExport` does too. TUI: **Tags** form field after Notes (comma-separated), `T` cycles the tag filter (one tag at a time, combined with the category filter, shown in the list title; `g`/`G` stay the list's first/last keys), tags in the detail card. CLI: `add --tag/-t`, `list --tag/-t` (repeat or comma-separate: all of them), `list --json` always carries `tags`, plain `list` has a trailing `TAGS` column. Decisions taken: additive field, category unchanged and kept alongside (tags are not meant to replace categories); a cycling key instead of a picker overlay, since `/` search will cover tags (R-22). Downgrade caveat: an older version saving the vault drops `tags` (documented in `docs/ARCHITECTURE.md`). Not done: shell completion of existing tags, tag autocomplete in the form.
 
@@ -331,7 +339,7 @@ Also state the threat model in one paragraph: shoulder surfing, accidental scree
 **Acceptance (met).** Old vaults load unchanged; tags survive edit/rename/export/import; filter by tag in TUI and CLI; tests for normalisation and for the old-record shape.
 
 ### R-22 Search in notes and tags
-**Status** done (unreleased; PR pending) · **Size** S · **Depends** R-21 (soft)
+**Status** done (v0.3.0) · **Size** S · **Depends** R-21 (soft)
 
 **Outcome.** `item.FilterValue()` (`model.go`) is title, category, tags, then notes. The list holds metadata only, so values cannot be searched; `TestFilterNeverSearchesTheSecretValue` guards it. The row underlines only matches inside the title: indexes from a tag or note match fall past the title and mark nothing (`TestMatchInNotesDoesNotHighlightTheTitle`). Trade-off: the filter is fuzzy (subsequence), so a short query can match across a long note; results are ranked, name matches first, but some noise remains. A substring-only match for tags and notes would remove it, at the cost of a custom `list.Filter`.
 
@@ -342,7 +350,7 @@ Also state the threat model in one paragraph: shoulder surfing, accidental scree
 **Acceptance (met).** Filtering by a word that exists only in notes (or only in a tag) selects that secret; a test guards that values are never part of `FilterValue`.
 
 ### R-23 Config file
-**Status** todo · **Size** M · **Depends** –
+**Status** done (v0.3.0) · **Size** M · **Depends** –
 
 **Why.** Behaviour is configured only through environment variables (`PANDORA_LOCK_MINUTES`, `PANDORA_ASCII`), which is awkward for a TUI launched from a dock or a menu.
 
@@ -356,29 +364,65 @@ Also state the threat model in one paragraph: shoulder surfing, accidental scree
 - A `pandora config` command (`path`, `get`, `set`) vs documented manual editing. *Recommended:* `path` and `get` only for now.
 - Never put secrets or secret names in the config.
 
-**Ask the user.** TOML or JSON?
+**Decision taken.** JSON, `path` and `get` only, only settings that already exist as behaviour.
 
-**Acceptance.** Table-driven precedence test; unknown keys ignored with a warning; invalid values fall back; the existing env vars keep working.
+**Outcome (done).** JSON `config.json` in `internal/config`; nine settings (`lock_minutes`, `ascii`, `clipboard_seconds`, `reveal_seconds`, `expiry_warn_days`, `gen_length`, `gen_charset`, `sort`, `compact`); read-only `pandora config path|get`. History depth and the audit log are not settings yet: R-24 and R-32 add their keys when they ship.
 
-### R-24 Value history
-**Status** todo · **Size** L · **Depends** R-23 (soft)
+**Acceptance (met).** Table-driven precedence test (`internal/config`); unknown keys ignored with a warning; invalid values fall back; the existing env vars keep working.
 
-**Why.** `UpdateSecret` overwrites the old value irreversibly; a mistaken edit loses a key.
+### R-27 External-change detection and file lock
+**Status** done (v0.3.0) · **Size** M · **Depends** –
 
-**Scope.** Keep the last N previous values per secret (default 3, `0` disables); show a version list in the detail card/overlay; restore a previous version; the CLI can read one (`get --version -1`).
+**Why.** A second instance's changes were noticed only after `r`, and concurrent writers raced on `vault.json` (last wins, losing the other's secret).
 
-**Starting points.** `store.UpdateSecret`, `DeleteSecret`, rename path (keyring entry moves), `MissingValues`, `RestoreSecrets`, `export`/`import`.
+**Scope.** (a) Advisory lock around the load-modify-write cycle in `store`; (b) the TUI notices an external change (mtime/size poll in the 1 s tick, no new dependency) and reloads or shows a "changed on disk — press r" hint.
 
-**Decisions (design needed).**
-- Storage: extra keyring entries named `<title>@v<k>` plus `versions: <count>` in metadata, vs one keyring entry holding a JSON list. *Recommended: separate entries* (each value stays a plain keyring value; smaller blast radius), with ordering by a counter in metadata.
-- Everything that touches an entry must handle versions: rename moves them, delete removes them, `doctor` checks them, `export --values` excludes or includes them (decide; default exclude), orphan check ignores them.
-- Atomicity: new-value write order and rollback so a failure never leaves a version without its metadata or vice versa (follow the existing order in `UpdateSecret`).
-- A title containing `@v` must not collide: choose a separator that titles cannot contain, or validate titles.
-- Security: old values are still secrets; delete must wipe all versions; document that history increases exposure.
+**Starting points.** `store/lock.go` (`lockVault`, `VaultStamp`), every mutating function in `store` (`keyring.go`, `restore.go`, `migrate.go`, `vault.go`), `tick` and `reload` in `internal/tui`.
 
-**Ask the user.** Default depth; whether history is opt-in.
+**Decisions.**
+- Lock: lock file with `O_EXCL` + stale detection, or `flock`/`LockFileEx` via a small per-OS file. *Recommended:* the OS lock, since a crash must not leave a stale lock.
+- Auto-reload while a form is open would discard nothing (reload only refreshes the list) but must keep the selection by title; never reload underneath a delete confirmation.
 
-**Acceptance.** Update keeps N versions and prunes the oldest; rename and delete carry/remove all versions; rollback test when the metadata write fails; restore works in TUI and CLI; old metadata loads with zero versions.
+**Acceptance.** Two goroutines/processes adding different secrets both survive (test with the lock); the TUI reflects a change made by the CLI within a few seconds.
+
+### R-11 Concealed clipboard copies
+**Status** in-progress (macOS verified; Windows needs the `docs/QA.md` check on a real machine) · **Size** M · **Depends** –
+
+**Outcome so far.** Secret copies go through `writeSecretClipboard` (`internal/tui/clipboard.go`); `writeClipboard`/`readClipboard` stay for reads and clears. Per-OS files, no cgo, no new dependency: macOS runs `/usr/bin/osascript` (JXA, value on stdin) to set `public.utf8-plain-text` plus `org.nspasteboard.ConcealedType` (~100 ms per copy); Windows sets `CF_UNICODETEXT` plus `ExcludeClipboardContentFromMonitorProcessing`, `CanIncludeInClipboardHistory` = 0 and `CanUploadToCloudClipboard` = 0 through `golang.org/x/sys/windows`; Linux and others write plainly. Any failure before the text is set falls back to `atotto/clipboard`. Verified on macOS in a real TUI (pasteboard types include the marker; `x` still clears); Windows only cross-builds and vets so far.
+
+**Why.** Part (b) of the old R-07: while a secret sits on the clipboard, clipboard-history tools can record it.
+
+**Scope.** Mark the copy as concealed/transient where the OS supports it so managers skip it: macOS `org.nspasteboard.ConcealedType`, Windows `ExcludeClipboardContentFromMonitorProcessing` / `CanIncludeInClipboardHistory`. Linux has no standard.
+
+**Starting points.** `writeClipboard` in `internal/tui/update.go` (currently `atotto/clipboard`, which cannot set types), `readClipboard`.
+
+**Decisions.** Per-OS files with build tags and a native call (cgo or a small dependency) versus leaving it documented as a limitation. Evaluate the cost first; a cgo dependency would also break the CGO-off release builds, so prefer pure-Go options (e.g. a clipboard library that supports it).
+
+**Ask the user.** Accept per-OS code and possibly a new dependency?
+
+**Acceptance.** On each supported OS the copy carries the concealed marker (verified manually per `docs/QA.md`); release builds stay `CGO_ENABLED=0`; README security text updated.
+
+---
+
+## Release 0.4.0 — workflows and adoption
+
+### R-26 Dotenv output and CLI ergonomics
+**Status** todo · **Size** S · **Depends** –
+
+**Scope.** `pandora env -s TITLE[=ENV] …` prints `KEY=value` lines (explicit opt-in, since it prints values); `get --copy` copies with the same clipboard deadline logic as the TUI (or prints a note that the clear needs the TUI); `get -q`/`--newline=false` for scripting.
+
+**Decisions.** Printing values to stdout is already done by `get`; `env` just formats. Escape/quote rules for dotenv (newlines need R-20). Whether `env` refuses when stdout is a TTY without `--force`. *Recommended: yes.*
+
+**Acceptance.** Quoting round-trips through a dotenv parser test; no value in stderr; exit codes follow the existing convention.
+
+### R-30 `expiring` command
+**Status** todo · **Size** S · **Depends** –
+
+**Scope.** `pandora expiring [--within 14d] [--json]` lists expiring/expired secrets (never values) and exits with a distinct code when any exist, for cron and CI. Reuses `SecretMeta.DaysUntilExpiry`.
+
+**Decisions.** Exit code: `3` if any are expiring/expired, `0` otherwise (document it next to the existing 0/1/2). The default window is the `expiry_warn_days` setting from `config.json` (R-23, default 14), so the TUI and the command agree; `--within` overrides it.
+
+**Acceptance.** Table test for window boundaries (today, tomorrow, yesterday, no expiry); JSON output stable and documented.
 
 ### R-25 Import from other tools
 **Status** todo · **Size** M · **Depends** –
@@ -398,76 +442,57 @@ Also state the threat model in one paragraph: shoulder surfing, accidental scree
 
 **Acceptance.** Each parser has a fixture test including malformed rows; `--dry-run` writes nothing; conflicts follow `--overwrite`.
 
-### R-26 Dotenv output and CLI ergonomics
-**Status** todo · **Size** S · **Depends** –
+---
 
-**Scope.** `pandora env -s TITLE[=ENV] …` prints `KEY=value` lines (explicit opt-in, since it prints values); `get --copy` copies with the same clipboard deadline logic as the TUI (or prints a note that the clear needs the TUI); `get -q`/`--newline=false` for scripting.
+## Release 0.5.0 — history and recovery
 
-**Decisions.** Printing values to stdout is already done by `get`; `env` just formats. Escape/quote rules for dotenv (newlines need R-20). Whether `env` refuses when stdout is a TTY without `--force`. *Recommended: yes.*
+### R-24 Value history
+**Status** todo · **Size** L · **Depends** R-23 (done)
 
-**Acceptance.** Quoting round-trips through a dotenv parser test; no value in stderr; exit codes follow the existing convention.
+**Why.** `UpdateSecret` overwrites the old value irreversibly; a mistaken edit loses a key.
 
-### R-27 External-change detection and file lock
-**Status** done (unreleased) · **Size** M · **Depends** –
+**Scope.** Keep the last N previous values per secret (default 3, `0` disables); show a version list in the detail card/overlay; restore a previous version; the CLI can read one (`get --version -1`).
 
-**Why.** A second instance's changes were noticed only after `r`, and concurrent writers raced on `vault.json` (last wins, losing the other's secret).
-
-**Scope.** (a) Advisory lock around the load-modify-write cycle in `store`; (b) the TUI notices an external change (mtime/size poll in the 1 s tick, no new dependency) and reloads or shows a "changed on disk — press r" hint.
-
-**Starting points.** `store/lock.go` (`lockVault`, `VaultStamp`), every mutating function in `store` (`keyring.go`, `restore.go`, `migrate.go`, `vault.go`), `tick` and `reload` in `internal/tui`.
-
-**Decisions.**
-- Lock: lock file with `O_EXCL` + stale detection, or `flock`/`LockFileEx` via a small per-OS file. *Recommended:* the OS lock, since a crash must not leave a stale lock.
-- Auto-reload while a form is open would discard nothing (reload only refreshes the list) but must keep the selection by title; never reload underneath a delete confirmation.
-
-**Acceptance.** Two goroutines/processes adding different secrets both survive (test with the lock); the TUI reflects a change made by the CLI within a few seconds.
-
-### R-28 Keyring index and recovery
-**Status** todo · **Size** L · **Depends** R-24 (soft)
-
-**Why.** If `metadata.json` is lost, the secrets are still in the keyring but unlisted, and `doctor` cannot find them because go-keyring cannot enumerate.
-
-**Scope.** Maintain an index entry in the keyring (a reserved account such as `__pandora_index__`) listing titles and enough metadata to rebuild the file; `doctor` reports and `doctor --fix` restores missing metadata from it. Resolves the "go-keyring cannot enumerate" limitation listed in ARCHITECTURE.
+**Starting points.** `store.UpdateSecret` and `RestoreSecrets` (they already write the replacement under a fresh ID and remove the old entries only after the vault points at the new ones: history keeps those old IDs instead of removing them), `DeleteSecret`, `chunks.go` (one version can span several keyring entries), `MissingValues`, `export`/`import`. *Revised 2026-11-18: the original text assumed title-named keyring entries.*
 
 **Decisions (design needed).**
-- Index contents: titles only (smaller exposure) vs titles + category/created/expires (full rebuild). *Recommended: titles + category + dates; notes excluded.*
-- Consistency: update index and metadata in a defined order; either can be stale after a crash, so `doctor` reconciles in both directions.
-- Reserved account name must be rejected as a user title.
-- Index grows with the vault; keyring value-size limits (see R-20) apply.
+- Storage: a `history` list in the encrypted vault record (`omitempty`; per version the keyring ID, chunk count and replaced-on date, newest first) pointing at the old keyring entries. No new keyring naming scheme and no title collisions; rename touches nothing. A reader that does not know the field ignores it and would leave those entries behind (harmless but never removed): note it in the downgrade text.
+- Everything that touches an entry handles history: delete and pruning remove the entries only after the vault write, `doctor` checks them, `export --values` excludes them by default, the orphan check ignores them.
+- Atomicity: the order of `UpdateSecret` (store new, write vault, remove only what the vault no longer references); a failed vault write removes just what this call stored.
+- Security: old values are still secrets; delete must wipe every version; document that history increases exposure.
 
-**Ask the user.** Is storing titles in the keyring acceptable (it already is in metadata.json), and is full-metadata recovery worth the extra moving part?
+**Ask the user.** The default depth, and whether history is opt-in. R-23 is shipped, so the depth is a `history_depth` key in `config.json` (`0` disables): add it to `config.Keys`, `set`, `Get` and the README table.
 
-**Acceptance.** Delete `metadata.json` in a test, `doctor --fix` rebuilds it; index drift in either direction is detected; adding the reserved title is rejected.
+**Acceptance.** Update keeps N versions and prunes the oldest; rename and delete carry/remove all versions; rollback test when the metadata write fails; restore works in TUI and CLI; old metadata loads with zero versions.
+
+### R-28 Keyring index and recovery (needs re-scope)
+**Status** blocked (premise obsolete since 0.2.0; needs a user decision) · **Size** L · **Depends** –
+
+**Why it is blocked.** The item was written for the old `metadata.json` layout: titles in a plain file, values under title-named keyring entries. Since 0.2.0 titles and metadata are encrypted inside `vault.json`, keyring accounts are random IDs, and the data key exists only wrapped by the master password inside `vault.json`. If `vault.json` is lost, an index stored in the keyring cannot rebuild anything: the values are encrypted under a key that is gone. The original scope (reserved `__pandora_index__` account, `doctor --fix` rebuilding `metadata.json`) therefore no longer solves the problem it names.
+
+**Options.**
+- (A) Drop the item. The recovery route is `export --values` plus the `vault.json.bak` that every write already keeps.
+- (B) Re-scope to vault-file recovery, size S–M: `doctor` checks that `vault.json` and `vault.json.bak` parse and decrypt, and `doctor --fix` restores from the `.bak` after asking. Keyring entries that no vault record points to still cannot be listed (go-keyring cannot enumerate), so that limitation in ARCHITECTURE stays. *Recommended.*
+
+**Ask the user.** (A) or (B)? Until answered this item is skipped when picking the next item, and R-41 no longer waits for it.
+
+**Acceptance (for B).** A corrupt `vault.json` with a valid `.bak` is reported by `doctor` and restored by `doctor --fix`; a wrong password never triggers a restore; nothing is overwritten when both files are bad.
 
 ---
 
-## Milestone 0.3 — security hardening and automation
-
-### R-30 `expiring` command
-**Status** todo · **Size** S · **Depends** –
-
-**Scope.** `pandora expiring [--within 14d] [--json]` lists expiring/expired secrets (never values) and exits with a distinct code when any exist, for cron and CI. Reuses `SecretMeta.DaysUntilExpiry`.
-
-**Decisions.** Exit code: `3` if any are expiring/expired, `0` otherwise (document it next to the existing 0/1/2). Default window equals the TUI's 14 days (shared constant, later R-23).
-
-**Acceptance.** Table test for window boundaries (today, tomorrow, yesterday, no expiry); JSON output stable and documented.
-
-### R-31 Unlock challenge
-**Status** done (superseded by the master-password vault) · **Size** L · **Depends** R-23
-
-**Outcome.** Instead of a UI-only gate, a master password now protects the data itself: `vault.json` holds encrypted names and metadata, keyring values are encrypted under the same key, and both the TUI (including after the idle lock) and the CLI ask for the password. Argon2id + XChaCha20-Poly1305 (`golang.org/x/crypto`); no recovery, so `export --values` is the backup route. See README "Security model" and `docs/ARCHITECTURE.md` "Persisted data". Biometrics and a failed-attempt backoff were not built; the KDF cost is the brake.
+## Release 0.6.0 — auditability
 
 ### R-32 Local audit log
-**Status** todo · **Size** M · **Depends** R-23
+**Status** todo · **Size** M · **Depends** R-23 (done); schedule after R-25 and R-26 so the new `env`, `get --copy` and import paths are logged from day one
 
 **Scope.** Opt-in append-only JSONL file recording time, action (`reveal`, `copy`, `get`, `run`, `export`, `add`, `edit`, `rm`) and secret title — never values — plus `pandora log [--since]`.
 
 **Decisions.**
-- Opt-in via config only; default off, because a log of names and times is itself sensitive metadata.
+- Opt-in via a new `audit_log` key in `config.json` (R-23 is shipped); default off, because a log of names and times is itself sensitive metadata.
 - Size cap with rotation; `0600`.
 - Written from `store`/`cli` call sites through one `audit.Record(...)` function so the TUI and CLI cannot diverge.
 
-**Ask the user.** Retention and whether failed attempts (R-31) are logged.
+**Ask the user.** Retention, and whether failed unlock attempts are logged (R-31 shipped without a backoff or attempt counter, so there is nothing to log today beyond the wrong-password result).
 
 **Acceptance.** Disabled by default writes nothing; enabled logs each action once; values never appear (test greps the file for the test secret); rotation test.
 
@@ -491,7 +516,7 @@ Also state the threat model in one paragraph: shoulder surfing, accidental scree
 **Acceptance.** RFC 6238 vectors pass; code refreshes on the tick without redrawing the whole value box; old metadata loads as `password`.
 
 ### R-41 Folder-sync vault file
-**Status** todo · **Size** L · **Depends** R-23, R-28
+**Status** todo · **Size** L · **Depends** R-23 (done), R-28 (soft; blocked, see its note)
 
 **Why.** Syncing across machines is the most requested feature of any vault, but "no network" is a stated non-goal.
 

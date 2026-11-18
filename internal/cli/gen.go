@@ -8,20 +8,17 @@ import (
 	"github.com/RafaSG13/Pandora/internal/gen"
 )
 
-const (
-	defaultGenLength  = 24
-	defaultGenCharset = "alnum"
-	maxGenCount       = 100
-)
+const maxGenCount = 100
 
 // cmdGen prints random secrets to stdout. Nothing is stored, and a generated
 // value is only ever written to stdout, never to stderr.
 func (a *app) cmdGen(args []string) error {
 	names := charsetNames()
 	usage := "gen [--length N] [--charset " + strings.Join(names, "|") + "] [--count N]"
+	cfg := a.loadConfig()
 	fs := flag.NewFlagSet("gen", flag.ContinueOnError)
-	length := fs.Int("length", defaultGenLength, fmt.Sprintf("length of each secret, %d to %d", gen.MinLength, gen.MaxLength))
-	charset := fs.String("charset", defaultGenCharset, "alphabet: "+strings.Join(names, ", "))
+	length := fs.Int("length", cfg.GenLength, fmt.Sprintf("length of each secret, %d to %d", gen.MinLength, gen.MaxLength))
+	charset := fs.String("charset", cfg.GenCharset, "alphabet: "+strings.Join(names, ", "))
 	count := fs.Int("count", 1, fmt.Sprintf("how many secrets to print, 1 to %d", maxGenCount))
 	if _, err := a.parse("gen", usage, fs, args, 0, 0); err != nil {
 		return err
