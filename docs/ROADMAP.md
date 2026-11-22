@@ -71,7 +71,7 @@ Never touch the real keychain, config directory or clipboard. Use `keyring.MockI
 | R-26 | Dotenv output and CLI ergonomics | 0.4.0 | S | – | done |
 | R-30 | `expiring` command | 0.4.0 | S | R-23 (done) | done |
 | R-25 | Import from other tools (dotenv + one password-manager format) | 0.4.0 | M | R-26 (done) | done (dotenv, bitwarden-json) |
-| R-28 | `doctor` vault recovery (re-scoped, option B) | 0.5.0 | M | – | todo |
+| R-28 | `doctor` vault recovery (re-scoped, option B) | 0.5.0 | M | – | done |
 | R-24 | Value history | 0.5.0 | L | R-23 (done) | todo |
 | R-32 | Local audit log | 0.6.0 | M | R-23 (done), R-25, R-26 | todo |
 | R-50 | API freeze audit (CLI, JSON, exit codes, formats) | 0.7.0 | M | R-25, R-28, R-30, R-24, R-32 | todo |
@@ -487,7 +487,7 @@ Also state the threat model in one paragraph: shoulder surfing, accidental scree
 **Acceptance.** Update keeps N versions and prunes the oldest; rename and delete carry/remove all versions; rollback test when the metadata write fails; restore works in TUI and CLI; old metadata loads with zero versions.
 
 ### R-28 `doctor` vault recovery
-**Status** todo · **Size** M · **Depends** –
+**Status** done · **Size** M · **Depends** –
 
 **Why.** Since 0.2.0 titles and metadata are encrypted inside `vault.json`, keyring accounts are random IDs, and the data key exists only wrapped by the master password inside `vault.json`. The old scope (a keyring index rebuilding `metadata.json`) no longer applies. What remains recoverable is the vault file itself: every write already keeps `vault.json.bak`.
 
@@ -495,9 +495,9 @@ Also state the threat model in one paragraph: shoulder surfing, accidental scree
 
 **Scope.** `pandora doctor` verifies that `vault.json` and `vault.json.bak` parse and decrypt (needs the master password; a wrong password never triggers a restore). `doctor --fix` restores `vault.json` from the `.bak` after confirmation. Nothing is overwritten when both files are bad. Keyring entries that no vault record points to still cannot be listed (go-keyring cannot enumerate); that limitation in ARCHITECTURE stays.
 
-**Starting points.** `internal/store/doctor.go`, `writeFileAtomic` and the `.bak` handling in `internal/store/vault.go`, the `doctor` entry in `internal/cli/registry.go`.
+**Starting points.** `internal/store/doctor.go`, `internal/store/vault.go`, the `doctor` entry in `internal/cli/registry.go`.
 
-**Ask the user.** None unresolved.
+**Outcome (done).** `internal/store/recover.go` (`InspectVault`, `RestoreVaultBackup`, `ErrVaultCorrupt`), `internal/cli/doctor.go` (`cmdDoctor` moved out of `commands.go`). `doctor` asks for the master password against both files instead of unlocking first, so it works when vault.json is unreadable. Restore only when the password opens the backup and vault.json is missing or corrupt (not merely locked by another password, not from a newer version); the damaged file is kept as `vault.json.corrupt` and the `.bak` is left as is. After a restore `doctor` never removes entries without a value in the same run (the backup predates the last change). Any command that meets a damaged vault prints a hint to run `doctor`. Verified: `go test -race ./...`, cross-builds, and the built binary against a temp HOME with a vault that has no secrets (damaged, wrong password with `--fix -y`, restore, `list` afterwards); the TUI still shows its own "could not load" screen and does not mention `doctor`.
 
 **Acceptance.** A corrupt `vault.json` with a valid `.bak` is reported by `doctor` and restored by `doctor --fix`; a wrong password never triggers a restore; nothing is overwritten when both files are bad.
 

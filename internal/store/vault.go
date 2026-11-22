@@ -32,6 +32,12 @@ var (
 	ErrInvalidText = errors.New("text must not contain control characters")
 	// ErrVaultExists is returned by Create when a vault is already present.
 	ErrVaultExists = errors.New("a vault already exists")
+	// ErrVaultCorrupt is returned (wrapped) when vault.json cannot be parsed,
+	// has invalid parameters, or its data does not decrypt or parse. Callers
+	// never overwrite such a file; `pandora doctor --fix` restores the backup.
+	ErrVaultCorrupt = errors.New("vault file is corrupt")
+	// errNewerVault marks a vault written by a newer Pandora: never "repaired".
+	errNewerVault = errors.New("unsupported vault version")
 )
 
 const (
@@ -236,25 +242,51 @@ func (vf *vaultFile) setRecords(key []byte, recs []record) error {
 }
 
 func readVault() (vaultFile, error) {
-	var vf vaultFile
 	p, err := vaultPath()
 	if err != nil {
-		return vf, err
+		return vaultFile{}, err
 	}
 	raw, err := os.ReadFile(p)
 	if err != nil {
-		return vf, err
+		return vaultFile{}, err
 	}
+	return parseVault(raw)
+}
+
+// parseVault decodes and bounds-checks the content of a vault file. Anything
+// that is not a vault of a version this build reads wraps ErrVaultCorrupt;
+// a version from the future wraps errNewerVault instead.
+func parseVault(raw []byte) (vaultFile, error) {
+	var vf vaultFile
 	if err := json.Unmarshal(raw, &vf); err != nil {
-		return vf, fmt.Errorf("vault file is corrupt: %w", err)
+		return vf, fmt.Errorf("%w: %v", ErrVaultCorrupt, err)
 	}
-	if vf.Version != vaultVersion {
-		return vf, fmt.Errorf("unsupported vault version %d", vf.Version)
+	switch {
+	case vf.Version > vaultVersion:
+		return vf, fmt.Errorf("%w %d", errNewerVault, vf.Version)
+	case vf.Version != vaultVersion:
+		return vf, fmt.Errorf("%w: unsupported vault version %d", ErrVaultCorrupt, vf.Version)
 	}
 	if err := checkKDF(vf.KDF); err != nil {
-		return vf, err
+		return vf, fmt.Errorf("%w: %v", ErrVaultCorrupt, err)
 	}
 	return vf, nil
+}
+
+// records decrypts and decodes the secret records with the data key.
+func (vf vaultFile) records(key []byte) ([]record, error) {
+	plain, err := open(key, vf.Data, []byte(aadMeta))
+	if err != nil {
+		return nil, fmt.Errorf("%w: the data was modified or is damaged", ErrVaultCorrupt)
+	}
+	var recs []record
+	if err := json.Unmarshal(plain, &recs); err != nil {
+		return nil, fmt.Errorf("%w: %v", ErrVaultCorrupt, err)
+	}
+	if recs == nil {
+		recs = []record{}
+	}
+	return recs, nil
 }
 
 func writeVault(vf vaultFile) error {
@@ -377,18 +409,7 @@ func loadRecords() ([]record, error) {
 	} else if err != nil {
 		return nil, err
 	}
-	plain, err := open(key, vf.Data, []byte(aadMeta))
-	if err != nil {
-		return nil, errors.New("vault data is corrupt or was modified")
-	}
-	var recs []record
-	if err := json.Unmarshal(plain, &recs); err != nil {
-		return nil, fmt.Errorf("vault data is corrupt: %w", err)
-	}
-	if recs == nil {
-		recs = []record{}
-	}
-	return recs, nil
+	return vf.records(key)
 }
 
 // saveRecords re-encrypts recs (fresh nonce) into the existing vault file.

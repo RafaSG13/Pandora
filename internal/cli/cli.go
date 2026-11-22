@@ -18,6 +18,7 @@ import (
 	"golang.org/x/term"
 
 	"github.com/RafaSG13/Pandora/internal/secretclip"
+	"github.com/RafaSG13/Pandora/internal/store"
 	"github.com/RafaSG13/Pandora/internal/version"
 )
 
@@ -127,6 +128,9 @@ func (a *app) run(args []string) int {
 		return ee.code
 	default:
 		fmt.Fprintf(a.err, "pandora: %v\n", err)
+		if errors.Is(err, store.ErrVaultCorrupt) && cmd.name != "doctor" {
+			fmt.Fprintln(a.err, "pandora: run 'pandora doctor' to check vault.json and its backup")
+		}
 		return exitRuntime
 	}
 }

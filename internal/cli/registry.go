@@ -143,10 +143,10 @@ func commands() []command {
 			run:  (*app).cmdImport,
 		},
 		{
-			name: "doctor", summary: "Check metadata against the keyring",
+			name: "doctor", summary: "Check the vault files and the keyring values",
 			flags: []flagSpec{
-				{names: []string{"fix"}, help: "remove metadata entries whose value is missing"},
-				yes("with --fix, remove without asking"),
+				{names: []string{"fix"}, help: "repair: restore a damaged vault.json from its backup, remove entries whose value is missing"},
+				yes("with --fix, repair without asking"),
 			},
 			run: (*app).cmdDoctor,
 		},
