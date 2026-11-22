@@ -44,7 +44,7 @@ func (a *app) cmdRun(args []string) error {
 		return usageErrorf("run: missing command after --\nusage: pandora %s", usage)
 	}
 
-	injections, err := parseInjections(specs)
+	injections, err := parseInjections("run", specs)
 	if err != nil {
 		return err
 	}
@@ -70,8 +70,8 @@ func (a *app) cmdRun(args []string) error {
 }
 
 // parseInjections turns -s specs into title/env pairs and rejects duplicate
-// environment variable names.
-func parseInjections(specs []string) ([]injection, error) {
+// environment variable names. cmd names the command in error messages.
+func parseInjections(cmd string, specs []string) ([]injection, error) {
 	seen := map[string]string{}
 	out := make([]injection, 0, len(specs))
 	for _, spec := range specs {
@@ -79,23 +79,23 @@ func parseInjections(specs []string) ([]injection, error) {
 		if i := strings.LastIndex(spec, "="); i >= 0 {
 			title, env = spec[:i], spec[i+1:]
 			if env == "" {
-				return nil, usageErrorf("run: empty ENV_NAME in %q", spec)
+				return nil, usageErrorf("%s: empty ENV_NAME in %q", cmd, spec)
 			}
 		}
 		if title == "" {
-			return nil, usageErrorf("run: empty title in %q", spec)
+			return nil, usageErrorf("%s: empty title in %q", cmd, spec)
 		}
 		if env == "" {
 			env = EnvName(title)
 		}
 		if env == "" {
-			return nil, usageErrorf("run: cannot derive an environment variable name from %q; use TITLE=ENV_NAME", title)
+			return nil, usageErrorf("%s: cannot derive an environment variable name from %q; use TITLE=ENV_NAME", cmd, title)
 		}
 		if strings.ContainsAny(env, "=\x00") {
-			return nil, usageErrorf("run: invalid environment variable name %q", env)
+			return nil, usageErrorf("%s: invalid environment variable name %q", cmd, env)
 		}
 		if prev, dup := seen[env]; dup {
-			return nil, usageErrorf("run: %q and %q both map to %s", prev, title, env)
+			return nil, usageErrorf("%s: %q and %q both map to %s", cmd, prev, title, env)
 		}
 		seen[env] = title
 		out = append(out, injection{title, env})

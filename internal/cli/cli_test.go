@@ -43,7 +43,9 @@ func isolate(t *testing.T) {
 type harness struct {
 	env      map[string]string
 	tty      bool
-	hidden   []string // answers returned by successive hidden prompts
+	outTTY   bool               // stdout is a terminal
+	clip     func(string) error // replaces the clipboard write of get --copy
+	hidden   []string           // answers returned by successive hidden prompts
 	stdin    string
 	noMaster bool
 }
@@ -69,6 +71,11 @@ func (h harness) run(t *testing.T, args ...string) (code int, stdout, stderr str
 		return e
 	}
 	a.isTTY = func() bool { return h.tty }
+	a.isOutTTY = func() bool { return h.outTTY }
+	a.copySecret = func(string) error { t.Fatal("test touched the real clipboard"); return nil }
+	if h.clip != nil {
+		a.copySecret = h.clip
+	}
 	answers := append([]string(nil), h.hidden...)
 	a.readHidden = func(string) (string, error) {
 		if len(answers) == 0 {

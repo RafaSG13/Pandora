@@ -33,7 +33,7 @@ Pandora keeps API keys, tokens and passwords out of dotfiles, shell history and 
 - **Idle lock** — after 5 idle minutes everything is masked, the secrets are dropped from memory, a pending clipboard is cleared, and the master password is required again.
 - **Orphan detection** — secrets whose keyring value is missing are flagged `!`.
 - **Polished interface** — per-category colours (or none, with `NO_COLOR`), full-row selection, bordered detail card, toasts, compact mode (`t`), mouse support, and an ASCII fallback.
-- **Command-line mode** — `list`, `get`, `add`, `rm`, `run`, `gen`, `passwd`, encrypted `export`/`import`, `doctor` and shell completions.
+- **Command-line mode** — `list`, `get`, `add`, `rm`, `run`, `env`, `gen`, `passwd`, encrypted `export`/`import`, `doctor` and shell completions.
 - **Safe vault handling** — atomic writes with a `vault.json.bak` backup; a corrupt or tampered file is reported, never overwritten.
 - **Single binary, no network, no telemetry.**
 
@@ -205,10 +205,11 @@ See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the vault format and data f
 | Command | What it does |
 | ------- | ------------ |
 | `pandora list [--category C] [--tag T] [--json]` | Titles, categories, creation and expiry dates, and tags. Never shows values. `--tag` (`-t`) keeps secrets that have the tag; repeat it or separate with commas to require several. `--json` always includes `tags` (an empty list when there are none). |
-| `pandora get <title>` | Prints the value followed by a newline, so `add` then `get` reproduces the file you piped in. Exit `1` if the secret does not exist. |
+| `pandora get <title> [-q] [--newline=false] [--copy]` | Prints the value followed by a newline, so `add` then `get` reproduces the file you piped in. `-q` or `--newline=false` omits the newline (for `$(...)` and pipes). `--copy` puts the value on the clipboard instead of printing it, concealed like the TUI copy; the CLI process exits right away, so the clipboard is **not** cleared automatically (only the TUI does that). Exit `1` if the secret does not exist. |
 | `pandora add <title> [-c CATEGORY] [--tag TAG] [--notes TEXT] [--expires YYYY-MM-DD]` | Stores a new secret. The value is read from stdin when piped (any number of lines, one trailing newline removed; `pandora add key < id_ed25519`) or typed at a hidden prompt on a terminal (one line). `--tag` (`-t`) may be repeated or comma-separated. Empty values, values over 32 KB, duplicate titles, invalid dates and invalid tags are rejected. |
 | `pandora rm <title> [-y]` | Deletes a secret. Asks on a terminal; without a terminal it refuses unless `-y` is given. |
 | `pandora run -s TITLE[=ENV_NAME] [-s ...] -- cmd args...` | Runs `cmd` with each secret in an environment variable that exists only for that process. `ENV_NAME` defaults to the title upper-cased with other characters replaced by `_`. Fails before running anything if a secret is missing; exits with the command's exit code. |
+| `pandora env -s TITLE[=ENV_NAME] [-s ...] [--force]` | Prints one `KEY=value` line per secret, in dotenv format (`pandora env -s github-token > .env`). Names default as in `run`. Values made only of letters, digits and `_./:@%+-` are bare; anything else is double-quoted with `\\`, `\"`, `\n`, `\r` and `\$` escaped, so multi-line values stay on one line. Because it prints values, it refuses (exit `2`) when stdout is a terminal unless you pass `--force`. Fails before printing anything if a secret is missing. |
 | `pandora export [--values] [-o FILE] [--force]` | Writes the metadata as JSON. With `--values` the values are included and the whole file is encrypted. |
 | `pandora import FILE [--values] [--overwrite]` | Reads an export (`-` for stdin). Existing titles are skipped unless `--overwrite`; values are restored only with `--values`. The whole file is validated before anything is written. |
 | `pandora doctor [--fix] [-y]` | Lists vault entries whose value is missing from the keyring; `--fix` removes them (asks unless `-y`). Exits `1` while problems remain. |
@@ -223,6 +224,7 @@ printf '%s' "$TOKEN" | pandora add github-token -c Tokens --expires 2027-01-31
 pandora list --category tokens --json
 pandora list --tag prod --tag db            # secrets with both tags
 pandora run -s github-token=GITHUB_TOKEN -- gh api user
+pandora env -s github-token=GITHUB_TOKEN > .env   # dotenv file; delete it when done
 pandora export -o names.json                # metadata only, plain JSON
 pandora export --values -o backup.age       # prompts twice for a passphrase
 PANDORA_PASSPHRASE=... pandora import backup.age --values --overwrite

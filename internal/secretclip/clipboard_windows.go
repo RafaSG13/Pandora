@@ -1,6 +1,6 @@
 //go:build windows
 
-package tui
+package secretclip
 
 import (
 	"runtime"
@@ -40,10 +40,10 @@ var concealFormats = []string{
 	"CanUploadToCloudClipboard",
 }
 
-// platformWriteSecret sets the value as CF_UNICODETEXT plus concealFormats,
+// platformWrite sets the value as CF_UNICODETEXT plus concealFormats,
 // falling back to a plain write if the text could not be set so copying
 // never stops working.
-func platformWriteSecret(s string) error {
+func platformWrite(s string) error {
 	if err := writeConcealed(s); err != nil {
 		return clipboard.WriteAll(s)
 	}

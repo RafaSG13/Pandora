@@ -70,7 +70,16 @@ func commands() []command {
 			},
 			run: (*app).cmdList,
 		},
-		{name: "get", summary: "Print a secret's value", args: title, run: (*app).cmdGet},
+		{
+			name: "get", summary: "Print a secret's value",
+			flags: []flagSpec{
+				{names: []string{"q"}, help: "no trailing newline (same as --newline=false)"},
+				{names: []string{"newline"}, help: "print a trailing newline (default true)"},
+				{names: []string{"copy"}, help: "copy to the clipboard instead of printing"},
+			},
+			args: title,
+			run:  (*app).cmdGet,
+		},
 		{
 			name: "add", summary: "Add a secret (value from stdin or a hidden prompt)",
 			flags: []flagSpec{
@@ -95,6 +104,14 @@ func commands() []command {
 			},
 			args: argSpec{kind: argCommand},
 			run:  (*app).cmdRun,
+		},
+		{
+			name: "env", summary: "Print secrets as KEY=value dotenv lines",
+			flags: []flagSpec{
+				{names: []string{"s", "secret"}, help: "secret to print, TITLE or TITLE=ENV_NAME", arg: title, repeat: true},
+				{names: []string{"force"}, help: "print even when stdout is a terminal"},
+			},
+			run: (*app).cmdEnv,
 		},
 		{
 			name: "export", summary: "Export metadata, or encrypted metadata and values",

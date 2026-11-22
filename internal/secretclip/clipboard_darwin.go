@@ -1,6 +1,6 @@
 //go:build darwin
 
-package tui
+package secretclip
 
 import (
 	"context"
@@ -30,7 +30,7 @@ pb.setStringForType(s, 'public.utf8-plain-text');
 pb.setStringForType('', 'org.nspasteboard.ConcealedType');
 undefined;`
 
-func platformWriteSecret(s string) error { return writeSecret(osascript, s) }
+func platformWrite(s string) error { return writeSecret(osascript, s) }
 
 // writeSecret copies s concealed via the osascript binary bin, falling back
 // to a plain write if that fails so copying never stops working.
