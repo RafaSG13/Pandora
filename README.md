@@ -33,7 +33,7 @@ Pandora keeps API keys, tokens and passwords out of dotfiles, shell history and 
 - **Idle lock** — after 5 idle minutes everything is masked, the secrets are dropped from memory, a pending clipboard is cleared, and the master password is required again.
 - **Orphan detection** — secrets whose keyring value is missing are flagged `!`.
 - **Polished interface** — per-category colours (or none, with `NO_COLOR`), full-row selection, bordered detail card, toasts, compact mode (`t`), mouse support, and an ASCII fallback.
-- **Command-line mode** — `list`, `get`, `add`, `rm`, `run`, `env`, `gen`, `passwd`, encrypted `export`/`import`, `doctor` and shell completions.
+- **Command-line mode** — `list`, `get`, `add`, `rm`, `run`, `env`, `expiring`, `gen`, `passwd`, encrypted `export`/`import`, `doctor` and shell completions.
 - **Safe vault handling** — atomic writes with a `vault.json.bak` backup; a corrupt or tampered file is reported, never overwritten.
 - **Single binary, no network, no telemetry.**
 
@@ -200,11 +200,12 @@ See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the vault format and data f
 
 ## Command-line mode
 
-`pandora` with no arguments opens the interface. With a command it runs non-interactively, which suits scripts and CI. Data goes to stdout, messages and errors to stderr. Exit codes: `0` success, `1` runtime error (including a refused confirmation), `2` usage error. `pandora help` and `pandora <command> -h` list the flags. Flags may come before or after the arguments.
+`pandora` with no arguments opens the interface. With a command it runs non-interactively, which suits scripts and CI. Data goes to stdout, messages and errors to stderr. Exit codes: `0` success, `1` runtime error (including a refused confirmation), `2` usage error, `3` only from `pandora expiring` (something is expired or expiring). `pandora help` and `pandora <command> -h` list the flags. Flags may come before or after the arguments.
 
 | Command | What it does |
 | ------- | ------------ |
 | `pandora list [--category C] [--tag T] [--json]` | Titles, categories, creation and expiry dates, and tags. Never shows values. `--tag` (`-t`) keeps secrets that have the tag; repeat it or separate with commas to require several. `--json` always includes `tags` (an empty list when there are none). |
+| `pandora expiring [--within 14d] [--json]` | Lists secrets that have expired or expire within the window, soonest first (never values). The window is `--within` (days, `14` or `14d`) or else `expiry_warn_days` from the config file (default 14). Exits `3` when the list is not empty and `0` when nothing is due, so cron and CI can act on it. `--json` prints an array of `{title, category, expires, days, status}`: `days` is negative once expired and `status` is `expired` or `expiring` (today counts as expiring); an empty result is `[]`. |
 | `pandora get <title> [-q] [--newline=false] [--copy]` | Prints the value followed by a newline, so `add` then `get` reproduces the file you piped in. `-q` or `--newline=false` omits the newline (for `$(...)` and pipes). `--copy` puts the value on the clipboard instead of printing it, concealed like the TUI copy; the CLI process exits right away, so the clipboard is **not** cleared automatically (only the TUI does that). Exit `1` if the secret does not exist. |
 | `pandora add <title> [-c CATEGORY] [--tag TAG] [--notes TEXT] [--expires YYYY-MM-DD]` | Stores a new secret. The value is read from stdin when piped (any number of lines, one trailing newline removed; `pandora add key < id_ed25519`) or typed at a hidden prompt on a terminal (one line). `--tag` (`-t`) may be repeated or comma-separated. Empty values, values over 32 KB, duplicate titles, invalid dates and invalid tags are rejected. |
 | `pandora rm <title> [-y]` | Deletes a secret. Asks on a terminal; without a terminal it refuses unless `-y` is given. |

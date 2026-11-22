@@ -34,7 +34,8 @@ const (
 const (
 	maxLockMinutes = 7 * 24 * 60
 	maxSeconds     = 3600
-	maxWarnDays    = 3650
+	// MaxExpiryWarnDays is the largest expiry_warn_days; `expiring --within` shares it.
+	MaxExpiryWarnDays = 3650
 )
 
 // maxFileBytes caps what is read from the file.
@@ -176,7 +177,7 @@ func set(s *Settings, key string, raw json.RawMessage) error {
 		}
 		s.RevealTTL = time.Duration(n) * time.Second
 	case "expiry_warn_days":
-		n, err := intIn(raw, 0, maxWarnDays)
+		n, err := intIn(raw, 0, MaxExpiryWarnDays)
 		if err != nil {
 			return err
 		}

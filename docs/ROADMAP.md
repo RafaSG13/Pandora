@@ -63,39 +63,54 @@ Never touch the real keychain, config directory or clipboard. Use `keyring.MockI
 | R-09 | `pandora gen` | 0.1.0 | S | – | done (v0.1.0, PR #6) |
 | R-10 | `NO_COLOR` and small-terminal help | 0.1.0 | S | – | done (v0.1.0, PR #6) |
 | R-31 | Unlock challenge | 0.2.0 | L | – | done (v0.2.0; master password) |
-| R-05 | Real-environment QA | gate of every release | M | – | in-progress (macOS keyring and clipboard done; other terminals and OSes open) |
 | R-20 | Multiline values | 0.3.0 | M | – | done (v0.3.0) |
 | R-21 | Tags | 0.3.0 | M | – | done (v0.3.0) |
 | R-22 | Search in notes and tags | 0.3.0 | S | R-21 (soft) | done (v0.3.0) |
 | R-23 | Config file | 0.3.0 | M | – | done (v0.3.0) |
 | R-27 | External-change detection and file lock | 0.3.0 | M | – | done (v0.3.0) |
-| R-11 | Concealed clipboard copies | 0.3.0 | M | – | in-progress (macOS verified; Windows manual QA open) |
 | R-26 | Dotenv output and CLI ergonomics | 0.4.0 | S | – | done |
-| R-30 | `expiring` command | 0.4.0 | S | R-23 (done) | todo |
-| R-25 | Import from other tools | 0.4.0 | M | R-26 (soft) | todo |
+| R-30 | `expiring` command | 0.4.0 | S | R-23 (done) | done |
+| R-25 | Import from other tools (dotenv + one password-manager format) | 0.4.0 | M | R-26 (done) | todo |
+| R-28 | `doctor` vault recovery (re-scoped, option B) | 0.5.0 | M | – | todo |
 | R-24 | Value history | 0.5.0 | L | R-23 (done) | todo |
-| R-28 | Keyring index and recovery | 0.5.0 (if re-scoped) | L → S–M | – | blocked (premise obsolete; needs a decision) |
-| R-32 | Local audit log | 0.6.0 | M | R-23 (done); after R-25, R-26 | todo |
-| R-40 | TOTP codes | later | L | R-20 (done) | todo |
-| R-41 | Folder-sync vault file | later | L | R-23 (done), R-28 (soft) | todo |
+| R-32 | Local audit log | 0.6.0 | M | R-23 (done), R-25, R-26 | todo |
+| R-50 | API freeze audit (CLI, JSON, exit codes, formats) | 0.7.0 | M | R-25, R-28, R-30, R-24, R-32 | todo |
+| R-51 | Format compatibility test corpus | 0.7.0 | M | R-24 | todo |
+| R-52 | TUI polish and known bugs | 0.7.0 | S | – | todo |
+| R-05 | Real-environment QA, all three OSes | 1.0.0 gate | M | – | in-progress (macOS keyring and clipboard done; other terminals and OSes open) |
+| R-11 | Concealed clipboard copies, Windows check | 1.0.0 gate | S | – | in-progress (macOS verified; Windows manual QA open) |
+| R-53 | 1.0 release (docs, security review, tag) | 1.0.0 | S | R-05, R-11, R-50, R-51, R-52 | todo |
+| R-40 | TOTP codes | post-1.0 (1.1) | L | R-20 (done) | todo |
+| R-41 | Folder-sync vault file | post-1.0 (1.2) | L | R-23 (done) | todo |
 
 The index is ordered by release, then by the order to build inside it; "first `todo` item whose `Depends` are `done`" therefore walks the plan top to bottom. The section order below matches.
 
 ## Release plan
 
-Versions are SemVer `0.x`. `v0.1.0`, `v0.1.1`, `v0.2.0` and `v0.3.0` are published; `0.3.0` rather than `0.2.1` because it added features and extended the persisted records (tags, values split over several keyring entries, `config.json`). Cutting a release is in CONTRIBUTING; **no tag is pushed unless the user asks for it**. Every release needs: `[Unreleased]` renamed to `## [X.Y.Z] - date` in the changelog (the heading format matters to `scripts/release-notes.sh`), the R-05 checklist (`docs/QA.md`) run on macOS for what changed, the `keyring-linux` CI job green, and an upgrade note when a downgrade would lose data.
+Versions are SemVer `0.x` until 1.0.0, which freezes the public surface (see R-50 and `docs/STABILITY.md`); from 1.0.0 on only additive changes land in minor releases. `v0.1.0`, `v0.1.1`, `v0.2.0` and `v0.3.0` are published; `0.3.0` rather than `0.2.1` because it added features and extended the persisted records (tags, values split over several keyring entries, `config.json`). Cutting a release is in CONTRIBUTING; **no tag is pushed unless the user asks for it**. Every release needs: `[Unreleased]` renamed to `## [X.Y.Z] - date` in the changelog (the heading format matters to `scripts/release-notes.sh`), the R-05 checklist (`docs/QA.md`) run on macOS for what changed, the `keyring-linux` CI job green, and an upgrade note when a downgrade would lose data.
 
 | Release | Theme | Items (build in this order) | Gate before tagging |
 | --- | --- | --- | --- |
 | **0.3.0** (published) | Multi-line secrets, tags and search, config file, safe concurrent writers, concealed clipboard copies | R-20, R-21, R-22, R-23, R-27, R-11 | Shipped with the automated suite and CLI and pty smoke runs; the full `docs/QA.md` macOS pass and the Windows concealed-copy check were **not** done before tagging (R-11 and R-05 stay open for them). Known open bug, not from this release: the empty-vault welcome screen is 23 lines tall at 60×18. |
-| **0.4.0** | Scripting and adoption, no format change | R-26, then R-30, then R-25 | R-26 first because its dotenv quoting rules are reused by the R-25 dotenv parser. R-30 reads `expiry_warn_days`. R-25 starts with `dotenv` plus one password-manager format and needs redacted sample exports from the user. New commands go through `commands()` so the completion drift tests cover them; README command table updated. |
-| **0.5.0** | Data safety | R-24 (design first), R-28 only if re-scoped | R-24 adds an `omitempty` field to the encrypted record and a `history_depth` config key; the vault stays `version: 2` unless the plan finds a reason to bump it. The plan must state what a downgrade does with history entries. R-28 is skipped until the user picks option A or B. |
-| **0.6.0** | Auditability | R-32 | After 0.4.0 so every new command (`env`, `get --copy`, imports) calls the single `audit.Record` from the start. Opt-in through an `audit_log` config key; a test greps the file for the test secret. |
-| later | | R-40, R-41 | Each needs the user's answer to its `Ask the user` question before planning. |
+| **0.4.0** | Scripting and adoption, no format change | R-26 (done), then R-30, then R-25 | R-30 first: smallest, and it reads the existing `expiry_warn_days`. R-26's dotenv quoting (`dotenvValue` in `internal/cli/dotenv.go`) is reused, inverted, by the R-25 dotenv parser. R-25 starts with `dotenv` plus one password-manager format and needs redacted sample exports from the user. New commands go through `commands()` so the completion drift tests cover them; README command table updated. |
+| **0.5.0** | Data safety | R-28 (option B), then R-24 (design first) | R-24 adds an `omitempty` field to the encrypted record and a `history_depth` config key; the vault stays `version: 2` unless the plan finds a reason to bump it. The plan must state what a downgrade does with history entries. R-24 comes before the freeze because it touches the persisted format. R-28 is independent of R-24: if R-24 slips, tag 0.5.0 with R-28 alone. |
+| **0.6.0** | Auditability | R-32 | After 0.4.0 so every new command (`env`, `get --copy`, imports, `expiring`) calls the single `audit.Record` from the start. Opt-in through an `audit_log` config key; a test greps the file for the test secret. |
+| **0.7.0** | Stabilise (release candidate quality, no new features) | R-50, R-51, R-52 | R-50 last among features so nothing it freezes still moves. R-51 proves the formats still load; R-52 fixes known layout bugs. |
+| **1.0.0** | Stable | R-53 plus the R-05 and R-11 gates | QA gates run last, against the final release artefacts. Tag only when the user asks. |
+| 1.1 (post-1.0) | TOTP | R-40 | Additive `kind` field; needs the user's answer to its `Ask the user` question before planning. |
+| 1.2 (post-1.0) | Folder sync | R-41 | Needs the user's answer to its `Ask the user` question; additive only. |
 
-**1.0.0** is not scheduled. Candidate criteria: R-05 fully done on macOS, Linux and Windows, persisted formats unchanged through 0.5 and 0.6, no `blocked` item left.
+**1.0.0 criteria:** R-05 and R-11 done on macOS, Linux and Windows; persisted formats (`vault.json` v2, export JSON) unchanged since 0.5 apart from additive `omitempty` fields, proved by the R-51 corpus; the R-50 stability document published; no `blocked` item; `keyring-linux` CI job green.
 
-Sizing rule used for the cut: a release holds at most one L item, or up to three S/M items, so a slipping item never holds back a finished one; move it to the next release instead.
+**Order rationale.**
+- R-30 first: smallest item, reads the existing `expiry_warn_days`.
+- R-25 after R-26: reuses its dotenv quoting.
+- R-24 before the freeze: it touches the persisted format.
+- R-32 after the commands exist, so each calls `audit.Record` once.
+- R-50 last among features, so nothing it freezes still moves.
+- QA gates last: they run against the final artefacts.
+
+Sizing rule used for the cut: a release holds at most one L item, or up to three S/M items, so a slipping item never holds back a finished one; move it to the next release instead. 0.5.0 holds R-24 (L) plus R-28 (M): acceptable because R-28 is independent.
 
 ---
 
@@ -418,7 +433,7 @@ Also state the threat model in one paragraph: shoulder surfing, accidental scree
 **Outcome (done).** `env` (`internal/cli/dotenv.go`): `dotenvValue` is the quoting rule R-25's dotenv parser must invert (bare `[A-Za-z0-9_./:@%+-]*`, else double-quoted with `\\ \" \n \r \$` escaped); names default via `EnvName` like `run`, and must match `[A-Za-z0-9_.-]+`. Refuses on a terminal stdout without `--force` (exit 2, `app.isOutTTY`). `get -q`/`--newline=false`/`--copy`: the copy has no clear deadline in the CLI (process exits), noted on stderr. The concealed clipboard code moved from `internal/tui` to `internal/secretclip` so the CLI can share it without importing the TUI. Verified: `go test -race` for cli and tui, Windows/Linux/CGO-off builds, pty refusal run by hand; the success path ran only against the mock keyring (tests), not a real keychain.
 
 ### R-30 `expiring` command
-**Status** todo · **Size** S · **Depends** –
+**Status** done · **Size** S · **Depends** R-23 (done)
 
 **Scope.** `pandora expiring [--within 14d] [--json]` lists expiring/expired secrets (never values) and exits with a distinct code when any exist, for cron and CI. Reuses `SecretMeta.DaysUntilExpiry`.
 
@@ -426,8 +441,10 @@ Also state the threat model in one paragraph: shoulder surfing, accidental scree
 
 **Acceptance.** Table test for window boundaries (today, tomorrow, yesterday, no expiry); JSON output stable and documented.
 
+**Outcome (done).** `internal/cli/expiring.go`; `app.now` is the injectable clock (`harness.now` in tests). Window is `--within N[d]` (0–3650, shares `config.MaxExpiryWarnDays`) or `expiry_warn_days`. Output sorted soonest first; JSON is `[{title, category, expires, days, status}]` with `status` `expired` or `expiring` (today is expiring, like the TUI) and `[]` when empty. Exit `3` (`exitExpiring`) whenever the list is not empty, in table and JSON mode. Verified: `go test -race ./...`, Windows/Linux/CGO-off builds, the built binary for `help`, `-h`, a bad `--within` (exit 2) and bash/zsh completions; the listing path ran only against the mock keyring (tests), not a real keychain.
+
 ### R-25 Import from other tools
-**Status** todo · **Size** M · **Depends** –
+**Status** todo · **Size** M · **Depends** R-26 (done)
 
 **Why.** Migration is what decides whether someone adopts Pandora. Today `import` only reads Pandora's own export.
 
@@ -467,18 +484,20 @@ Also state the threat model in one paragraph: shoulder surfing, accidental scree
 
 **Acceptance.** Update keeps N versions and prunes the oldest; rename and delete carry/remove all versions; rollback test when the metadata write fails; restore works in TUI and CLI; old metadata loads with zero versions.
 
-### R-28 Keyring index and recovery (needs re-scope)
-**Status** blocked (premise obsolete since 0.2.0; needs a user decision) · **Size** L · **Depends** –
+### R-28 `doctor` vault recovery
+**Status** todo · **Size** M · **Depends** –
 
-**Why it is blocked.** The item was written for the old `metadata.json` layout: titles in a plain file, values under title-named keyring entries. Since 0.2.0 titles and metadata are encrypted inside `vault.json`, keyring accounts are random IDs, and the data key exists only wrapped by the master password inside `vault.json`. If `vault.json` is lost, an index stored in the keyring cannot rebuild anything: the values are encrypted under a key that is gone. The original scope (reserved `__pandora_index__` account, `doctor --fix` rebuilding `metadata.json`) therefore no longer solves the problem it names.
+**Why.** Since 0.2.0 titles and metadata are encrypted inside `vault.json`, keyring accounts are random IDs, and the data key exists only wrapped by the master password inside `vault.json`. The old scope (a keyring index rebuilding `metadata.json`) no longer applies. What remains recoverable is the vault file itself: every write already keeps `vault.json.bak`.
 
-**Options.**
-- (A) Drop the item. The recovery route is `export --values` plus the `vault.json.bak` that every write already keeps.
-- (B) Re-scope to vault-file recovery, size S–M: `doctor` checks that `vault.json` and `vault.json.bak` parse and decrypt, and `doctor --fix` restores from the `.bak` after asking. Keyring entries that no vault record points to still cannot be listed (go-keyring cannot enumerate), so that limitation in ARCHITECTURE stays. *Recommended.*
+**Decision taken.** Re-scoped to vault-file recovery (option B), done before 1.0.
 
-**Ask the user.** (A) or (B)? Until answered this item is skipped when picking the next item, and R-41 no longer waits for it.
+**Scope.** `pandora doctor` verifies that `vault.json` and `vault.json.bak` parse and decrypt (needs the master password; a wrong password never triggers a restore). `doctor --fix` restores `vault.json` from the `.bak` after confirmation. Nothing is overwritten when both files are bad. Keyring entries that no vault record points to still cannot be listed (go-keyring cannot enumerate); that limitation in ARCHITECTURE stays.
 
-**Acceptance (for B).** A corrupt `vault.json` with a valid `.bak` is reported by `doctor` and restored by `doctor --fix`; a wrong password never triggers a restore; nothing is overwritten when both files are bad.
+**Starting points.** `internal/store/doctor.go`, `writeFileAtomic` and the `.bak` handling in `internal/store/vault.go`, the `doctor` entry in `internal/cli/registry.go`.
+
+**Ask the user.** None unresolved.
+
+**Acceptance.** A corrupt `vault.json` with a valid `.bak` is reported by `doctor` and restored by `doctor --fix`; a wrong password never triggers a restore; nothing is overwritten when both files are bad.
 
 ---
 
@@ -500,7 +519,53 @@ Also state the threat model in one paragraph: shoulder surfing, accidental scree
 
 ---
 
-## Later
+## Release 0.7.0 — stabilise
+
+No new features: this release is the 1.0 release candidate. Everything here is about making the public surface boring and provable.
+
+### R-50 API freeze audit
+**Status** todo · **Size** M · **Depends** R-25, R-28, R-30, R-24, R-32
+
+**Scope.** Enumerate from `commands()` (`internal/cli/registry.go`) every command, flag, exit code (`0/1/2/3`), stdout format and JSON shape (`list --json`, `expiring --json`, export JSON `SecretMeta`, `config get`). Write them into a new `docs/STABILITY.md`: *frozen from 1.0* (commands, flags, exit codes, JSON schemas, `vault.json` v2, export format) and *may change in minor releases* (TUI keys, layout, wording of messages). Rename or remove anything awkward now (for example inconsistent flag names between `get`, `env` and `run`) as a clean cutover with a changelog note; after 1.0 only additive changes.
+
+**Ask the user.** Which awkward names to change, once the audit lists them.
+
+**Acceptance.** `docs/STABILITY.md` exists and matches the code; a test snapshots `commands()` flag names and the exit-code constants so accidental changes fail CI.
+
+### R-51 Format compatibility test corpus
+**Status** todo · **Size** M · **Depends** R-24
+
+**Scope.** Check in `internal/store/testdata/` a `vault.json` fixture per shipped format state (0.2.0 record, 0.3.0 with tags and chunks, 0.5.0 with history), created with fixed KDF parameters and a known password, plus an export JSON from each. Tests load every fixture with the current code. Fixtures use synthetic titles and values only.
+
+**Acceptance.** All fixtures unlock and list the expected titles; adding a field without `omitempty` or breaking an old record fails a test. If R-24 bumps the vault version, the corpus gains a migration fixture.
+
+### R-52 TUI polish and known bugs
+**Status** todo · **Size** S · **Depends** –
+
+**Scope.** Fix the known bug "empty-vault welcome screen is 23 lines tall at 60×18" (0.3.0 gate row) and re-run the size test for every `mode`.
+
+**Acceptance.** View height equals window height in every `mode` at 60×18 and 80×24.
+
+---
+
+## Release 1.0.0
+
+### R-53 1.0 release
+**Status** todo · **Size** S · **Depends** R-05, R-11, R-50, R-51, R-52
+
+**Scope.** Gate checklist, then the release:
+- R-05: `docs/QA.md` executed on macOS, Linux and Windows against the real release artefacts, results recorded.
+- R-11: Windows concealed-copy check done.
+- No `blocked` item in the index.
+- Final read-through of `SECURITY.md`; the "pre-1.0" supported-versions text becomes "1.x".
+- Changelog heading `## [1.0.0] - date`.
+- Tag only when the user asks.
+
+**Acceptance.** Every gate above is recorded as met; the release workflow publishes the archives, checksums and notes.
+
+---
+
+## After 1.0
 
 ### R-40 TOTP codes
 **Status** todo · **Size** L · **Depends** R-20 (soft)
@@ -518,7 +583,7 @@ Also state the threat model in one paragraph: shoulder surfing, accidental scree
 **Acceptance.** RFC 6238 vectors pass; code refreshes on the tick without redrawing the whole value box; old metadata loads as `password`.
 
 ### R-41 Folder-sync vault file
-**Status** todo · **Size** L · **Depends** R-23 (done), R-28 (soft; blocked, see its note)
+**Status** todo · **Size** L · **Depends** R-23 (done); post-1.0 (1.2)
 
 **Why.** Syncing across machines is the most requested feature of any vault, but "no network" is a stated non-goal.
 
