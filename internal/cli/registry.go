@@ -71,6 +71,14 @@ func commands() []command {
 			run: (*app).cmdList,
 		},
 		{
+			name: "expiring", summary: "List expired and expiring secrets (exit 3 if any)",
+			flags: []flagSpec{
+				{names: []string{"within"}, help: "window in days, e.g. 14d (default: expiry_warn_days from the config file)", arg: argSpec{kind: argText}},
+				{names: []string{"json"}, help: "print JSON instead of a table"},
+			},
+			run: (*app).cmdExpiring,
+		},
+		{
 			name: "get", summary: "Print a secret's value",
 			flags: []flagSpec{
 				{names: []string{"q"}, help: "no trailing newline (same as --newline=false)"},

@@ -8,6 +8,7 @@ All notable changes are documented here. The format follows [Keep a Changelog](h
 - `pandora env -s TITLE[=ENV_NAME] [-s ...]` prints secrets as dotenv `KEY=value` lines (values with anything beyond `A-Za-z0-9_./:@%+-` are double-quoted and escaped, so multi-line values round-trip). It refuses to print to a terminal unless `--force` is given.
 - `pandora get -q` / `--newline=false` omits the trailing newline.
 - `pandora get --copy` copies the value to the clipboard (concealed, as in the TUI) instead of printing it. The clipboard is not cleared automatically: only the TUI does that.
+- `pandora expiring [--within 14d] [--json]` lists expired and soon-to-expire secrets (never values) and exits `3` when there are any, `0` when none, so cron and CI can react. The default window is `expiry_warn_days` from the config file, like the TUI; `--within` overrides it. `3` is a new exit code used only by this command.
 
 ## [0.3.0] - 2026-11-18
 

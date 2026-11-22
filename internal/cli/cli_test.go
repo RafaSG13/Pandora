@@ -10,6 +10,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/zalando/go-keyring"
 
@@ -48,6 +49,7 @@ type harness struct {
 	hidden   []string           // answers returned by successive hidden prompts
 	stdin    string
 	noMaster bool
+	now      time.Time // replaces the clock when set
 }
 
 func (h harness) run(t *testing.T, args ...string) (code int, stdout, stderr string) {
@@ -69,6 +71,9 @@ func (h harness) run(t *testing.T, args ...string) (code int, stdout, stderr str
 			e = append(e, k+"="+v)
 		}
 		return e
+	}
+	if !h.now.IsZero() {
+		a.now = func() time.Time { return h.now }
 	}
 	a.isTTY = func() bool { return h.tty }
 	a.isOutTTY = func() bool { return h.outTTY }

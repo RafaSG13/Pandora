@@ -13,6 +13,7 @@ import (
 	"io"
 	"os"
 	"strings"
+	"time"
 
 	"golang.org/x/term"
 
@@ -22,9 +23,10 @@ import (
 
 // Exit codes.
 const (
-	exitOK      = 0
-	exitRuntime = 1
-	exitUsage   = 2
+	exitOK       = 0
+	exitRuntime  = 1
+	exitUsage    = 2
+	exitExpiring = 3 // `expiring` found expired or expiring secrets
 )
 
 // passphraseEnv names the environment variable that supplies the export
@@ -63,6 +65,8 @@ type app struct {
 	copySecret func(string) error
 	// readHidden prompts on stderr and reads a line from the terminal without echo.
 	readHidden func(prompt string) (string, error)
+	// now returns the current time; tests replace it.
+	now func() time.Time
 	// scryptWorkFactor overrides the age scrypt cost (log2 N) when non-zero.
 	scryptWorkFactor int
 	// warnedEnv records which environment-secret warnings were already printed.
@@ -70,13 +74,14 @@ type app struct {
 }
 
 // Run executes the command line (without the program name) and returns the
-// process exit code: 0 success, 1 runtime error, 2 usage error.
+// process exit code: 0 success, 1 runtime error, 2 usage error, 3 `expiring`
+// found something.
 func Run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	return newApp(stdin, stdout, stderr).run(args)
 }
 
 func newApp(stdin io.Reader, stdout, stderr io.Writer) *app {
-	a := &app{in: stdin, out: stdout, err: stderr, getenv: os.Getenv, environ: os.Environ}
+	a := &app{in: stdin, out: stdout, err: stderr, getenv: os.Getenv, environ: os.Environ, now: time.Now}
 	a.isTTY = func() bool {
 		f, ok := a.in.(*os.File)
 		return ok && term.IsTerminal(int(f.Fd()))
