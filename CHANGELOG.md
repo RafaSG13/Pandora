@@ -4,6 +4,11 @@ All notable changes are documented here. The format follows [Keep a Changelog](h
 
 ## [Unreleased]
 
+### Added
+- `pandora env -s TITLE[=ENV_NAME] [-s ...]` prints secrets as dotenv `KEY=value` lines (values with anything beyond `A-Za-z0-9_./:@%+-` are double-quoted and escaped, so multi-line values round-trip). It refuses to print to a terminal unless `--force` is given.
+- `pandora get -q` / `--newline=false` omits the trailing newline.
+- `pandora get --copy` copies the value to the clipboard (concealed, as in the TUI) instead of printing it. The clipboard is not cleared automatically: only the TUI does that.
+
 ## [0.3.0] - 2026-11-18
 
 **Upgrade note.** No migration is needed: `vault.json` stays at version 2 and 0.2.0 vaults load unchanged. Going back to 0.2.0 afterwards loses data: saving with 0.2.0 drops the tags, and a value longer than 2000 characters, which 0.3.0 stores in several keyring entries, is not readable by 0.2.0 (0.2.0 has no chunking). Back up first with `pandora export --values -o backup.age` if you may need to go back.

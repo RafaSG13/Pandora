@@ -29,7 +29,8 @@ internal/store  (no UI deps)
 - `cmd/pandora/` entry point.
 - `internal/store/` vault, session, keyring, value chunking (`chunks.go`), migration, restore, doctor, date helpers.
 - `internal/cli/` commands, registry, unlock/passwd, export/import (age), `run`, completion.
-- `internal/tui/` Bubble Tea UI: `model.go` (state, `New`, layout), `update.go` (`update`, `tick`, `lock`, auth, form), `view.go` (render, footer), `secretfield.go` (secret textarea helpers), `clipboard.go` + `clipboard_{darwin,windows,other}.go` (`writeSecretClipboard`: concealed copy per OS, stub it in tests), `delegate.go` (list rows), `styles.go`, `icons.go` (`glyphSet` `g`, NO_COLOR), `expiry.go`.
+- `internal/tui/` Bubble Tea UI: `model.go` (state, `New`, layout), `update.go` (`update`, `tick`, `lock`, auth, form), `view.go` (render, footer), `secretfield.go` (secret textarea helpers), `delegate.go` (list rows), `styles.go`, `icons.go` (`glyphSet` `g`, NO_COLOR), `expiry.go`.
+- `internal/secretclip/` `secretclip.Write`: concealed clipboard copy per OS (`clipboard_{darwin,windows,other}.go`); the TUI wraps it as `writeSecretClipboard` (stub it in tests) and the CLI as `app.copySecret`.
 - `internal/gen/` `crypto/rand` secret generator; `internal/version/` build metadata.
 - `internal/config/` `config.json` loader (`Load` → `Settings` + warnings; env > file > default, never fails). The TUI reads it once in `New` (`model.cfg`; `useGlyphs` applies `ascii`), the CLI through `app.loadConfig`. Tests that run `gen` or `config` must call `isolate(t)` so they never read the developer's real file; a new setting needs a key in `config.Keys`, a case in `set` and `Get`, and a README row.
 - `docs/` `ARCHITECTURE.md` (vault format, data flows), `ROADMAP.md` (workflow + items), `QA.md` (manual checklist). `scripts/release-notes.sh`.

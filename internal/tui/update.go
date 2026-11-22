@@ -14,15 +14,18 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/RafaSG13/Pandora/internal/gen"
+	"github.com/RafaSG13/Pandora/internal/secretclip"
 	"github.com/RafaSG13/Pandora/internal/store"
 )
 
 // writeClipboard and readClipboard are the plain system clipboard accessors
 // (reads and clears); variables so tests never touch the developer's real
-// clipboard. Secret copies go through writeSecretClipboard (clipboard.go).
+// clipboard. writeSecretClipboard is the concealed copy for secret values
+// (see internal/secretclip).
 var (
-	writeClipboard = clipboard.WriteAll
-	readClipboard  = clipboard.ReadAll
+	writeClipboard       = clipboard.WriteAll
+	readClipboard        = clipboard.ReadAll
+	writeSecretClipboard = secretclip.Write
 )
 
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {

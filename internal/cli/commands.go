@@ -93,8 +93,12 @@ func hasAllTags(have, want []string) bool {
 }
 
 func (a *app) cmdGet(args []string) error {
+	const usage = "get <title> [-q] [--newline=false] [--copy]"
 	fs := flag.NewFlagSet("get", flag.ContinueOnError)
-	pos, err := a.parse("get", "get <title>", fs, args, 1, 1)
+	quiet := fs.Bool("q", false, "no trailing newline (same as --newline=false)")
+	newline := fs.Bool("newline", true, "print a trailing newline")
+	cp := fs.Bool("copy", false, "copy the value to the clipboard instead of printing it")
+	pos, err := a.parse("get", usage, fs, args, 1, 1)
 	if err != nil {
 		return err
 	}
@@ -105,7 +109,18 @@ func (a *app) cmdGet(args []string) error {
 	if err != nil {
 		return err
 	}
-	_, err = fmt.Fprintln(a.out, value)
+	if *cp {
+		if err := a.copySecret(value); err != nil {
+			return fmt.Errorf("copy to clipboard: %w", err)
+		}
+		fmt.Fprintln(a.err, "pandora: copied to the clipboard; it is not cleared automatically (only the TUI clears it after its deadline)")
+		return nil
+	}
+	if *quiet || !*newline {
+		_, err = io.WriteString(a.out, value)
+	} else {
+		_, err = fmt.Fprintln(a.out, value)
+	}
 	return err
 }
 

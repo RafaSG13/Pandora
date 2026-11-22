@@ -70,7 +70,7 @@ Never touch the real keychain, config directory or clipboard. Use `keyring.MockI
 | R-23 | Config file | 0.3.0 | M | – | done (v0.3.0) |
 | R-27 | External-change detection and file lock | 0.3.0 | M | – | done (v0.3.0) |
 | R-11 | Concealed clipboard copies | 0.3.0 | M | – | in-progress (macOS verified; Windows manual QA open) |
-| R-26 | Dotenv output and CLI ergonomics | 0.4.0 | S | – | todo |
+| R-26 | Dotenv output and CLI ergonomics | 0.4.0 | S | – | done |
 | R-30 | `expiring` command | 0.4.0 | S | R-23 (done) | todo |
 | R-25 | Import from other tools | 0.4.0 | M | R-26 (soft) | todo |
 | R-24 | Value history | 0.5.0 | L | R-23 (done) | todo |
@@ -407,13 +407,15 @@ Also state the threat model in one paragraph: shoulder surfing, accidental scree
 ## Release 0.4.0 — workflows and adoption
 
 ### R-26 Dotenv output and CLI ergonomics
-**Status** todo · **Size** S · **Depends** –
+**Status** done · **Size** S · **Depends** –
 
 **Scope.** `pandora env -s TITLE[=ENV] …` prints `KEY=value` lines (explicit opt-in, since it prints values); `get --copy` copies with the same clipboard deadline logic as the TUI (or prints a note that the clear needs the TUI); `get -q`/`--newline=false` for scripting.
 
 **Decisions.** Printing values to stdout is already done by `get`; `env` just formats. Escape/quote rules for dotenv (newlines need R-20). Whether `env` refuses when stdout is a TTY without `--force`. *Recommended: yes.*
 
 **Acceptance.** Quoting round-trips through a dotenv parser test; no value in stderr; exit codes follow the existing convention.
+
+**Outcome (done).** `env` (`internal/cli/dotenv.go`): `dotenvValue` is the quoting rule R-25's dotenv parser must invert (bare `[A-Za-z0-9_./:@%+-]*`, else double-quoted with `\\ \" \n \r \$` escaped); names default via `EnvName` like `run`, and must match `[A-Za-z0-9_.-]+`. Refuses on a terminal stdout without `--force` (exit 2, `app.isOutTTY`). `get -q`/`--newline=false`/`--copy`: the copy has no clear deadline in the CLI (process exits), noted on stderr. The concealed clipboard code moved from `internal/tui` to `internal/secretclip` so the CLI can share it without importing the TUI. Verified: `go test -race` for cli and tui, Windows/Linux/CGO-off builds, pty refusal run by hand; the success path ran only against the mock keyring (tests), not a real keychain.
 
 ### R-30 `expiring` command
 **Status** todo · **Size** S · **Depends** –

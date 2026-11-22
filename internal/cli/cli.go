@@ -1,5 +1,5 @@
 // Package cli implements Pandora's non-interactive command-line mode
-// (list, get, add, rm, run, export, import, doctor, gen, version, completion).
+// (list, get, add, rm, run, env, export, import, doctor, gen, version, completion).
 // The commands are declared once in the table returned by commands; usage,
 // dispatch and shell completions all derive from it. Run never calls os.Exit
 // and takes its streams as arguments so it can be tested.
@@ -16,6 +16,7 @@ import (
 
 	"golang.org/x/term"
 
+	"github.com/RafaSG13/Pandora/internal/secretclip"
 	"github.com/RafaSG13/Pandora/internal/version"
 )
 
@@ -56,6 +57,10 @@ type app struct {
 	environ func() []string
 	// isTTY reports whether stdin is an interactive terminal.
 	isTTY func() bool
+	// isOutTTY reports whether stdout is an interactive terminal.
+	isOutTTY func() bool
+	// copySecret puts a value on the system clipboard (concealed where the OS allows).
+	copySecret func(string) error
 	// readHidden prompts on stderr and reads a line from the terminal without echo.
 	readHidden func(prompt string) (string, error)
 	// scryptWorkFactor overrides the age scrypt cost (log2 N) when non-zero.
@@ -76,6 +81,11 @@ func newApp(stdin io.Reader, stdout, stderr io.Writer) *app {
 		f, ok := a.in.(*os.File)
 		return ok && term.IsTerminal(int(f.Fd()))
 	}
+	a.isOutTTY = func() bool {
+		f, ok := a.out.(*os.File)
+		return ok && term.IsTerminal(int(f.Fd()))
+	}
+	a.copySecret = secretclip.Write
 	a.readHidden = func(prompt string) (string, error) {
 		f, ok := a.in.(*os.File)
 		if !ok || !term.IsTerminal(int(f.Fd())) {
