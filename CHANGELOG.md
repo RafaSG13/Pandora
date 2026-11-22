@@ -9,6 +9,7 @@ All notable changes are documented here. The format follows [Keep a Changelog](h
 - `pandora get -q` / `--newline=false` omits the trailing newline.
 - `pandora get --copy` copies the value to the clipboard (concealed, as in the TUI) instead of printing it. The clipboard is not cleared automatically: only the TUI does that.
 - `pandora expiring [--within 14d] [--json]` lists expired and soon-to-expire secrets (never values) and exits `3` when there are any, `0` when none, so cron and CI can react. The default window is `expiry_warn_days` from the config file, like the TUI; `--within` overrides it. `3` is a new exit code used only by this command.
+- `pandora import --format dotenv|bitwarden-json FILE` imports from a dotenv file (the inverse of `pandora env`) or an unencrypted Bitwarden JSON export. Logins become secrets whose value is the password (user name and first URL go into the notes, the folder becomes the category); secure notes become secrets holding the note. Cards, identities, TOTP seeds and custom fields are not imported, and everything skipped is listed with its reason. `import --dry-run` (any format) lists what would be imported, replaced or skipped and writes nothing. `--category` sets the category for dotenv imports. The source file is plain text: delete it once you have checked the import.
 
 ## [0.3.0] - 2026-11-18
 
