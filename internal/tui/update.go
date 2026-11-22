@@ -105,6 +105,8 @@ func (m model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m.updateConfirmDelete(msg)
 		case modeHelp:
 			return m.updateHelp(msg)
+		case modeHistory:
+			return m.updateHistory(msg)
 		}
 
 		if m.list.FilterState() == list.Filtering {
@@ -152,6 +154,11 @@ func (m model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.compact = !m.compact
 			m.list.SetDelegate(m.delegate())
 			m.fitList(len(m.list.Items()))
+			return m, nil
+		case "H":
+			if hasSel {
+				m.openHistory(sel.meta.Title)
+			}
 			return m, nil
 		case "v":
 			if !hasSel {
@@ -208,6 +215,9 @@ func (m model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 // and locks the app after the idle timeout.
 func (m model) tick() (tea.Model, tea.Cmd) {
 	now := m.nowOr()
+	if m.hist.shown && !now.Before(m.hist.until) {
+		m.hist.hideValue()
+	}
 	if m.revealTitle != "" && !now.Before(m.revealUntil) {
 		m.hideReveal()
 	}
@@ -320,6 +330,7 @@ func (m *model) lock() {
 	m.total, m.expiring, m.loadErr = 0, 0, ""
 	m.categories, m.category, m.scroll = nil, "", 0
 	m.tags, m.tag = nil, ""
+	m.versions, m.hist = nil, historyState{}
 	m.editing, m.deleting = "", ""
 	for i := range m.inputs {
 		m.inputs[i].SetValue("")

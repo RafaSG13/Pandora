@@ -45,8 +45,9 @@ const (
 	modeForm
 	modeConfirmDelete
 	modeHelp
-	modeUnlock // asks for the master password; nothing is loaded
-	modeSetup  // first run: choose the master password (or migrate an old store)
+	modeUnlock  // asks for the master password; nothing is loaded
+	modeSetup   // first run: choose the master password (or migrate an old store)
+	modeHistory // previous values of one secret
 )
 
 // Form fields, in tab order.
@@ -125,8 +126,9 @@ type model struct {
 	tag        string   // active tag filter; empty shows all
 	tags       []string // distinct tags across all secrets, sorted
 	compact    bool
-	total      int // number of secrets, regardless of the category filter
-	expiring   int // secrets expired or expiring soon
+	total      int            // number of secrets, regardless of the category filter
+	expiring   int            // secrets expired or expiring soon
+	versions   map[string]int // previous values per title; secrets without any are absent
 	loadErr    string
 	stamp      store.Stamp // vault version the list was last loaded from
 
@@ -145,7 +147,8 @@ type model struct {
 	genLen      int    // index into genLengths
 	genSet      int    // index into genCharsets
 
-	deleting string // title awaiting delete confirmation
+	deleting string       // title awaiting delete confirmation
+	hist     historyState // the previous-values screen (modeHistory)
 
 	helpScroll int // first help line shown when the overlay does not fit
 }
@@ -155,6 +158,7 @@ func New() tea.Model {
 	applyColorMode(detectNoColor(os.Getenv)) // before any style can resolve a colour
 
 	cfg, warns := config.Load(os.Getenv)
+	store.SetHistoryDepth(cfg.HistoryDepth)
 	if cfg.ASCII != nil && os.Getenv("PANDORA_ASCII") != "1" {
 		useGlyphs(*cfg.ASCII) // before any g use below; PANDORA_ASCII=1 already set it at init
 	}
@@ -441,6 +445,7 @@ func (m *model) reload(selectTitle string) error {
 		m.category = "" // the last secret of that category is gone
 	}
 	m.tags = distinctTags(metas)
+	m.versions, _ = store.VersionCounts() // display only: a failure just hides the counts
 	if m.tag != "" && !slices.Contains(m.tags, m.tag) {
 		m.tag = "" // the last secret with that tag is gone
 	}

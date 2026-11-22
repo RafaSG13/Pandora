@@ -82,6 +82,8 @@ type record struct {
 	ID string `json:"id"`
 	// Chunks is how many keyring entries hold the value; absent means one.
 	Chunks int `json:"chunks,omitempty"`
+	// History holds the previous values, newest first (see history.go).
+	History []version `json:"history,omitempty"`
 	SecretMeta
 }
 

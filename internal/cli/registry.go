@@ -84,9 +84,26 @@ func commands() []command {
 				{names: []string{"q"}, help: "no trailing newline (same as --newline=false)"},
 				{names: []string{"newline"}, help: "print a trailing newline (default true)"},
 				{names: []string{"copy"}, help: "copy to the clipboard instead of printing"},
+				{names: []string{"version"}, help: "0 is the current value; -1 the previous one, -2 the one before", arg: argSpec{kind: argText}},
 			},
 			args: title,
 			run:  (*app).cmdGet,
+		},
+		{
+			name: "history", summary: "List the previous values of a secret (dates only, never values)",
+			flags: []flagSpec{
+				{names: []string{"json"}, help: "print JSON instead of a table"},
+			},
+			args: title,
+			run:  (*app).cmdHistory,
+		},
+		{
+			name: "restore", summary: "Make a previous value of a secret current again",
+			flags: []flagSpec{
+				{names: []string{"version"}, help: "which previous value: -1 is the latest (default), -2 the one before", arg: argSpec{kind: argText}},
+			},
+			args: title,
+			run:  (*app).cmdRestore,
 		},
 		{
 			name: "add", summary: "Add a secret (value from stdin or a hidden prompt)",

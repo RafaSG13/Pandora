@@ -72,7 +72,7 @@ Never touch the real keychain, config directory or clipboard. Use `keyring.MockI
 | R-30 | `expiring` command | 0.4.0 | S | R-23 (done) | done |
 | R-25 | Import from other tools (dotenv + one password-manager format) | 0.4.0 | M | R-26 (done) | done (dotenv, bitwarden-json) |
 | R-28 | `doctor` vault recovery (re-scoped, option B) | 0.5.0 | M | – | done |
-| R-24 | Value history | 0.5.0 | L | R-23 (done) | todo |
+| R-24 | Value history | 0.5.0 | L | R-23 (done) | done |
 | R-32 | Local audit log | 0.6.0 | M | R-23 (done), R-25, R-26 | todo |
 | R-50 | API freeze audit (CLI, JSON, exit codes, formats) | 0.7.0 | M | R-25, R-28, R-30, R-24, R-32 | todo |
 | R-51 | Format compatibility test corpus | 0.7.0 | M | R-24 | todo |
@@ -468,7 +468,7 @@ Also state the threat model in one paragraph: shoulder surfing, accidental scree
 ## Release 0.5.0 — history and recovery
 
 ### R-24 Value history
-**Status** todo · **Size** L · **Depends** R-23 (done)
+**Status** done · **Size** L · **Depends** R-23 (done)
 
 **Why.** `UpdateSecret` overwrites the old value irreversibly; a mistaken edit loses a key.
 
@@ -482,9 +482,11 @@ Also state the threat model in one paragraph: shoulder surfing, accidental scree
 - Atomicity: the order of `UpdateSecret` (store new, write vault, remove only what the vault no longer references); a failed vault write removes just what this call stored.
 - Security: old values are still secrets; delete must wipe every version; document that history increases exposure.
 
-**Ask the user.** The default depth, and whether history is opt-in. R-23 is shipped, so the depth is a `history_depth` key in `config.json` (`0` disables): add it to `config.Keys`, `set`, `Get` and the README table.
+**Decisions taken (user, 2026-11-22).** On by default: `history_depth = 3` (`0` disables). CLI: `pandora history TITLE [--json]`, `pandora get TITLE --version -1` and `pandora restore TITLE [--version -1]`; no confirmation on restore because it only swaps ids and can be undone. Restore swaps the current value with the chosen version and puts the replaced one on top of the history. `H` is the TUI key (`v` was already reveal).
 
 **Acceptance.** Update keeps N versions and prunes the oldest; rename and delete carry/remove all versions; rollback test when the metadata write fails; restore works in TUI and CLI; old metadata loads with zero versions.
+
+**Outcome (done).** `internal/store/history.go` (`version`, `SetHistoryDepth`, `record.replaceValue`, `Versions`, `GetVersion`, `RestoreVersion`, `VersionCounts`, `MissingVersions`, `DropMissingVersions`), `record.History` (`omitempty`, vault stays `version: 2`), `UpdateSecret` / `RestoreSecrets` / `DeleteSecret` changed, config key `history_depth` (0 to 20, default 3), CLI `history` / `restore` / `get --version`, `doctor` extension, TUI `modeHistory` (`internal/tui/history.go`). Unchanged values create no version and are not rewritten. The depth is a package setting applied by TUI `New` and CLI `import`. `store.DropEntriesForTests` removes keyring entries behind the vault's back for the CLI tests. Not done: `export --values` leaves history out and there is no flag to include it. Verified: `go test -race ./...`, 60×18, 80×24 and 100×30 view-size test of the history screen with 12 versions, cross-builds; everything ran against the mock keyring only, never a real keychain, and the TUI was not driven in a real terminal.
 
 ### R-28 `doctor` vault recovery
 **Status** done · **Size** M · **Depends** –

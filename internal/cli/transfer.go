@@ -391,6 +391,7 @@ func (a *app) cmdImport(args []string) error {
 		fmt.Fprintf(a.out, "Dry run, nothing written. Would import %d, replace %d, skip %d (already exist).\n", imported, replaced, skipped)
 		return nil
 	}
+	store.SetHistoryDepth(a.loadConfig().HistoryDepth) // replaced values may become previous versions
 	if len(restore) > 0 {
 		if err := store.RestoreSecrets(restore); err != nil {
 			return err

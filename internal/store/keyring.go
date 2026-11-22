@@ -138,7 +138,10 @@ func GetSecretValue(title string) (string, error) {
 // to a title that is already in use returns ErrExists. A rename only touches
 // the vault: the keyring entries keep their ID. A new value is written under
 // a fresh ID and the old entries are removed only after the vault points at
-// the new ones, so a failure never leaves a half-replaced value.
+// the new ones, so a failure never leaves a half-replaced value. The replaced
+// value is kept as a previous version when SetHistoryDepth enables history
+// (and is dropped past that depth); setting the value it already has changes
+// nothing but the metadata.
 func UpdateSecret(oldTitle string, meta SecretMeta, newValue *string) error {
 	if err := prepareMeta(&meta); err != nil {
 		return err
@@ -165,19 +168,27 @@ func UpdateSecret(oldTitle string, meta SecretMeta, newValue *string) error {
 		return ErrExists
 	}
 
-	old := storedValue{recs[idx].ID, recs[idx].chunkCount()}
 	var fresh *storedValue
+	var unused []storedValue
 	if newValue != nil {
-		id, err := newID()
+		cur, readable, err := currentValue(recs[idx])
 		if err != nil {
 			return err
 		}
-		n, err := putValue(id, *newValue)
-		if err != nil {
-			return err
+		if readable && cur == *newValue {
+			newValue = nil // the value did not change: no new version
+		} else {
+			id, err := newID()
+			if err != nil {
+				return err
+			}
+			n, err := putValue(id, *newValue)
+			if err != nil {
+				return err
+			}
+			fresh = &storedValue{id, n}
+			unused = recs[idx].replaceValue(id, n, readable, time.Now().Format(DateLayout))
 		}
-		fresh = &storedValue{id, n}
-		recs[idx].ID, recs[idx].Chunks = id, chunksField(n)
 	}
 
 	meta.Created = recs[idx].Created
@@ -189,9 +200,7 @@ func UpdateSecret(oldTitle string, meta SecretMeta, newValue *string) error {
 		}
 		return err
 	}
-	if fresh != nil {
-		_ = dropValue(old.id, old.n) // best effort: the vault no longer refers to them
-	}
+	dropStored(unused) // best effort: the vault no longer refers to them
 	return nil
 }
 
@@ -212,8 +221,14 @@ func DeleteSecret(title string) error {
 	if idx < 0 {
 		return ErrNotFound
 	}
-	if err := dropValue(recs[idx].ID, recs[idx].chunkCount()); err != nil {
-		return err
+	unused := []storedValue{{recs[idx].ID, recs[idx].chunkCount()}}
+	for _, v := range recs[idx].History {
+		unused = append(unused, v.stored())
+	}
+	for _, s := range unused {
+		if err := dropValue(s.id, s.n); err != nil {
+			return err
+		}
 	}
 	return saveRecords(append(recs[:idx], recs[idx+1:]...))
 }

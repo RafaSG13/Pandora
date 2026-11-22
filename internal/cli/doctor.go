@@ -33,19 +33,51 @@ func (a *app) cmdDoctor(args []string) error {
 	if err != nil {
 		return err
 	}
+	missingVersions, err := store.MissingVersions()
+	if err != nil {
+		return err
+	}
+	counts, err := store.VersionCounts() // usable previous values per title
+	if err != nil {
+		return err
+	}
+	for _, v := range missingVersions {
+		counts[v.Title]--
+	}
+	// An entry whose current value is gone but that still has usable previous
+	// values is not removed: the user can restore one of them.
+	var removable, recoverable []string
+	for _, t := range missing {
+		if counts[t] > 0 {
+			recoverable = append(recoverable, t)
+		} else {
+			removable = append(removable, t)
+		}
+	}
 
 	fmt.Fprintf(a.out, "Checked %d metadata entries.\n", len(items))
-	if len(missing) == 0 {
+	if len(missing) == 0 && len(missingVersions) == 0 {
 		fmt.Fprintln(a.out, "OK: every entry has a value in the keyring.")
-	} else {
+	}
+	if len(missing) > 0 {
 		fmt.Fprintf(a.out, "%d entries have no value in the keyring:\n", len(missing))
 		for _, t := range missing {
-			fmt.Fprintf(a.out, "  %s\n", t)
+			if counts[t] > 0 {
+				fmt.Fprintf(a.out, "  %s (has %d previous values: 'pandora restore' can bring one back)\n", t, counts[t])
+			} else {
+				fmt.Fprintf(a.out, "  %s\n", t)
+			}
+		}
+	}
+	if len(missingVersions) > 0 {
+		fmt.Fprintf(a.out, "%d previous values are missing from the keyring:\n", len(missingVersions))
+		for _, v := range missingVersions {
+			fmt.Fprintf(a.out, "  %s (version %d)\n", v.Title, -v.Back)
 		}
 	}
 	fmt.Fprintln(a.out, "Note: keyring entries without metadata cannot be detected; the keyring API cannot list entries.")
 
-	if len(missing) == 0 {
+	if len(missing) == 0 && len(missingVersions) == 0 {
 		return nil
 	}
 	if restored {
@@ -54,17 +86,29 @@ func (a *app) cmdDoctor(args []string) error {
 		return &exitError{code: exitRuntime, msg: "the restored vault refers to values the keyring no longer has; review the list, then run 'pandora doctor --fix' again to remove those entries"}
 	}
 	if !fix {
-		return &exitError{code: exitRuntime, msg: "inconsistencies found; run 'pandora doctor --fix' to remove the orphaned metadata entries"}
+		return &exitError{code: exitRuntime, msg: "inconsistencies found; run 'pandora doctor --fix' to remove the orphaned entries"}
 	}
-	if err := a.requireConfirmation(yes, fmt.Sprintf("Remove %d metadata entries without a value?", len(missing))); err != nil {
+	question := fmt.Sprintf("Remove %d metadata entries and %d previous values that have no value?", len(removable), len(missingVersions))
+	if len(removable)+len(missingVersions) == 0 {
+		return &exitError{code: exitRuntime, msg: "nothing was removed: the entries without a current value still have previous values; restore one with 'pandora restore'"}
+	}
+	if err := a.requireConfirmation(yes, question); err != nil {
 		return err
 	}
-	for _, t := range missing {
+	if len(missingVersions) > 0 {
+		if _, err := store.DropMissingVersions(); err != nil {
+			return err
+		}
+	}
+	for _, t := range removable {
 		if err := store.DeleteSecret(t); err != nil {
 			return fmt.Errorf("removing %q: %w", t, err)
 		}
 	}
-	fmt.Fprintf(a.out, "Removed %d metadata entries.\n", len(missing))
+	fmt.Fprintf(a.out, "Removed %d metadata entries and %d previous values.\n", len(removable), len(missingVersions))
+	if len(recoverable) > 0 {
+		return &exitError{code: exitRuntime, msg: fmt.Sprintf("%d entries without a current value were kept because they have previous values; restore one with 'pandora restore'", len(recoverable))}
+	}
 	return nil
 }
 

@@ -28,6 +28,7 @@ const (
 	DefaultGenLength        = 24
 	DefaultGenCharset       = "alnum"
 	DefaultSort             = "created"
+	DefaultHistoryDepth     = 3
 )
 
 // Upper bounds of the numeric settings.
@@ -36,6 +37,8 @@ const (
 	maxSeconds     = 3600
 	// MaxExpiryWarnDays is the largest expiry_warn_days; `expiring --within` shares it.
 	MaxExpiryWarnDays = 3650
+	// MaxHistoryDepth is the largest history_depth.
+	MaxHistoryDepth = 20
 )
 
 // maxFileBytes caps what is read from the file.
@@ -44,7 +47,7 @@ const maxFileBytes = 64 << 10
 // Keys lists the settings in display order.
 var Keys = []string{
 	"lock_minutes", "ascii", "clipboard_seconds", "reveal_seconds",
-	"expiry_warn_days", "gen_length", "gen_charset", "sort", "compact",
+	"expiry_warn_days", "gen_length", "gen_charset", "sort", "compact", "history_depth",
 }
 
 var sortNames = []string{"created", "name", "category"}
@@ -60,6 +63,7 @@ type Settings struct {
 	GenCharset     string
 	Sort           string // one of created, name, category
 	Compact        bool
+	HistoryDepth   int // previous values kept per secret; 0 disables history
 }
 
 func defaults() Settings {
@@ -71,6 +75,7 @@ func defaults() Settings {
 		GenLength:      DefaultGenLength,
 		GenCharset:     DefaultGenCharset,
 		Sort:           DefaultSort,
+		HistoryDepth:   DefaultHistoryDepth,
 	}
 }
 
@@ -212,6 +217,12 @@ func set(s *Settings, key string, raw json.RawMessage) error {
 			return err
 		}
 		s.Compact = b
+	case "history_depth":
+		n, err := intIn(raw, 0, MaxHistoryDepth)
+		if err != nil {
+			return err
+		}
+		s.HistoryDepth = n
 	default:
 		return errUnknownKey
 	}
@@ -292,6 +303,8 @@ func (s Settings) Get(key string) (string, bool) {
 		return s.Sort, true
 	case "compact":
 		return strconv.FormatBool(s.Compact), true
+	case "history_depth":
+		return strconv.Itoa(s.HistoryDepth), true
 	}
 	return "", false
 }
