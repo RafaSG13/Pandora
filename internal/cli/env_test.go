@@ -7,56 +7,6 @@ import (
 	"testing"
 )
 
-// parseDotenv is a minimal dotenv reader (bare and double-quoted values) used
-// to prove that dotenvValue output round-trips.
-func parseDotenv(t *testing.T, text string) map[string]string {
-	t.Helper()
-	out := map[string]string{}
-	for text != "" {
-		eq := strings.IndexByte(text, '=')
-		if eq < 0 {
-			t.Fatalf("no '=' in %q", text)
-		}
-		key, rest := text[:eq], text[eq+1:]
-		var val string
-		if strings.HasPrefix(rest, `"`) {
-			var b strings.Builder
-			i := 1
-			for ; i < len(rest) && rest[i] != '"'; i++ {
-				if rest[i] != '\\' {
-					b.WriteByte(rest[i])
-					continue
-				}
-				i++
-				switch rest[i] {
-				case 'n':
-					b.WriteByte('\n')
-				case 'r':
-					b.WriteByte('\r')
-				default: // \\, \" and \$
-					b.WriteByte(rest[i])
-				}
-			}
-			if i >= len(rest) || rest[i] != '"' {
-				t.Fatalf("unterminated quote in %q", rest)
-			}
-			val, rest = b.String(), rest[i+1:]
-			if !strings.HasPrefix(rest, "\n") {
-				t.Fatalf("junk after closing quote: %q", rest)
-			}
-			text = rest[1:]
-		} else {
-			nl := strings.IndexByte(rest, '\n')
-			if nl < 0 {
-				t.Fatalf("unterminated line %q", rest)
-			}
-			val, text = rest[:nl], rest[nl+1:]
-		}
-		out[key] = val
-	}
-	return out
-}
-
 func TestEnvQuotingRoundTrips(t *testing.T) {
 	isolate(t)
 	values := []string{
@@ -78,14 +28,23 @@ func TestEnvQuotingRoundTrips(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("exit %d: %s", code, stderr)
 	}
-	got := parseDotenv(t, stdout)
+	// The real import parser must read back what env printed; the empty
+	// value is the one thing it declines to import.
+	batch, err := parseDotenv([]byte(stdout), importOptions{})
+	if err != nil {
+		t.Fatalf("%v (output %q)", err, stdout)
+	}
+	got := map[string]string{}
+	for _, s := range batch.secrets {
+		got[s.Title] = *s.Value
+	}
 	for i, v := range values {
-		if got[fmt.Sprintf("K%d", i)] != v {
+		if v != "" && got[fmt.Sprintf("K%d", i)] != v {
 			t.Errorf("K%d = %q, want %q (output %q)", i, got[fmt.Sprintf("K%d", i)], v, stdout)
 		}
 	}
-	if len(got) != len(values) {
-		t.Errorf("got %d variables, want %d", len(got), len(values))
+	if len(got) != len(values)-1 || len(batch.skipped) != 1 {
+		t.Errorf("got %d variables and %d skipped, want %d and 1", len(got), len(batch.skipped), len(values)-1)
 	}
 }
 

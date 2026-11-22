@@ -131,10 +131,13 @@ func commands() []command {
 			run: (*app).cmdExport,
 		},
 		{
-			name: "import", summary: "Import an export file",
+			name: "import", summary: "Import a Pandora export, a dotenv file or a Bitwarden JSON export",
 			flags: []flagSpec{
-				{names: []string{"values"}, help: "restore the values in an encrypted export"},
+				{names: []string{"format"}, help: "format of FILE (default pandora)", arg: argSpec{kind: argChoice, choices: importFormats}},
+				{names: []string{"values"}, help: "restore the values in an encrypted Pandora export"},
 				{names: []string{"overwrite"}, help: "replace secrets that already exist"},
+				{names: []string{"dry-run"}, help: "list what would change and write nothing"},
+				{names: []string{"category"}, help: "with --format dotenv: category for every imported secret", arg: argSpec{kind: argCategory}},
 			},
 			args: argSpec{kind: argFile},
 			run:  (*app).cmdImport,

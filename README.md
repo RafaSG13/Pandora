@@ -212,7 +212,7 @@ See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the vault format and data f
 | `pandora run -s TITLE[=ENV_NAME] [-s ...] -- cmd args...` | Runs `cmd` with each secret in an environment variable that exists only for that process. `ENV_NAME` defaults to the title upper-cased with other characters replaced by `_`. Fails before running anything if a secret is missing; exits with the command's exit code. |
 | `pandora env -s TITLE[=ENV_NAME] [-s ...] [--force]` | Prints one `KEY=value` line per secret, in dotenv format (`pandora env -s github-token > .env`). Names default as in `run`. Values made only of letters, digits and `_./:@%+-` are bare; anything else is double-quoted with `\\`, `\"`, `\n`, `\r` and `\$` escaped, so multi-line values stay on one line. Because it prints values, it refuses (exit `2`) when stdout is a terminal unless you pass `--force`. Fails before printing anything if a secret is missing. |
 | `pandora export [--values] [-o FILE] [--force]` | Writes the metadata as JSON. With `--values` the values are included and the whole file is encrypted. |
-| `pandora import FILE [--values] [--overwrite]` | Reads an export (`-` for stdin). Existing titles are skipped unless `--overwrite`; values are restored only with `--values`. The whole file is validated before anything is written. |
+| `pandora import FILE [--format FORMAT] [--values] [--overwrite] [--dry-run] [--category C]` | Reads a file (`-` for stdin). `--format` is `pandora` (default, Pandora's own export), `dotenv` or `bitwarden-json` (see [Importing from other tools](#importing-from-other-tools)). Existing titles are skipped unless `--overwrite`; with the Pandora format values are restored only with `--values`. The whole file is validated before anything is written. `--dry-run` lists what would be imported, replaced and skipped and writes nothing. |
 | `pandora doctor [--fix] [-y]` | Lists vault entries whose value is missing from the keyring; `--fix` removes them (asks unless `-y`). Exits `1` while problems remain. |
 | `pandora passwd` | Changes the master password (needs a terminal). Values stay valid. |
 | `pandora version` | Prints the version, commit and build date (also `pandora --version`). |
@@ -247,6 +247,22 @@ pandora completion fish > ~/.config/fish/completions/pandora.fish
 # PowerShell
 pandora completion powershell | Out-String | Invoke-Expression
 ```
+
+### Importing from other tools
+
+`pandora import --format FORMAT FILE` reads files from other tools. Add `--dry-run` first to see what would be imported, replaced or skipped; nothing is written. Existing titles are skipped unless you pass `--overwrite`. These files hold your secrets in plain text: delete them once you have checked the import.
+
+```sh
+pandora import --format dotenv .env --category ci --dry-run
+pandora import --format bitwarden-json bitwarden_export.json
+```
+
+| Format | How it maps |
+| ------ | ----------- |
+| `dotenv` | The inverse of `pandora env`. Title = variable name, value = its value. Accepts blank lines, `#` comments, an optional `export ` prefix, bare values (a trailing ` # comment` is dropped), `'literal'` values and `"double-quoted"` values with `\\ \" \n \r \t \$` escapes, which may span lines. `--category` gives every secret a category. A syntax error or a repeated variable aborts the whole import and names the line; an empty value is skipped. |
+| `bitwarden-json` | An **unencrypted** Bitwarden export (Settings, Export vault, `.json`; encrypted exports are rejected). A login becomes a secret whose value is its password; its notes, user name and first URL are kept in the (single-line) notes. A secure note becomes a secret whose value is the note. The folder becomes the category and the original dates are kept. Items with the same name get ` (2)`, ` (3)`. Cards, identities, logins without a password, **TOTP seeds** and custom fields are not imported; each skipped item is listed with its reason on stderr. |
+
+The mapping follows Bitwarden's documented export layout and was tested with synthetic files only; if a real export imports oddly, `--dry-run` shows the plan before anything changes.
 
 ## Security model
 

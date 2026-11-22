@@ -70,7 +70,7 @@ Never touch the real keychain, config directory or clipboard. Use `keyring.MockI
 | R-27 | External-change detection and file lock | 0.3.0 | M | – | done (v0.3.0) |
 | R-26 | Dotenv output and CLI ergonomics | 0.4.0 | S | – | done |
 | R-30 | `expiring` command | 0.4.0 | S | R-23 (done) | done |
-| R-25 | Import from other tools (dotenv + one password-manager format) | 0.4.0 | M | R-26 (done) | todo |
+| R-25 | Import from other tools (dotenv + one password-manager format) | 0.4.0 | M | R-26 (done) | done (dotenv, bitwarden-json) |
 | R-28 | `doctor` vault recovery (re-scoped, option B) | 0.5.0 | M | – | todo |
 | R-24 | Value history | 0.5.0 | L | R-23 (done) | todo |
 | R-32 | Local audit log | 0.6.0 | M | R-23 (done), R-25, R-26 | todo |
@@ -444,7 +444,7 @@ Also state the threat model in one paragraph: shoulder surfing, accidental scree
 **Outcome (done).** `internal/cli/expiring.go`; `app.now` is the injectable clock (`harness.now` in tests). Window is `--within N[d]` (0–3650, shares `config.MaxExpiryWarnDays`) or `expiry_warn_days`. Output sorted soonest first; JSON is `[{title, category, expires, days, status}]` with `status` `expired` or `expiring` (today is expiring, like the TUI) and `[]` when empty. Exit `3` (`exitExpiring`) whenever the list is not empty, in table and JSON mode. Verified: `go test -race ./...`, Windows/Linux/CGO-off builds, the built binary for `help`, `-h`, a bad `--within` (exit 2) and bash/zsh completions; the listing path ran only against the mock keyring (tests), not a real keychain.
 
 ### R-25 Import from other tools
-**Status** todo · **Size** M · **Depends** R-26 (done)
+**Status** done · **Size** M · **Depends** R-26 (done)
 
 **Why.** Migration is what decides whether someone adopts Pandora. Today `import` only reads Pandora's own export.
 
@@ -457,9 +457,11 @@ Also state the threat model in one paragraph: shoulder surfing, accidental scree
 - Mapping rules (which column becomes the title, category, notes; duplicates; invalid titles) are decided per format and documented in the README.
 - Imported plaintext files are the user's responsibility: print a reminder to delete them; never copy them.
 
-**Ask the user.** Which formats, in what order, and which sample exports they can provide (redacted).
+**Decisions taken (user, 2026-11-22).** Formats: `dotenv` plus `bitwarden-json`; no sample export (fixtures follow Bitwarden's public JSON layout, so validate against a real export when one is available); user name and first URL go into the notes. `1password-csv` and `chrome-csv` stay open for a later release.
 
 **Acceptance.** Each parser has a fixture test including malformed rows; `--dry-run` writes nothing; conflicts follow `--overwrite`.
+
+**Outcome (done).** `internal/cli/importers.go` (`parseDotenv`, `parseBitwardenJSON`, `externalParsers`); `cmdImport` takes `--format`, `--dry-run`, `--category` and shares `normalizeSecret` with `parseExport`. File-level problems (syntax, encrypted or wrong kind of file) abort before anything is written and name only a line number, never content; single entries that cannot be used (empty value, over 32 KB, card, identity, control characters) are skipped and listed on stderr with a reason that never contains a value. Dotenv: `export ` prefix, comments, bare, `'literal'` and `"escaped"` values (multi-line allowed), duplicate key is an error, empty value is skipped; the old test-only dotenv reader in `env_test.go` was replaced by the real parser. Bitwarden: login password or secure-note text is the value, folder is the category, notes are one line (user name, first URL), original dates kept, duplicate names get ` (2)`, TOTP seeds and custom fields are never imported, encrypted exports are rejected. Verified: `go test -race ./...`, Windows/Linux/CGO-off builds, the built binary for the usage errors and completions; import itself ran only against the mock keyring (tests), not a real keychain, and never against a real Bitwarden export.
 
 ---
 
