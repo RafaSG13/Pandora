@@ -1,6 +1,9 @@
 package store
 
-import "slices"
+import (
+	"slices"
+	"time"
+)
 
 // Restore is one secret to bring back with RestoreSecrets. A nil Value leaves
 // the keyring untouched for that title.
@@ -38,8 +41,9 @@ func RestoreSecrets(entries []Restore) error {
 		return err
 	}
 	recs := append([]record(nil), existing...)
+	today := time.Now().Format(DateLayout)
 
-	var created, replaced []storedValue
+	var created, unused []storedValue
 	rollback := func() {
 		for _, s := range created {
 			_ = dropValue(s.id, s.n)
@@ -48,20 +52,33 @@ func RestoreSecrets(entries []Restore) error {
 
 	for _, e := range entries {
 		i := recordIndex(recs, e.Meta.Title)
+		value, keepOld := e.Value, false
+		if value != nil && i >= 0 {
+			cur, readable, err := currentValue(recs[i])
+			if err != nil {
+				rollback()
+				return err
+			}
+			if readable && cur == *value {
+				value = nil // the value did not change: keep it, and its history
+			} else {
+				keepOld = readable
+			}
+		}
 		id, n := "", 0
-		if e.Value != nil {
+		if value != nil {
 			if id, err = newID(); err != nil {
 				rollback()
 				return err
 			}
-			if n, err = putValue(id, *e.Value); err != nil {
+			if n, err = putValue(id, *value); err != nil {
 				rollback()
 				return err
 			}
 			created = append(created, storedValue{id, n})
 		}
 		switch {
-		case i < 0 && e.Value == nil:
+		case i < 0 && value == nil:
 			if id, err = newID(); err != nil {
 				rollback()
 				return err
@@ -69,19 +86,19 @@ func RestoreSecrets(entries []Restore) error {
 			recs = append(recs, record{ID: id, SecretMeta: e.Meta})
 		case i < 0:
 			recs = append(recs, record{ID: id, Chunks: chunksField(n), SecretMeta: e.Meta})
-		case e.Value == nil:
+		case value == nil:
 			recs[i].SecretMeta = e.Meta
 		default:
-			replaced = append(replaced, storedValue{recs[i].ID, recs[i].chunkCount()})
-			recs[i] = record{ID: id, Chunks: chunksField(n), SecretMeta: e.Meta}
+			rec := recs[i]
+			unused = append(unused, rec.replaceValue(id, n, keepOld, today)...)
+			rec.SecretMeta = e.Meta
+			recs[i] = rec
 		}
 	}
 	if err := saveRecords(recs); err != nil {
 		rollback()
 		return err
 	}
-	for _, s := range replaced {
-		_ = dropValue(s.id, s.n) // best effort: the vault no longer refers to them
-	}
+	dropStored(unused) // best effort: the vault no longer refers to them
 	return nil
 }

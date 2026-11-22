@@ -112,6 +112,7 @@ func TestEachKeyAcceptsBoundsAndRejectsOutside(t *testing.T) {
 		{"reveal_seconds", 1, 3600, 10},
 		{"expiry_warn_days", 0, 3650, 14},
 		{"gen_length", 8, 128, 24},
+		{"history_depth", 0, 20, 3},
 	}
 	load := func(t *testing.T, key string, v int) (string, []string) {
 		t.Helper()

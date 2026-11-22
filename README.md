@@ -106,6 +106,7 @@ pandora
 | `enter` / `c`     | Copy the selected secret to the clipboard (cleared after 15 s) |
 | `x`               | Clear the clipboard now                                |
 | `v`               | Reveal / hide the selected secret's value (hides after 10 s or when the selection changes) |
+| `H`               | Previous values of the selected secret: `↑` `↓` choose one, `r` reveal it (hides like `v`), `enter` make it current again, `esc` close |
 | `n`               | New secret                                             |
 | `e`               | Edit the selected secret                               |
 | `d`               | Delete the selected secret (asks for confirmation)     |
@@ -152,7 +153,8 @@ Optional settings live in `config.json` next to `vault.json` (`pandora config pa
   "gen_length": 24,
   "gen_charset": "alnum",
   "sort": "created",
-  "compact": false
+  "compact": false,
+  "history_depth": 3
 }
 ```
 
@@ -167,6 +169,7 @@ Optional settings live in `config.json` next to `vault.json` (`pandora config pa
 | `gen_charset`       | `alnum`   | `alnum`, `symbols`, `hex`                      | Default for `pandora gen --charset` and the form's generator |
 | `sort`              | `created` | `created`, `name`, `category`                  | Initial list order |
 | `compact`           | `false`   | `true`, `false`                                | Start with one-line rows |
+| `history_depth`     | `3`       | `0`–`20` (`0` disables)                        | Previous values kept per secret when its value changes (see [Value history](#value-history)) |
 
 The environment variables below remain available and win over the file.
 
@@ -207,6 +210,9 @@ See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the vault format and data f
 | `pandora list [--category C] [--tag T] [--json]` | Titles, categories, creation and expiry dates, and tags. Never shows values. `--tag` (`-t`) keeps secrets that have the tag; repeat it or separate with commas to require several. `--json` always includes `tags` (an empty list when there are none). |
 | `pandora expiring [--within 14d] [--json]` | Lists secrets that have expired or expire within the window, soonest first (never values). The window is `--within` (days, `14` or `14d`) or else `expiry_warn_days` from the config file (default 14). Exits `3` when the list is not empty and `0` when nothing is due, so cron and CI can act on it. `--json` prints an array of `{title, category, expires, days, status}`: `days` is negative once expired and `status` is `expired` or `expiring` (today counts as expiring); an empty result is `[]`. |
 | `pandora get <title> [-q] [--newline=false] [--copy]` | Prints the value followed by a newline, so `add` then `get` reproduces the file you piped in. `-q` or `--newline=false` omits the newline (for `$(...)` and pipes). `--copy` puts the value on the clipboard instead of printing it, concealed like the TUI copy; the CLI process exits right away, so the clipboard is **not** cleared automatically (only the TUI does that). Exit `1` if the secret does not exist. |
+| `pandora history <title> [--json]` | Lists the previous values of a secret, newest first: `-1` is the latest, with the date it stopped being current. Never prints values. `--json` prints `[{version, replaced}]`; a secret without history gives `[]`. |
+| `pandora get <title> --version -1` | `get` also reads a previous value: `0` is the current one (default), `-1` the one before, `-2` the one before that. Exit `1` if there is no such version. |
+| `pandora restore <title> [--version -1]` | Makes a previous value current again. The value it replaces becomes `-1`, so a restore can be undone with another `restore`. Only the vault changes; nothing is rewritten in the keyring. |
 | `pandora add <title> [-c CATEGORY] [--tag TAG] [--notes TEXT] [--expires YYYY-MM-DD]` | Stores a new secret. The value is read from stdin when piped (any number of lines, one trailing newline removed; `pandora add key < id_ed25519`) or typed at a hidden prompt on a terminal (one line). `--tag` (`-t`) may be repeated or comma-separated. Empty values, values over 32 KB, duplicate titles, invalid dates and invalid tags are rejected. |
 | `pandora rm <title> [-y]` | Deletes a secret. Asks on a terminal; without a terminal it refuses unless `-y` is given. |
 | `pandora run -s TITLE[=ENV_NAME] [-s ...] -- cmd args...` | Runs `cmd` with each secret in an environment variable that exists only for that process. `ENV_NAME` defaults to the title upper-cased with other characters replaced by `_`. Fails before running anything if a secret is missing; exits with the command's exit code. |
@@ -249,6 +255,14 @@ pandora completion fish > ~/.config/fish/completions/pandora.fish
 # PowerShell
 pandora completion powershell | Out-String | Invoke-Expression
 ```
+
+### Value history
+
+When you change a secret's value, the old one is kept as a previous version (the last `history_depth`, default 3; `0` turns history off). `H` in the interface and `pandora history`, `pandora get --version` and `pandora restore` on the command line list, read and restore them. Saving the value it already has changes nothing, and renaming or editing other fields leaves the history alone.
+
+Previous values are secrets too: they sit in the OS keyring, encrypted under the same key as the current value, and `pandora rm` / `d` deletes every one of them. They add exposure, which is why the depth is a setting. `pandora export` never includes history. `pandora doctor` checks that every previous value is still in the keyring and `--fix` forgets the ones that are not; it keeps an entry whose current value is gone but which still has previous values, so you can `restore` one.
+
+**Going back to an older Pandora.** Versions before this feature ignore the history and drop it the next time they save the vault, which leaves those keyring entries behind unreferenced (still encrypted, but never cleaned up).
 
 ### Importing from other tools
 

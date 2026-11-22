@@ -93,19 +93,29 @@ func hasAllTags(have, want []string) bool {
 }
 
 func (a *app) cmdGet(args []string) error {
-	const usage = "get <title> [-q] [--newline=false] [--copy]"
+	const usage = "get <title> [-q] [--newline=false] [--copy] [--version -1]"
 	fs := flag.NewFlagSet("get", flag.ContinueOnError)
 	quiet := fs.Bool("q", false, "no trailing newline (same as --newline=false)")
 	newline := fs.Bool("newline", true, "print a trailing newline")
 	cp := fs.Bool("copy", false, "copy the value to the clipboard instead of printing it")
+	version := fs.Int("version", 0, "0 is the current value; -1 the previous one, -2 the one before (see 'pandora history')")
 	pos, err := a.parse("get", usage, fs, args, 1, 1)
+	if err != nil {
+		return err
+	}
+	back, err := checkVersionFlag("get", *version)
 	if err != nil {
 		return err
 	}
 	if err := a.unlock(); err != nil {
 		return err
 	}
-	value, err := secretValue(pos[0])
+	var value string
+	if back == 0 {
+		value, err = secretValue(pos[0])
+	} else if value, err = store.GetVersion(pos[0], back); err != nil {
+		err = versionError(pos[0], err)
+	}
 	if err != nil {
 		return err
 	}

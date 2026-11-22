@@ -48,6 +48,8 @@ func (m model) view() string {
 		return m.placeModal(m.renderForm())
 	case modeConfirmDelete:
 		return m.placeModal(m.renderConfirmDelete())
+	case modeHistory:
+		return m.placeModal(m.renderHistory())
 	case modeHelp:
 		return m.placeModal(m.renderHelpOverlay())
 	}
@@ -246,6 +248,9 @@ func (m model) renderDetail(w, h int) string {
 	}
 	if len(meta.Tags) > 0 {
 		rows = append(rows, row("Tags", textStyle.Render(truncate("#"+strings.Join(meta.Tags, " #"), max(1, w-10)))))
+	}
+	if n := m.versions[meta.Title]; n > 0 {
+		rows = append(rows, row("History", textStyle.Render(fmt.Sprintf("%d previous", n))+"  "+subtleStyle.Render("H to browse")))
 	}
 
 	// The notes decide how many lines the value box may use.
@@ -460,7 +465,7 @@ func (m model) renderConfirmDelete() string {
 		"",
 		textStyle.Width(inner).Render(`Delete "`+m.deleting+`"?`),
 		"",
-		subtleStyle.Width(inner).Render("Its value is removed from the OS keyring. This cannot be undone."),
+		subtleStyle.Width(inner).Render(deleteNote(m.versions[m.deleting])),
 	)
 	return modalStyle.BorderForeground(danger).Width(m.modalWidth()).Render(body)
 }
@@ -487,6 +492,7 @@ var helpColumns = [][]helpGroup{
 			{"enter/c", "copy"},
 			{"x", "clear clipboard"},
 			{"v", "reveal / hide"},
+			{"H", "previous values"},
 			{"n / e / d", "new / edit / delete"},
 			{"r", "reload"},
 			{"?", "this help"},
@@ -605,6 +611,8 @@ func (m model) renderHelp() string {
 		}
 	case modeConfirmDelete:
 		keys = [][2]string{{"y", "delete"}, {"any other key", "cancel"}}
+	case modeHistory:
+		keys = [][2]string{{"↑/↓", "choose"}, {"r", "reveal"}, {"enter", "restore"}, {"esc", "close"}}
 	case modeHelp:
 		keys = [][2]string{{"any key", "close"}}
 		if m.helpScrollable() {
