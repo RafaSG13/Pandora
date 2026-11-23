@@ -4,6 +4,10 @@ All notable changes are documented here. The format follows [Keep a Changelog](h
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-11-23
+
+This release carries everything planned as 0.4.0 (scripting and import), 0.5.0 (vault recovery and value history) and 0.6.0 (audit log): no 0.4.x or 0.5.x tags were cut.
+
 **Upgrade note.** Previous values are secrets too: they stay in the OS keyring (encrypted under the same key as the current value) until they are pruned or the secret is deleted, so history adds exposure; set `history_depth` to `0` to switch it off. Going back to a version without this feature drops the history the next time it saves the vault and leaves those keyring entries behind, unreferenced (encrypted, but never cleaned up). Back up first with `pandora export --values -o backup.age` if you may need to go back.
 
 ### Added
@@ -15,6 +19,9 @@ All notable changes are documented here. The format follows [Keep a Changelog](h
 - `pandora doctor` now also checks `vault.json` and `vault.json.bak` against your master password and says whether each opens and how many secrets it holds. If `vault.json` is damaged or missing and the backup opens, `pandora doctor --fix` restores it (asking first unless `-y`); the damaged file is kept as `vault.json.corrupt`. A wrong password never restores anything, a healthy or newer-version vault is never replaced, and nothing is touched when the backup is unusable too. The backup is the state before the last change, so that change is lost; if it replaced a value, `doctor` lists the affected entries but only removes them on a second `--fix`. Other commands that meet a damaged vault now point at `pandora doctor`.
 - **Value history.** Changing a secret's value (in the form, or `import --overwrite`) keeps the old value as a previous version: the last `history_depth` (new `config.json` key, default 3, `0` turns it off, at most 20). `H` in the interface lists them (`r` reveals one, `enter` makes it current again); `pandora history TITLE [--json]` lists them (dates only), `pandora get TITLE --version -1` reads one and `pandora restore TITLE [--version -1]` brings one back (the value it replaces becomes `-1`, so a restore can be undone). Saving a value it already has creates no version; deleting a secret deletes all its versions; `export` never includes them. `doctor` checks them and `doctor --fix` forgets missing ones, but keeps an entry whose current value is gone while it still has previous values, so you can restore one. History is stored as an optional `history` field in the encrypted record: `vault.json` stays at version 2 and older vaults load unchanged.
 - **Audit log** (opt-in). With `"audit_log": true` in `config.json`, every `reveal`, `copy`, `get`, `run`, `env`, `export`, `import`, `add`, `edit`, `rm` and `restore`, from the interface or the command line, is recorded once with its time and the secret's title, never a value. Each line of `audit.log` is encrypted under the vault's key, so titles and times are not readable on disk; at 1 MiB it rotates once to `audit.log.1`. `pandora log [--since 7d|12h|YYYY-MM-DD] [--json]` shows it. Failed unlock attempts are not recorded. A failure to write the log never stops the action: you get a warning.
+
+### Changed
+- Every command that opens the vault now reads `config.json` (it needs `history_depth` and `audit_log`), so a problem in the file is reported as a `pandora: warning:` on stderr by all of them, not only by `gen`, `config`, `expiring` and `import`. It still never changes the exit code.
 
 ## [0.3.0] - 2026-11-18
 
