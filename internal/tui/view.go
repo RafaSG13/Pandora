@@ -22,7 +22,7 @@ var maskedValue = strings.Repeat(g.mask, 12)
 // to single-column ASCII, so PANDORA_ASCII never needs a wider layout.
 var asciiReplacer = strings.NewReplacer(
 	"✓", "+", "✗", "x", "—", "-", "…", ".", "↑", "^", "↓", "v", "→", ">", "×", "x",
-	"·", "-", "•", "*", "●", "*", "◆", "#", "▌", ">", "█", "#", "░", "-", "┃", "#", "┆", "|",
+	"·", "-", "•", "*", "●", "*", "◆", "#", "▌", ">", "█", "#", "░", "-", "┃", "#", "┆", "|", "“", `"`, "”", `"`,
 )
 
 func (m model) View() string {
@@ -138,50 +138,94 @@ func vaultArt() string {
 }
 
 // renderEmpty is the first-run welcome, or the error state when the metadata
-// could not be read.
+// could not be read. The card gives up its parts, art first, until it fits the
+// pane: at the 60×18 floor there are only ten rows.
 func (m model) renderEmpty() string {
 	inner := min(m.width-8, 60)
-	var body string
-	if m.loadErr != "" {
-		body = lipgloss.JoinVertical(lipgloss.Center,
-			lipgloss.NewStyle().Bold(true).Foreground(danger).Render("Could not load your secrets"),
-			"",
-			subtleStyle.Width(inner).Align(lipgloss.Center).Render(m.loadErr),
-			"",
-			subtleStyle.Width(inner).Align(lipgloss.Center).Render("Your metadata file is left untouched. Fix the problem and reload."),
-		)
-	} else {
-		body = lipgloss.JoinVertical(lipgloss.Center,
-			lipgloss.NewStyle().Bold(true).Foreground(accent).Render("Welcome to Pandora"),
-			"",
-			subtleStyle.Width(inner).Align(lipgloss.Center).Render(
-				"Secret values live in your operating system's keyring ("+backendName()+"), encrypted with your master password. "+
-					"Names, categories and notes are kept encrypted in a local vault file; Pandora never uses the network."),
-			"",
-			textStyle.Bold(true).Render("Press "+keyStyle.Render("n")+" to add your first secret"),
-		)
+	wrap := func(s string) []string {
+		return strings.Split(subtleStyle.Width(inner).Align(lipgloss.Center).Render(s), "\n")
 	}
-	art := lipgloss.NewStyle().Foreground(accent).Render(vaultArt())
-	card := lipgloss.JoinVertical(lipgloss.Center, art, "", body)
+
+	var head, para, cta []string
+	// layouts lists what to keep, richest first: art, paragraph, call to action.
+	layouts := [][3]bool{{true, true, true}, {false, true, true}, {false, false, true}}
+	if m.loadErr != "" {
+		head = []string{lipgloss.NewStyle().Bold(true).Foreground(danger).Render("Could not load your secrets")}
+		para = wrap(m.loadErr)
+		cta = wrap("Your metadata file is left untouched. Fix the problem and reload.")
+		layouts[2] = [3]bool{false, true, false} // the error itself matters more than the advice
+	} else {
+		head = []string{lipgloss.NewStyle().Bold(true).Foreground(accent).Render("Welcome to Pandora")}
+		para = wrap("Secret values live in your operating system's keyring (" + backendName() + "), encrypted with your master password. " +
+			"Names, categories and notes are kept encrypted in a local vault file; Pandora never uses the network.")
+		cta = []string{textStyle.Bold(true).Render("Press " + keyStyle.Render("n") + " to add your first secret")}
+	}
+	art := strings.Split(lipgloss.NewStyle().Foreground(accent).Render(vaultArt()), "\n")
 
 	h := m.paneOuter() - 2
+	rows := h - 2 // the pane pads one row above and below
+	var lines []string
+	for _, keep := range layouts {
+		lines = nil
+		if keep[0] {
+			lines = append(lines, art...)
+			lines = append(lines, "")
+		}
+		lines = append(lines, head...)
+		if keep[1] {
+			lines = append(lines, "")
+			lines = append(lines, para...)
+		}
+		if keep[2] {
+			lines = append(lines, "")
+			lines = append(lines, cta...)
+		}
+		if len(lines) <= rows {
+			break
+		}
+	}
+	if len(lines) > rows {
+		lines = lines[:rows]
+	}
+	card := lipgloss.JoinVertical(lipgloss.Center, lines...)
+
 	return paneStyle.BorderForeground(accent).Width(m.width - 2).Height(h).
 		Render(lipgloss.Place(m.width-6, h-2, lipgloss.Center, lipgloss.Center, card))
 }
 
 // listView renders the list scrolled to m.scroll: the title and status bars
 // followed by a window of whole items cropped from the single-page list, with
-// a scrollbar when not everything fits.
+// a scrollbar when not everything fits. bubbles' bars do not wrap or truncate,
+// so a long category name or the filter prompt would widen every line and make
+// the pane wrap them; the bars are drawn here and each line is clamped to the
+// list width.
 func (m model) listView() string {
 	lines := strings.Split(m.list.View(), "\n")
 	if len(lines) <= listChrome {
 		return strings.Join(lines, "\n")
 	}
+	listW := m.list.Width()
 	n, view, rows := len(m.list.VisibleItems()), m.itemsInView(), m.rowsPer()
 
-	if m.list.FilterState() == list.Unfiltered && n > 0 { // position indicator replaces "N items"
-		pos := fmt.Sprintf("%d/%d %s by %s", m.list.Index()+1, n, g.sep, m.sort)
-		lines[2] = subtleStyle.Render("  " + pos)
+	state := m.list.FilterState()
+	if state != list.Filtering {
+		lines[0] = m.list.Styles.Title.Render("  " + truncate(m.list.Title, max(1, listW-2)))
+	}
+	switch {
+	case state == list.Unfiltered && n > 0: // position indicator replaces "N items"
+		lines[2] = subtleStyle.Render("  " + truncate(fmt.Sprintf("%d/%d %s by %s", m.list.Index()+1, n, g.sep, m.sort), max(1, listW-2)))
+	case state == list.Filtering && n == 0: // bubbles' "Nothing matched • N filtered" is wider than the pane
+		lines[2] = subtleStyle.Render("  No match")
+	case state == list.FilterApplied:
+		found := "no match"
+		if n > 0 {
+			found = fmt.Sprintf("%d of %d", n, len(m.list.Items()))
+		}
+		term := truncate(strings.TrimSpace(m.list.FilterValue()), 10)
+		lines[2] = subtleStyle.Render("  " + truncate(fmt.Sprintf("“%s” %s %s", term, g.sep, found), max(1, listW-2)))
+	}
+	for i := range lines {
+		lines[i] = ansi.Truncate(lines[i], listW, "")
 	}
 
 	start := min(listChrome+m.scroll*rows, len(lines))
@@ -189,12 +233,8 @@ func (m model) listView() string {
 	items := lines[start:end]
 
 	if n > view {
-		listW := m.list.Width()
 		thumbH := max(1, len(items)*view/n)
-		thumbTop := 0
-		if n > view {
-			thumbTop = (len(items) - thumbH) * m.scroll / (n - view)
-		}
+		thumbTop := (len(items) - thumbH) * m.scroll / (n - view)
 		for i, l := range items {
 			bar := subtleStyle.Render(g.track)
 			if i >= thumbTop && i < thumbTop+thumbH {
@@ -206,14 +246,27 @@ func (m model) listView() string {
 	return strings.Join(append(lines[:listChrome:listChrome], items...), "\n")
 }
 
+// detailRow is one line of the card's metadata block. Rows are dropped, the
+// highest drop first, when the card is too short for all of them.
+type detailRow struct {
+	text string
+	drop int
+}
+
 // renderDetail draws the selected secret as a card inside a w×h content area:
 // title with its category badge, a metadata block, a bordered value box and
-// the notes.
+// the notes. Every line is at most w columns and the card at most h lines:
+// the pane wraps what is too wide, which would grow it past the list's height.
+// When h is short the notes go first, then the metadata rows, never the value.
 func (m model) renderDetail(w, h int) string {
 	sel, ok := m.list.SelectedItem().(item)
 	if !ok {
-		if len(m.list.Items()) > 0 {
-			return ""
+		if len(m.list.Items()) > 0 { // secrets exist, the filter hides them all
+			msg := "No secret matches. Press esc to clear the filter."
+			if m.list.FilterState() == list.Filtering {
+				msg = "No secret matches yet."
+			}
+			return lipgloss.PlaceVertical(h, lipgloss.Center, subtleStyle.Width(w).Align(lipgloss.Center).Render(msg))
 		}
 		empty := subtleStyle.Width(w).Align(lipgloss.Center).Render("No secrets yet — press n to add one.")
 		return lipgloss.PlaceVertical(h, lipgloss.Center, empty)
@@ -223,18 +276,21 @@ func (m model) renderDetail(w, h int) string {
 
 	header := textStyle.Bold(true).Render(truncate(meta.Title, w))
 	if meta.Category != "" {
-		badge := categoryBadge(meta.Category)
 		const gap = 2
+		// The badge takes at most a third of the card, plus its 2 columns of padding.
+		badge := categoryBadge(truncate(meta.Category, max(1, w/3)))
 		header = textStyle.Bold(true).Render(truncate(meta.Title, max(1, w-lipgloss.Width(badge)-gap))) +
 			strings.Repeat(" ", gap) + badge
 	}
 
-	row := func(label, content string) string {
-		return lipgloss.JoinHorizontal(lipgloss.Top, labelStyle.Render(label), content)
+	const labelW = 10 // labelStyle's width
+	valueW := max(1, w-labelW)
+	row := func(label, content string, drop int) detailRow {
+		return detailRow{lipgloss.JoinHorizontal(lipgloss.Top, labelStyle.Render(label), ansi.Truncate(content, valueW, g.ellipsis)), drop}
 	}
-	rows := []string{row("Created", textStyle.Render(meta.Created))}
+	rows := []detailRow{row("Created", textStyle.Render(meta.Created), 2)}
 	if meta.Updated != "" {
-		rows = append(rows, row("Updated", textStyle.Render(meta.Updated)))
+		rows = append(rows, row("Updated", textStyle.Render(meta.Updated), 3))
 	}
 	if label, level := expiryInfo(meta, now, m.cfg.ExpiryWarnDays); level != expiryNone {
 		style := subtleStyle
@@ -244,41 +300,77 @@ func (m model) renderDetail(w, h int) string {
 		case expiryExpired:
 			style = lipgloss.NewStyle().Foreground(danger).Bold(true)
 		}
-		rows = append(rows, row("Expires", textStyle.Render(meta.Expires)+"  "+style.Render(g.clock+" "+label)))
+		date := textStyle.Render(meta.Expires)
+		content := date + "  " + style.Render(g.clock+" "+label)
+		if lipgloss.Width(content) > valueW { // keep the date and the glyph; colour and "!" carry the urgency
+			mark := g.clock
+			if level == expiryExpired {
+				mark += "!"
+			}
+			content = date + " " + style.Render(mark)
+		}
+		rows = append(rows, row("Expires", content, 0))
 	}
 	if len(meta.Tags) > 0 {
-		rows = append(rows, row("Tags", textStyle.Render(truncate("#"+strings.Join(meta.Tags, " #"), max(1, w-10)))))
+		rows = append(rows, row("Tags", textStyle.Render("#"+strings.Join(meta.Tags, " #")), 1))
 	}
 	if n := m.versions[meta.Title]; n > 0 {
-		rows = append(rows, row("History", textStyle.Render(fmt.Sprintf("%d previous", n))+"  "+subtleStyle.Render("H to browse")))
-	}
-
-	// The notes decide how many lines the value box may use.
-	var tail []string
-	if meta.Notes != "" {
-		wrapped := strings.Split(textStyle.Width(w).Render(meta.Notes), "\n")
-		if len(wrapped) > 3 {
-			wrapped = append(wrapped[:2], truncate(strings.TrimSpace(ansi.Strip(wrapped[2])), w-1)+g.ellipsis)
+		content := textStyle.Render(fmt.Sprintf("%d previous", n))
+		if hint := "  " + subtleStyle.Render("H to browse"); lipgloss.Width(content+hint) <= valueW {
+			content += hint
 		}
-		tail = append([]string{"", subtleStyle.Bold(true).Render("Notes")}, wrapped...)
+		rows = append(rows, row("History", content, 4))
 	}
-	// header, blank, rows, blank, label, the box's two borders, then the notes.
-	valueRows := max(2, h-(2+len(rows)+2+2+len(tail)))
 
+	// What the value box shows besides a masked row decides how much else fits.
 	icon, hint, borderColor := g.lock, "v to reveal", subtle
-	value := subtleStyle.Render(maskedValue)
+	minValue := 1 // lines the box needs, at least
+	var message *string
+	messageStyle := subtleStyle
+	revealing := false
 	switch {
 	case m.orphans[meta.Title]:
-		icon, borderColor = g.orphan, danger
-		value = lipgloss.NewStyle().Foreground(danger).Render("Value missing from the keyring — press e to set it")
-		hint = ""
+		icon, borderColor, hint = g.orphan, danger, ""
+		msg := "Value missing from the keyring — press e to set it"
+		message, messageStyle, minValue = &msg, lipgloss.NewStyle().Foreground(danger), 2
 	case m.revealed(meta.Title):
 		if m.revealErr != nil {
-			value = lipgloss.NewStyle().Foreground(danger).Render(fmt.Sprintf("✗ %v", m.revealErr))
+			msg := fmt.Sprintf("✗ %v", m.revealErr)
+			message, messageStyle, minValue = &msg, lipgloss.NewStyle().Foreground(danger), 2
 			break
 		}
 		left := int(m.revealUntil.Sub(now).Round(time.Second) / time.Second)
 		icon, hint, borderColor = g.unlock, fmt.Sprintf("v to hide %s %ds", g.sep, max(0, left)), accent
+		revealing, minValue = true, 2
+	}
+
+	// header, blank, rows, blank, label, the box's two borders and its lines, then the notes.
+	budget := max(0, h-(6+minValue))
+	for len(rows) > budget {
+		worst := 0
+		for i, r := range rows {
+			if r.drop > rows[worst].drop {
+				worst = i
+			}
+		}
+		rows = append(rows[:worst:worst], rows[worst+1:]...)
+	}
+	var tail []string
+	if room := budget - len(rows) - 2; meta.Notes != "" && room >= 1 { // blank line and "Notes" label take 2
+		wrapped := strings.Split(textStyle.Width(w).Render(meta.Notes), "\n")
+		if limit := min(3, room); len(wrapped) > limit {
+			more := strings.TrimSpace(ansi.Strip(wrapped[limit-1])) + g.ellipsis // truncate measures the ellipsis: it is 3 columns in ASCII mode
+			wrapped = append(wrapped[:limit-1:limit-1], textStyle.Render(truncate(more, w)))
+		}
+		tail = append([]string{"", subtleStyle.Bold(true).Render("Notes")}, wrapped...)
+	}
+	valueRows := max(minValue, h-(6+len(rows)+len(tail)))
+
+	value := subtleStyle.Render(maskedValue)
+	switch {
+	case message != nil:
+		value = revealBlockStyled(*message, messageStyle, w-4, valueRows)
+	case revealing:
 		value = revealBlock(m.revealValue, w-4, valueRows)
 	}
 	box := lipgloss.NewStyle().
@@ -294,7 +386,9 @@ func (m model) renderDetail(w, h int) string {
 	}
 
 	parts := []string{header, ""}
-	parts = append(parts, rows...)
+	for _, r := range rows {
+		parts = append(parts, r.text)
+	}
 	parts = append(parts, "", label, box)
 	parts = append(parts, tail...)
 
@@ -313,6 +407,12 @@ func (m model) renderToast() string {
 	}
 	_, rightW := m.paneWidths()
 	msg := truncate(m.statusMsg, max(8, rightW-8)) // stays inside the detail pane
+	if m.paneOuter() < minPaneOuter {
+		// The pane is as short as the terminal allows and its card fills it:
+		// a one-line pill (reversed, so it shows without colour too) sits over
+		// the pane's blank bottom row instead of covering the value box.
+		return lipgloss.NewStyle().Reverse(true).Foreground(color).Bold(true).Padding(0, 1).Render(msg)
+	}
 	return lipgloss.NewStyle().
 		Border(g.border).
 		BorderForeground(color).
@@ -453,7 +553,7 @@ func (m model) renderForm() string {
 	b.WriteString("\n")
 	b.WriteString(subtleStyle.Render(fmt.Sprintf("%s %d chars %s %s %s", keyStyle.Render("ctrl+l"), gen.Lengths[m.genLen], g.sep, keyStyle.Render("ctrl+t"), gen.Charsets[m.genSet].Name)))
 	b.WriteString("\n") // status sits right under the hints: the Tags row took the spare line at 60×18
-	b.WriteString(m.renderStatus())
+	b.WriteString(m.renderStatus(inner))
 
 	return modalStyle.Width(m.modalWidth()).Render(lipgloss.NewStyle().MaxWidth(inner).Render(b.String()))
 }
@@ -463,7 +563,7 @@ func (m model) renderConfirmDelete() string {
 	body := lipgloss.JoinVertical(lipgloss.Left,
 		lipgloss.NewStyle().Bold(true).Foreground(danger).Render("Delete secret"),
 		"",
-		textStyle.Width(inner).Render(`Delete "`+m.deleting+`"?`),
+		textStyle.Width(inner).Render(`Delete "`+truncate(m.deleting, max(1, inner-len(`Delete ""?`)))+`"?`),
 		"",
 		subtleStyle.Width(inner).Render(deleteNote(m.versions[m.deleting])),
 	)
@@ -590,7 +690,8 @@ func (m model) renderHelpOverlay() string {
 	return modalStyle.Width(width).Render(strings.Join(lines, "\n"))
 }
 
-func (m model) renderStatus() string {
+// renderStatus is the form's inline status line, cut to width columns.
+func (m model) renderStatus(width int) string {
 	if m.statusMsg == "" {
 		return ""
 	}
@@ -598,7 +699,7 @@ func (m model) renderStatus() string {
 	if m.statusErr {
 		color = danger
 	}
-	return lipgloss.NewStyle().Foreground(color).Bold(true).MaxWidth(m.width).Render(m.statusMsg)
+	return lipgloss.NewStyle().Foreground(color).Bold(true).Render(truncate(m.statusMsg, width))
 }
 
 func (m model) renderHelp() string {
@@ -643,11 +744,21 @@ func (m model) renderHelp() string {
 		if !m.clipUntil.IsZero() {
 			keys = append([][2]string{{"x", "clear clipboard"}}, keys...)
 		}
+		switch m.list.FilterState() {
+		case list.Filtering: // every other key is text for the filter
+			keys = [][2]string{{"enter", "apply"}, {"esc", "cancel"}}
+		case list.FilterApplied:
+			for i, k := range keys {
+				if k[1] == "filter" {
+					keys[i] = [2]string{"esc", "clear filter"} // in place of "/ filter"
+				}
+			}
+		}
 	}
 
 	// On narrow terminals drop the least essential hints until the line fits.
 	line := renderKeys(keys)
-	for _, drop := range []string{"sort", "move", "filter", "reveal", "clear clipboard"} {
+	for _, drop := range []string{"sort", "move", "filter", "reveal", "clear clipboard", "new", "edit"} {
 		if lipgloss.Width(line) <= m.width {
 			break
 		}

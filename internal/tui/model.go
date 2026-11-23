@@ -482,7 +482,15 @@ func (m *model) reload(selectTitle string) error {
 	}
 	m.list.SetDelegate(m.delegate())
 	m.fitList(len(items))
-	m.list.SetItems(items)
+	// With a filter typed or applied, SetItems drops the matches and returns the
+	// command that recomputes them. Run it here (it only ranks titles in
+	// memory): the model discards commands from reload, and the list would stay
+	// empty until the filter was cleared.
+	if refilter := m.list.SetItems(items); refilter != nil {
+		if msg := refilter(); msg != nil {
+			m.list, _ = m.list.Update(msg)
+		}
+	}
 
 	found := false
 	for i, it := range m.list.VisibleItems() {

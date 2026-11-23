@@ -4,6 +4,15 @@ All notable changes are documented here. The format follows [Keep a Changelog](h
 
 ## [Unreleased]
 
+### Fixed
+- Interface, layout: the screen is now exactly as tall as the terminal in every mode and at every size from 60×18 up. Before, the header scrolled off the screen on the first-run welcome and the load-error card, on the detail card when a category, expiry or history hint was too wide for it, and on the list while a filter was being typed or applied. Long category names, search terms and form errors are cut with an ellipsis.
+- Interface, resizing: shrinking the terminal while editing no longer leaves the cursor outside the Secret, Name or other field (a blank row until the next key). Fields you are not in show their beginning.
+- Interface, filter: after editing, adding or deleting a secret, pressing `r`, or a change made by another process, an active filter no longer empties the list.
+- Interface, keys: `pgup` / `pgdn` page through the list as the README says, and `ctrl+c` quits from the add/edit form like everywhere else.
+
+### Changed
+- Interface: the footer shows `enter apply · esc cancel` while a filter is typed and `esc clear filter` once it is applied; the detail pane says when nothing matches; at 60×18 the toast is one line so it does not cover the value box; the detail card drops its notes and then its metadata rows, never the value box, when the terminal is short.
+
 ## [0.6.0] - 2026-11-23
 
 This release carries everything planned as 0.4.0 (scripting and import), 0.5.0 (vault recovery and value history) and 0.6.0 (audit log): no 0.4.x or 0.5.x tags were cut.

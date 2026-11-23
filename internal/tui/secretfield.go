@@ -106,7 +106,13 @@ func (m *model) revealSelected(title string) {
 // revealBlock wraps a revealed value to width columns and shows at most rows
 // lines; when more remain the last line says how many (c still copies it all).
 func revealBlock(value string, width, rows int) string {
-	lines := strings.Split(textStyle.Width(max(1, width)).Render(value), "\n")
+	return revealBlockStyled(value, textStyle, width, rows)
+}
+
+// revealBlockStyled is revealBlock with the text drawn in style, which the
+// detail card also uses for its messages inside the value box.
+func revealBlockStyled(value string, style lipgloss.Style, width, rows int) string {
+	lines := strings.Split(style.Width(max(1, width)).Render(value), "\n")
 	if len(lines) > rows {
 		keep := lines[:rows-1]
 		note := fmt.Sprintf("%s +%d lines", g.ellipsis, len(lines)-len(keep))

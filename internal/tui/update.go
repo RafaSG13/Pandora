@@ -11,6 +11,7 @@ import (
 	"github.com/atotto/clipboard"
 	"github.com/charmbracelet/bubbles/list"
 	"github.com/charmbracelet/bubbles/spinner"
+	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/RafaSG13/Pandora/internal/gen"
@@ -66,11 +67,20 @@ func (m model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		inputW := max(10, m.modalWidth()-8-formLabelW-2)
 		for i := range m.inputs {
 			m.inputs[i].Width = inputW
+			m.inputs[i].SetCursor(m.inputs[i].Position()) // re-scroll: the cursor may now be out of view
 		}
 		m.secret.SetWidth(inputW)
 		m.secret.SetHeight(m.secretRows())
+		// The editor keeps its scroll offset across a resize and only follows the
+		// cursor in Update, from the lines of its last View: a shorter box could
+		// otherwise show a blank row, with the cursor outside it, until a key.
+		_ = m.secret.View()
+		m.secret, _ = m.secret.Update(nil)
 		authW := max(10, m.modalWidth()-8-15) // label, marker, brackets and cursor take 15 columns
-		m.pwInput.Width, m.pwConfirm.Width = authW, authW
+		for _, in := range []*textinput.Model{&m.pwInput, &m.pwConfirm} {
+			in.Width = authW
+			in.SetCursor(in.Position())
+		}
 		return m, nil
 
 	case tickMsg:
@@ -144,6 +154,17 @@ func (m model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			m.notify(fmt.Sprintf("✓ Reloaded (%s)", count(m.total)), false)
 			return m, m.startOrphanCheck()
+		case "pgup", "pgdown":
+			// bubbles pages by its own page size, but the list is one page tall
+			// (see fitList): move by what the pane shows instead.
+			step := m.itemsInView()
+			if msg.String() == "pgup" {
+				step = -step
+			}
+			if n := len(m.list.VisibleItems()); n > 0 {
+				m.list.Select(max(0, min(n-1, m.list.Index()+step)))
+			}
+			return m, nil
 		case "s":
 			m.sort = m.sort.next()
 			if err := m.reload(""); err != nil {
@@ -600,6 +621,8 @@ func (m model) updateForm(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	inSecret := m.focusIndex == fieldSecret
 
 	switch msg.String() {
+	case "ctrl+c":
+		return m, tea.Quit // like every other screen; esc is the way to cancel
 	case "esc":
 		m.mode = modeBrowse
 		return m, nil
@@ -801,9 +824,11 @@ func (m *model) setFocus(i int) {
 		if j == i {
 			m.inputs[j].Focus()
 			m.inputs[j].TextStyle = textStyle
+			m.inputs[j].CursorEnd() // type after what is there
 		} else {
 			m.inputs[j].Blur()
 			m.inputs[j].TextStyle = subtleStyle
+			m.inputs[j].CursorStart() // a long value shows its beginning, not the tail the cursor left it on
 		}
 	}
 	if i == fieldSecret {
