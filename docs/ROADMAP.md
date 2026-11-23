@@ -76,7 +76,7 @@ Never touch the real keychain, config directory or clipboard. Use `keyring.MockI
 | R-32 | Local audit log | 0.6.0 | M | R-23 (done), R-25, R-26 | done |
 | R-50 | API freeze audit (CLI, JSON, exit codes, formats) | 0.7.0 | M | R-25, R-28, R-30, R-24, R-32 | todo |
 | R-51 | Format compatibility test corpus | 0.7.0 | M | R-24 | todo |
-| R-52 | TUI polish and known bugs | 0.7.0 | S | – | todo |
+| R-52 | TUI polish and known bugs | 0.7.0 | S | – | done |
 | R-05 | Real-environment QA, all three OSes | 1.0.0 gate | M | – | in-progress (macOS keyring and clipboard done; other terminals and OSes open) |
 | R-11 | Concealed clipboard copies, Windows check | 1.0.0 gate | S | – | in-progress (macOS verified; Windows manual QA open) |
 | R-53 | 1.0 release (docs, security review, tag) | 1.0.0 | S | R-05, R-11, R-50, R-51, R-52 | todo |
@@ -91,7 +91,7 @@ Versions are SemVer `0.x` until 1.0.0, which freezes the public surface (see R-5
 
 | Release | Theme | Items (build in this order) | Gate before tagging |
 | --- | --- | --- | --- |
-| **0.3.0** (published) | Multi-line secrets, tags and search, config file, safe concurrent writers, concealed clipboard copies | R-20, R-21, R-22, R-23, R-27, R-11 | Shipped with the automated suite and CLI and pty smoke runs; the full `docs/QA.md` macOS pass and the Windows concealed-copy check were **not** done before tagging (R-11 and R-05 stay open for them). Known open bug, not from this release: the empty-vault welcome screen is 23 lines tall at 60×18. |
+| **0.3.0** (published) | Multi-line secrets, tags and search, config file, safe concurrent writers, concealed clipboard copies | R-20, R-21, R-22, R-23, R-27, R-11 | Shipped with the automated suite and CLI and pty smoke runs; the full `docs/QA.md` macOS pass and the Windows concealed-copy check were **not** done before tagging (R-11 and R-05 stay open for them). Known open bug, not from this release: the empty-vault welcome screen is 23 lines tall at 60×18 (fixed by R-52). |
 | **0.4.0** (shipped in v0.6.0) | Scripting and adoption, no format change | R-26 (done), then R-30, then R-25 | R-30 first: smallest, and it reads the existing `expiry_warn_days`. R-26's dotenv quoting (`dotenvValue` in `internal/cli/dotenv.go`) is reused, inverted, by the R-25 dotenv parser. R-25 starts with `dotenv` plus one password-manager format and needs redacted sample exports from the user. New commands go through `commands()` so the completion drift tests cover them; README command table updated. |
 | **0.5.0** (shipped in v0.6.0) | Data safety | R-28 (option B), then R-24 (design first) | R-24 adds an `omitempty` field to the encrypted record and a `history_depth` config key; the vault stays `version: 2` unless the plan finds a reason to bump it. The plan must state what a downgrade does with history entries. R-24 comes before the freeze because it touches the persisted format. R-28 is independent of R-24: if R-24 slips, tag 0.5.0 with R-28 alone. |
 | **0.6.0** (published) | Auditability | R-32 | After 0.4.0 so every new command (`env`, `get --copy`, imports, `expiring`) calls the single audit writer from the start. Opt-in through an `audit_log` config key; a test greps the file for the test secret. Shipped as `v0.6.0` together with 0.4.0 and 0.5.0, without the full `docs/QA.md` macOS pass or the Windows concealed-copy check (R-05 and R-11 stay open). |
@@ -546,11 +546,18 @@ No new features: this release is the 1.0 release candidate. Everything here is a
 **Acceptance.** All fixtures unlock and list the expected titles; adding a field without `omitempty` or breaking an old record fails a test. If R-24 bumps the vault version, the corpus gains a migration fixture.
 
 ### R-52 TUI polish and known bugs
-**Status** todo · **Size** S · **Depends** –
+**Status** done · **Size** S · **Depends** –
 
 **Scope.** Fix the known bug "empty-vault welcome screen is 23 lines tall at 60×18" (0.3.0 gate row) and re-run the size test for every `mode`.
 
 **Acceptance.** View height equals window height in every `mode` at 60×18 and 80×24.
+
+**Outcome.** The review went beyond the one known bug: a sweep of every screen over 19 widths × 16 heights (plus resizes through sizes below the floor and back), and a run of the real binary in a pty with a mock keyring, found these, all fixed and covered by `internal/tui/layout_test.go`:
+- *Height overflow* (the header scrolls off the screen): the welcome and load-error cards; the detail card when the category badge, the expiry line or the history hint do not fit the 20-column card at 60 wide (they wrapped); the list pane while filtering (bubbles' filter prompt and `“term” 1 item • 2 filtered` status are wider than the pane, and the scrollbar pushed them over); a long category name in the list title; the notes' ellipsis in ASCII mode (3 columns, was counted as 1).
+- *Resizing*: shrinking the terminal while a long secret or name is being edited left the cursor outside the field (a blank Secret row until the next key); unfocused form fields now show their beginning, not the tail the cursor left them on.
+- *Behaviour*: an active filter emptied the list after any reload (edit, add, delete, `r`, a change from another process) because the model dropped bubbles' re-filter command; `pgup`/`pgdn` did nothing (the list is one page tall); `ctrl+c` did nothing in the form, though the README says it quits.
+- *Polish*: footer hints follow the filter state (`enter apply · esc cancel`, `esc clear filter`); the detail pane says when a filter matches nothing; at the 60×18 floor the toast is one line instead of covering the value box; long form status and delete titles end in an ellipsis instead of being cut; the detail card drops notes, then metadata rows (history, updated, created, tags), before it would cut the value box.
+- Found but not changed (needs a decision): on a terminal that does not answer the background-colour query (OSC 11), the first render waits 5 s (`termenv.OSCTimeout`) before anything shows.
 
 ---
 
