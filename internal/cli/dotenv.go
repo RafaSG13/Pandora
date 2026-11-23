@@ -69,6 +69,9 @@ func (a *app) cmdEnv(args []string) error {
 		}
 		b.WriteString(inj.env + "=" + dotenvValue(v) + "\n")
 	}
+	for _, inj := range injections {
+		a.audit("env", inj.title)
+	}
 	_, err = a.out.Write([]byte(b.String()))
 	return err
 }

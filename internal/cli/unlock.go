@@ -33,15 +33,25 @@ func (a *app) warnEnv(name string) {
 // unlock makes the vault usable: it asks for the master password (or reads it
 // from PANDORA_MASTER_PASSWORD when there is no terminal) and, on the very
 // first run, creates the vault, migrating a plain-text store from an older
-// version. It is a no-op when the vault is already unlocked.
+// version. It is a no-op when the vault is already unlocked. Once the vault is
+// open it applies the settings that store behaviour depends on (history depth,
+// audit log) from config.json.
 func (a *app) unlock() error {
-	if store.IsUnlocked() {
-		return nil
+	if !store.IsUnlocked() {
+		var err error
+		if store.Exists() {
+			err = a.unlockExisting()
+		} else {
+			err = a.createVault()
+		}
+		if err != nil {
+			return err
+		}
 	}
-	if store.Exists() {
-		return a.unlockExisting()
-	}
-	return a.createVault()
+	cfg := a.loadConfig()
+	store.SetHistoryDepth(cfg.HistoryDepth)
+	store.SetAuditEnabled(cfg.AuditLog)
+	return nil
 }
 
 func (a *app) unlockExisting() error {

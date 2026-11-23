@@ -73,7 +73,7 @@ Never touch the real keychain, config directory or clipboard. Use `keyring.MockI
 | R-25 | Import from other tools (dotenv + one password-manager format) | 0.4.0 | M | R-26 (done) | done (dotenv, bitwarden-json) |
 | R-28 | `doctor` vault recovery (re-scoped, option B) | 0.5.0 | M | – | done |
 | R-24 | Value history | 0.5.0 | L | R-23 (done) | done |
-| R-32 | Local audit log | 0.6.0 | M | R-23 (done), R-25, R-26 | todo |
+| R-32 | Local audit log | 0.6.0 | M | R-23 (done), R-25, R-26 | done |
 | R-50 | API freeze audit (CLI, JSON, exit codes, formats) | 0.7.0 | M | R-25, R-28, R-30, R-24, R-32 | todo |
 | R-51 | Format compatibility test corpus | 0.7.0 | M | R-24 | todo |
 | R-52 | TUI polish and known bugs | 0.7.0 | S | – | todo |
@@ -508,7 +508,7 @@ Also state the threat model in one paragraph: shoulder surfing, accidental scree
 ## Release 0.6.0 — auditability
 
 ### R-32 Local audit log
-**Status** todo · **Size** M · **Depends** R-23 (done); schedule after R-25 and R-26 so the new `env`, `get --copy` and import paths are logged from day one
+**Status** done · **Size** M · **Depends** R-23 (done); schedule after R-25 and R-26 so the new `env`, `get --copy` and import paths are logged from day one
 
 **Scope.** Opt-in append-only JSONL file recording time, action (`reveal`, `copy`, `get`, `run`, `export`, `add`, `edit`, `rm`) and secret title — never values — plus `pandora log [--since]`.
 
@@ -517,9 +517,11 @@ Also state the threat model in one paragraph: shoulder surfing, accidental scree
 - Size cap with rotation; `0600`.
 - Written from `store`/`cli` call sites through one `audit.Record(...)` function so the TUI and CLI cannot diverge.
 
-**Ask the user.** Retention, and whether failed unlock attempts are logged (R-31 shipped without a backoff or attempt counter, so there is nothing to log today beyond the wrong-password result).
+**Decisions taken (user, 2026-11-23).** Retention: a 1 MiB cap with one rotated file, no settings. Failed unlock attempts are not logged (no key to encrypt with, and a plaintext line would leak attempt times). **Deviation from the original scope:** the log is not plain JSONL: every line is encrypted under the data key (AGENTS.md forbids plaintext titles on disk). The writer is `store.RecordAudit` rather than a separate `audit` package, because it needs the session key.
 
 **Acceptance.** Disabled by default writes nothing; enabled logs each action once; values never appear (test greps the file for the test secret); rotation test.
+
+**Outcome (done).** `internal/store/audit.go` (`RecordAudit`, `ReadAudit`, `SetAuditEnabled`), `audit_log` config key, `internal/cli/audit.go` (`app.audit`, `pandora log`), `internal/tui/audit.go` (`model.audit`, failure shown as a toast by the `Update` wrapper). CLI call sites: `get`/`copy`, `run`, `env`, `export` (one entry per secret with `--values`, one empty-title entry otherwise), `import` (per secret written), `add`, `rm`, `restore`, and `doctor --fix` removals as `rm`. TUI: reveal (also of previous values), copy, add, edit, delete, restore. The CLI now loads `config.json` once per process (memoised) and applies `history_depth` and `audit_log` when it unlocks, instead of only in `import`. Verified: `go test -race ./...` (three runs), cross-builds; the tests use the mock keyring, so nothing was run against a real keychain or in a real terminal.
 
 ---
 

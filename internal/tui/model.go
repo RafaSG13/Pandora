@@ -149,6 +149,7 @@ type model struct {
 
 	deleting string       // title awaiting delete confirmation
 	hist     historyState // the previous-values screen (modeHistory)
+	auditErr error        // first failure to write the audit log during this update
 
 	helpScroll int // first help line shown when the overlay does not fit
 }
@@ -159,6 +160,7 @@ func New() tea.Model {
 
 	cfg, warns := config.Load(os.Getenv)
 	store.SetHistoryDepth(cfg.HistoryDepth)
+	store.SetAuditEnabled(cfg.AuditLog)
 	if cfg.ASCII != nil && os.Getenv("PANDORA_ASCII") != "1" {
 		useGlyphs(*cfg.ASCII) // before any g use below; PANDORA_ASCII=1 already set it at init
 	}

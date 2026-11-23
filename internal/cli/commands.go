@@ -120,6 +120,11 @@ func (a *app) cmdGet(args []string) error {
 		return err
 	}
 	if *cp {
+		a.audit("copy", pos[0])
+	} else {
+		a.audit("get", pos[0])
+	}
+	if *cp {
 		if err := a.copySecret(value); err != nil {
 			return fmt.Errorf("copy to clipboard: %w", err)
 		}
@@ -200,6 +205,7 @@ func (a *app) cmdAdd(args []string) error {
 		}
 		return err
 	}
+	a.audit("add", title)
 	fmt.Fprintf(a.err, "Saved %q.\n", title)
 	return nil
 }
@@ -253,6 +259,7 @@ func (a *app) cmdRm(args []string) error {
 	if err := store.DeleteSecret(title); err != nil {
 		return err
 	}
+	a.audit("rm", title)
 	fmt.Fprintf(a.err, "Deleted %q.\n", title)
 	return nil
 }

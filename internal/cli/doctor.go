@@ -104,6 +104,7 @@ func (a *app) cmdDoctor(args []string) error {
 		if err := store.DeleteSecret(t); err != nil {
 			return fmt.Errorf("removing %q: %w", t, err)
 		}
+		a.audit("rm", t)
 	}
 	fmt.Fprintf(a.out, "Removed %d metadata entries and %d previous values.\n", len(removable), len(missingVersions))
 	if len(recoverable) > 0 {

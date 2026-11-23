@@ -113,13 +113,26 @@ func (a *app) cmdExport(args []string) error {
 		}
 	}
 
+	recordExport := func() {
+		if !withValues {
+			a.audit("export", "") // titles are written in plain text; no value was read
+			return
+		}
+		for _, s := range doc.Secrets {
+			a.audit("export", s.Title)
+		}
+	}
 	if toStdout {
-		_, err = a.out.Write(data)
-		return err
+		if _, err = a.out.Write(data); err != nil {
+			return err
+		}
+		recordExport()
+		return nil
 	}
 	if err := writeFile(output, data, force); err != nil {
 		return err
 	}
+	recordExport()
 	kind := "plain-text metadata (titles are not encrypted)"
 	if withValues {
 		kind = "encrypted metadata and values"
@@ -391,13 +404,15 @@ func (a *app) cmdImport(args []string) error {
 		fmt.Fprintf(a.out, "Dry run, nothing written. Would import %d, replace %d, skip %d (already exist).\n", imported, replaced, skipped)
 		return nil
 	}
-	store.SetHistoryDepth(a.loadConfig().HistoryDepth) // replaced values may become previous versions
 	if len(restore) > 0 {
 		if err := store.RestoreSecrets(restore); err != nil {
 			return err
 		}
 	}
 
+	for _, r := range restore {
+		a.audit("import", r.Meta.Title)
+	}
 	fmt.Fprintf(a.out, "Imported %d, replaced %d, skipped %d (already exist).\n", imported, replaced, skipped)
 	if withoutValue > 0 {
 		fmt.Fprintf(a.out, "%d imported entries have no value; 'pandora doctor' lists them.\n", withoutValue)
