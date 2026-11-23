@@ -98,6 +98,9 @@ func (m *model) hideReveal() {
 func (m *model) revealSelected(title string) {
 	m.revealTitle, m.revealUntil = title, m.nowOr().Add(m.cfg.RevealTTL)
 	m.revealValue, m.revealErr = store.GetSecretValue(title)
+	if m.revealErr == nil {
+		m.audit("reveal", title)
+	}
 }
 
 // revealBlock wraps a revealed value to width columns and shows at most rows

@@ -80,6 +80,9 @@ func (m model) updateHistory(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 		h.value, h.err = store.GetVersion(h.title, h.cursor+1)
 		h.shown, h.until = true, m.nowOr().Add(m.cfg.RevealTTL)
+		if h.err == nil {
+			m.audit("reveal", h.title)
+		}
 	case "enter":
 		title, back, replaced := h.title, h.cursor+1, h.infos[h.cursor].Replaced
 		m.closeHistory()
@@ -87,6 +90,7 @@ func (m model) updateHistory(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.notify(fmt.Sprintf("✗ Could not restore: %v", err), true)
 			return m, nil
 		}
+		m.audit("restore", title)
 		if err := m.reload(title); err != nil {
 			m.notify(fmt.Sprintf("✗ Restored, but could not reload: %v", err), true)
 			return m, nil

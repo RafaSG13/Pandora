@@ -35,6 +35,10 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return next, cmd
 	}
 	nm.syncReveal()
+	if nm.auditErr != nil { // last, so it is not hidden by the action's own toast
+		nm.notify(fmt.Sprintf("✗ Could not write the audit log: %v", nm.auditErr), true)
+		nm.auditErr = nil
+	}
 	switch msg.(type) {
 	case tea.MouseMsg, tickMsg, spinner.TickMsg, orphanMsg:
 		nm.clampScroll(false) // the wheel scrolls independently of the selection
@@ -194,6 +198,7 @@ func (m model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.clipUntil = m.nowOr().Add(m.cfg.ClipboardTTL)
 				m.clipHash = sha256.Sum256([]byte(val))
 				m.notify("✓ Copied to clipboard", false)
+				m.audit("copy", sel.meta.Title)
 			}
 			return m, nil
 		}
@@ -714,6 +719,11 @@ func (m model) saveForm() (tea.Model, tea.Cmd) {
 		}
 		return m, nil
 	}
+	if adding {
+		m.audit("add", name)
+	} else {
+		m.audit("edit", name)
+	}
 
 	m.mode = modeBrowse
 	delete(m.orphans, name) // a stored value means it is no longer an orphan
@@ -741,6 +751,7 @@ func (m model) updateConfirmDelete(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.notify(fmt.Sprintf("✗ Could not delete: %v", err), true)
 		return m, nil
 	}
+	m.audit("rm", title)
 	if err := m.reload(""); err != nil {
 		m.notify(fmt.Sprintf("✗ Deleted, but could not reload: %v", err), true)
 		return m, nil

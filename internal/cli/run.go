@@ -63,6 +63,9 @@ func (a *app) cmdRun(args []string) error {
 		env = append(env, inj.env+"="+v)
 	}
 
+	for _, inj := range injections {
+		a.audit("run", inj.title)
+	}
 	cmd := exec.Command(command[0], command[1:]...)
 	cmd.Env = append(childBase(a.environ()), env...)
 	cmd.Stdin, cmd.Stdout, cmd.Stderr = a.in, a.out, a.err

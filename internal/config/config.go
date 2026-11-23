@@ -47,7 +47,7 @@ const maxFileBytes = 64 << 10
 // Keys lists the settings in display order.
 var Keys = []string{
 	"lock_minutes", "ascii", "clipboard_seconds", "reveal_seconds",
-	"expiry_warn_days", "gen_length", "gen_charset", "sort", "compact", "history_depth",
+	"expiry_warn_days", "gen_length", "gen_charset", "sort", "compact", "history_depth", "audit_log",
 }
 
 var sortNames = []string{"created", "name", "category"}
@@ -63,7 +63,8 @@ type Settings struct {
 	GenCharset     string
 	Sort           string // one of created, name, category
 	Compact        bool
-	HistoryDepth   int // previous values kept per secret; 0 disables history
+	HistoryDepth   int  // previous values kept per secret; 0 disables history
+	AuditLog       bool // record actions in the encrypted audit log; off by default
 }
 
 func defaults() Settings {
@@ -223,6 +224,12 @@ func set(s *Settings, key string, raw json.RawMessage) error {
 			return err
 		}
 		s.HistoryDepth = n
+	case "audit_log":
+		var b bool
+		if err := decode(raw, &b, "a boolean"); err != nil {
+			return err
+		}
+		s.AuditLog = b
 	default:
 		return errUnknownKey
 	}
@@ -305,6 +312,8 @@ func (s Settings) Get(key string) (string, bool) {
 		return strconv.FormatBool(s.Compact), true
 	case "history_depth":
 		return strconv.Itoa(s.HistoryDepth), true
+	case "audit_log":
+		return strconv.FormatBool(s.AuditLog), true
 	}
 	return "", false
 }

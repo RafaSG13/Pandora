@@ -154,7 +154,8 @@ Optional settings live in `config.json` next to `vault.json` (`pandora config pa
   "gen_charset": "alnum",
   "sort": "created",
   "compact": false,
-  "history_depth": 3
+  "history_depth": 3,
+  "audit_log": false
 }
 ```
 
@@ -170,6 +171,7 @@ Optional settings live in `config.json` next to `vault.json` (`pandora config pa
 | `sort`              | `created` | `created`, `name`, `category`                  | Initial list order |
 | `compact`           | `false`   | `true`, `false`                                | Start with one-line rows |
 | `history_depth`     | `3`       | `0`–`20` (`0` disables)                        | Previous values kept per secret when its value changes (see [Value history](#value-history)) |
+| `audit_log`         | `false`   | `true`, `false`                                | Record actions in the encrypted audit log (see [Audit log](#audit-log)) |
 
 The environment variables below remain available and win over the file.
 
@@ -213,6 +215,7 @@ See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the vault format and data f
 | `pandora history <title> [--json]` | Lists the previous values of a secret, newest first: `-1` is the latest, with the date it stopped being current. Never prints values. `--json` prints `[{version, replaced}]`; a secret without history gives `[]`. |
 | `pandora get <title> --version -1` | `get` also reads a previous value: `0` is the current one (default), `-1` the one before, `-2` the one before that. Exit `1` if there is no such version. |
 | `pandora restore <title> [--version -1]` | Makes a previous value current again. The value it replaces becomes `-1`, so a restore can be undone with another `restore`. Only the vault changes; nothing is rewritten in the keyring. |
+| `pandora log [--since 7d\|12h\|YYYY-MM-DD] [--json]` | Prints the audit log, oldest first: time (local), action and secret title, never values. Needs the master password. `--json` prints `[{time, action, title}]` with `time` in RFC 3339 UTC; an `export` of metadata only has an empty title. If `audit_log` is off and nothing was ever recorded it says so on stderr. Lines that cannot be read are counted in a warning. |
 | `pandora add <title> [-c CATEGORY] [--tag TAG] [--notes TEXT] [--expires YYYY-MM-DD]` | Stores a new secret. The value is read from stdin when piped (any number of lines, one trailing newline removed; `pandora add key < id_ed25519`) or typed at a hidden prompt on a terminal (one line). `--tag` (`-t`) may be repeated or comma-separated. Empty values, values over 32 KB, duplicate titles, invalid dates and invalid tags are rejected. |
 | `pandora rm <title> [-y]` | Deletes a secret. Asks on a terminal; without a terminal it refuses unless `-y` is given. |
 | `pandora run -s TITLE[=ENV_NAME] [-s ...] -- cmd args...` | Runs `cmd` with each secret in an environment variable that exists only for that process. `ENV_NAME` defaults to the title upper-cased with other characters replaced by `_`. Fails before running anything if a secret is missing; exits with the command's exit code. |
@@ -255,6 +258,12 @@ pandora completion fish > ~/.config/fish/completions/pandora.fish
 # PowerShell
 pandora completion powershell | Out-String | Invoke-Expression
 ```
+
+### Audit log
+
+Off by default. With `"audit_log": true` in `config.json`, Pandora records what is done with your secrets: **when**, **what** (`reveal`, `copy`, `get`, `run`, `env`, `export`, `import`, `add`, `edit`, `rm`, `restore`) and **which secret**, in the interface and on the command line alike. It never records a value. The log is `audit.log` next to `vault.json`; each line is encrypted under the same key as the vault, so the file shows no title or time without your master password. When it reaches 1 MiB it rotates once to `audit.log.1` (the older one is discarded). Read it with `pandora log [--since 7d|12h|YYYY-MM-DD] [--json]`.
+
+It is a record for you, not a defence: someone who can run Pandora as you can switch it off in `config.json`, and failed unlock attempts are not recorded (without the key there is nothing to encrypt them with). If the log cannot be written, the action still happens and Pandora warns you.
 
 ### Value history
 

@@ -106,6 +106,14 @@ func commands() []command {
 			run:  (*app).cmdRestore,
 		},
 		{
+			name: "log", summary: "Show the audit log (needs audit_log in config.json)",
+			flags: []flagSpec{
+				{names: []string{"since"}, help: "only entries from this far back (7d, 12h) or from this date (YYYY-MM-DD)", arg: argSpec{kind: argText}},
+				{names: []string{"json"}, help: "print JSON instead of a table"},
+			},
+			run: (*app).cmdLog,
+		},
+		{
 			name: "add", summary: "Add a secret (value from stdin or a hidden prompt)",
 			flags: []flagSpec{
 				{names: []string{"c", "category"}, help: "category", arg: argSpec{kind: argCategory}},

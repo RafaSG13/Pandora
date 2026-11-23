@@ -102,6 +102,7 @@ func (a *app) cmdRestore(args []string) error {
 	if err := store.RestoreVersion(pos[0], back); err != nil {
 		return versionError(pos[0], err)
 	}
+	a.audit("restore", pos[0])
 	fmt.Fprintf(a.err, "Restored version %d of %q; the value it replaced is now version -1.\n", -back, pos[0])
 	return nil
 }

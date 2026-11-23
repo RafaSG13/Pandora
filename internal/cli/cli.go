@@ -17,6 +17,7 @@ import (
 
 	"golang.org/x/term"
 
+	"github.com/RafaSG13/Pandora/internal/config"
 	"github.com/RafaSG13/Pandora/internal/secretclip"
 	"github.com/RafaSG13/Pandora/internal/store"
 	"github.com/RafaSG13/Pandora/internal/version"
@@ -72,6 +73,10 @@ type app struct {
 	scryptWorkFactor int
 	// warnedEnv records which environment-secret warnings were already printed.
 	warnedEnv map[string]bool
+	// cfg is the settings loaded from config.json, kept for the process.
+	cfg *config.Settings
+	// auditWarned is set once a failure to write the audit log was reported.
+	auditWarned bool
 }
 
 // Run executes the command line (without the program name) and returns the

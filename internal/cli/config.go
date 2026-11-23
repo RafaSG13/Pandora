@@ -8,14 +8,17 @@ import (
 	"github.com/RafaSG13/Pandora/internal/config"
 )
 
-// loadConfig reads config.json merged with the environment. Problems in the
-// file are reported on stderr and never change the exit code.
+// loadConfig reads config.json merged with the environment, once per process.
+// Problems in the file are reported on stderr and never change the exit code.
 func (a *app) loadConfig() config.Settings {
-	s, warns := config.Load(a.getenv)
-	for _, w := range warns {
-		fmt.Fprintf(a.err, "pandora: warning: %s\n", w)
+	if a.cfg == nil {
+		s, warns := config.Load(a.getenv)
+		for _, w := range warns {
+			fmt.Fprintf(a.err, "pandora: warning: %s\n", w)
+		}
+		a.cfg = &s
 	}
-	return s
+	return *a.cfg
 }
 
 // cmdConfig shows where the config file lives or what is in effect. It is

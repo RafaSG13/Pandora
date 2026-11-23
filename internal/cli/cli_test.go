@@ -31,6 +31,11 @@ func isolate(t *testing.T) {
 	t.Setenv("AppData", dir)
 	store.FastKDFForTests()
 	t.Cleanup(store.Lock)
+	// The commands apply history_depth and audit_log from the config on
+	// unlock; those are package settings, so every test starts from "off".
+	resetSettings := func() { store.SetHistoryDepth(0); store.SetAuditEnabled(false) }
+	resetSettings()
+	t.Cleanup(resetSettings)
 	store.Lock()
 	if err := store.Create(testMaster); err != nil {
 		t.Fatal(err)
