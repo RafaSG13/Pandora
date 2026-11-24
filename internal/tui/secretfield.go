@@ -12,10 +12,12 @@ import (
 )
 
 // formBaseHeight is the terminal height at which the form, with a one-row
-// secret box, fills the window exactly (the 60×18 floor). Every extra terminal
-// row lets the secret box grow by one, up to maxSecretRows.
+// secret box, fills the window exactly. The seven-field form needs 19 rows
+// when drawn with the blank line under its title, so at the 60×18 floor that
+// blank line is dropped (see renderForm). Every extra terminal row beyond
+// this lets the secret box grow by one, up to maxSecretRows.
 const (
-	formBaseHeight = 18
+	formBaseHeight = 19
 	maxSecretRows  = 8
 )
 
@@ -100,6 +102,15 @@ func (m *model) revealSelected(title string) {
 	m.revealValue, m.revealErr = store.GetSecretValue(title)
 	if m.revealErr == nil {
 		m.audit("reveal", title)
+	}
+}
+
+// toggleReveal hides title's value when shown, shows it otherwise.
+func (m *model) toggleReveal(title string) {
+	if m.revealed(title) {
+		m.hideReveal()
+	} else {
+		m.revealSelected(title)
 	}
 }
 

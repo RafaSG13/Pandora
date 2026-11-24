@@ -46,7 +46,10 @@ Vault writes go through a temp file in the same directory and `os.Rename`, so a 
 | File          | Contents |
 | ------------- | -------- |
 | `model.go`    | `model` state, list `item`, `mode`, `New()`, `Init`, `reload` (category filter + sort), pane geometry, scroll clamping, orphan check command |
-| `update.go`   | `Update` (scroll/reveal bookkeeping around `update`), the 1 s `tick`, key and mouse handling, form (`openForm`, `updateForm`, `saveForm`), delete confirmation, lock |
+| `update.go`   | `Update` (scroll/reveal bookkeeping around `update`), the 1 s `tick`, key and mouse handling, form (`openForm`, `updateForm` with the unsaved-edit guard `formDirty`, `saveForm`), `applyFilter` (category/tag filters), delete confirmation, lock |
+| `viewer.go`   | `modeView`: the whole revealed value, wrapped and scrollable; every key renews the reveal deadline, `hideReveal` (expiry, lock) closes it |
+| `picker.go`   | `modePicker`: categories and tags with counts, so categories past the ninth are reachable; picking the active one clears it |
+| `filter.go`   | `qualifiedFilter`, the list's `FilterFunc`: `tag:` / `cat:` / `user:` qualifiers over `item.FilterValue`'s fields (joined by `\x1f`), free text ranked by the default fuzzy filter |
 | `view.go`     | `View` and the `render*` helpers: header, panes, list crop + scrollbar, detail card, toast overlay, countdowns, form, help overlay, welcome / error state, footer |
 | `delegate.go` | `rowDelegate`: roomy (3-line) and compact (1-line) list rows, selection fill, orphan / expiry markers |
 | `styles.go`   | Adaptive palette, per-category colours (`categoryColor`), gradient, pane tag border |
@@ -67,9 +70,14 @@ stateDiagram-v2
     Browse --> ConfirmDelete: d
     ConfirmDelete --> Browse: y (delete) / any other key
     Browse --> Help: ?
+    Browse --> View: V (reveals the value)
+    View --> Browse: esc / V / the reveal expires
+    Browse --> Picker: f
+    Picker --> Browse: esc / enter (applies the filter)
     Help --> Browse: any key
     Browse --> Unlock: idle timeout
     Form --> Unlock: idle timeout (form discarded)
+    Browse --> Unlock: L (lock now)
 ```
 
 **Master password.** `modeUnlock` and `modeSetup` own the keyboard until `store.Unlock` / `store.Create` / `store.MigrateLegacy` succeeds. The key derivation runs in a `tea.Cmd` off the UI thread (`unlockCmd` → `unlockedMsg`) with a spinner; input is ignored meanwhile except `ctrl+c`. `lock()` calls `store.Lock()` and empties the list, filters, form inputs and password fields, so no title stays in the model; unlocking always returns to Browse. While the list filter is active, browse-mode keys go to the list unchanged. Any key press clears the status message before it is handled. Failed saves keep the form open so nothing typed is lost.
@@ -88,7 +96,9 @@ stateDiagram-v2
 
 **Layout.** Computed from the last `tea.WindowSizeMsg`: the list pane gets `max(30, (w-6)*45/100)` columns, the detail pane the rest (6 = two borders per pane plus a 2-column gap). Panes fit their content: outer height `clamp(listChrome + n*rowHeight + 4, minPaneOuter, h-4)`, top-aligned, with the status row and footer pinned to the bottom, so the view is always exactly `h` lines. Below 60×18 the view is replaced by `Terminal too small`. The list is a bubbles `list.Model` sized to hold every item on one page; `listView` crops its rendered lines to a window starting at `model.scroll` (the wheel changes only that offset, never the selection), replaces the status bar text with the position indicator, and appends the scrollbar. Toasts are composed over the bottom-right of the detail pane with `ansi.Truncate`/`TruncateLeft`.
 
-**Mouse geometry.** Click hit-testing uses `listTopRow` (8) and the row height; `TestClickGeometryMatchesRenderedList` and `TestCompactRowsGeometry` fail if the rendered list moves.
+**Mouse geometry.** Click hit-testing uses `listTopRow` (8) and the row height; `TestClickGeometryMatchesRenderedList` and `TestCompactRowsGeometry` fail if the rendered list moves. The detail card's value box is located by `detailCard` (second result `boxRect`) plus `cardTopRow` / `cardLeftExtra` in `update.go`; `TestClickingTheValueBoxRevealsAndHides` reads the rendered view to catch drift. Two clicks on one row within `doubleClickWindow` copy it.
+
+**Browse keys.** `internal/tui/keys.go` (`keyMap`) resolves `tea.KeyMsg.String()` to an action name from `config.KeyActions`; bindings come from `config.Settings.KeyBindings` (`keys` in `config.json`, validated as one unit by `mergeKeyBindings`). `ctrl+c`, `pgup`/`pgdown`, digits, `/` and list navigation stay fixed. The list's own `q` quit binding is removed so only the `quit` action quits.
 
 ## Data flow
 
@@ -140,13 +150,15 @@ sequenceDiagram
 - A corrupt or tampered `data` field is an error and is never overwritten. `vault.json.bak` holds the previous (still encrypted) version.
 - Titles, categories, notes and tags must not contain control characters (`store.ValidateText`), so imported files cannot inject terminal escape sequences. Writers (`SaveSecret`, `UpdateSecret`, `RestoreSecrets`) normalise tags through `store.NormalizeTags` (trim, lowercase, drop empties and duplicates, sort; no whitespace or commas inside, at most 24 characters, at most 10); `parseExport` does the same before anything is written.
 - Tags are additive: the vault stays at version 2. An older Pandora opens the file and ignores `tags`, but its next write drops them, so downgrading after using tags loses them.
+- `username` (`SecretMeta.Username`, optional, validated like the other text fields) is additive too: the vault stays at version 2, records without it load as empty, and an older Pandora ignores it and drops it on its next write. `export` / `import` carry it.
 
-`store.SecretMeta` (`title`, `category`, `created`, `updated`, `expires`, `notes`, `tags`) is still the shape used by `export`/`import` and by the callers; the id exists only inside the store:
+`store.SecretMeta` (`title`, `category`, `username`, `created`, `updated`, `expires`, `notes`, `tags`) is still the shape used by `export`/`import` and by the callers; the id exists only inside the store:
 
 | Field      | Type   | Meaning |
 | ---------- | ------ | ------- |
 | `title`    | string | Secret name, unique |
 | `category` | string | Free-form label |
+| `username` | string | Optional login or e-mail; copied with `u` in the TUI, `add -u` in the CLI; searched by `/` and `user:` |
 | `created`  | string | `YYYY-MM-DD` creation date |
 | `updated`  | string | Optional; set on every edit |
 | `expires`  | string | Optional `YYYY-MM-DD`; drives the warning badges |

@@ -100,3 +100,24 @@ func applyColorMode(off bool) {
 		lipgloss.SetHasDarkBackground(true)
 	}
 }
+
+// applyBackground fixes whether colours are chosen for a dark or light
+// background. "auto" asks the terminal here, before Bubble Tea owns stdin:
+// lipgloss caches the answer, and a query made later, during the first View,
+// never sees the reply (Bubble Tea's reader takes it) and waits termenv's full
+// 5 s timeout. "light" and "dark" skip the query, which is the way out on a
+// terminal that answers nothing. No-op when colour is off (applyColorMode
+// already fixed it).
+func applyBackground(setting string) {
+	if noColor {
+		return
+	}
+	switch setting {
+	case "light":
+		lipgloss.SetHasDarkBackground(false)
+	case "dark":
+		lipgloss.SetHasDarkBackground(true)
+	default:
+		lipgloss.HasDarkBackground() // resolves and caches the answer
+	}
+}

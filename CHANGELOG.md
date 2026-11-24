@@ -4,6 +4,16 @@ All notable changes are documented here. The format follows [Keep a Changelog](h
 
 ## [Unreleased]
 
+### Added
+- Interface, lock: `L` locks at once (rebindable as `lock`): everything is masked and the master password is asked for, without waiting for the idle timeout.
+- Interface, form: pressing `esc` (or `ctrl+c`) on an add/edit form with unsaved changes asks first; the same key again discards them.
+- **Username.** Secrets have an optional user name (login or e-mail): a **Username** field in the form, shown in the detail card, copied with `u` (rebindable as `copy_username`; plain clipboard, not auto-cleared, not audited), searched by `/`, and carried by `export` / `import` and `list --json`. `pandora add -u` / `--username` sets it. It is a new optional field in `vault.json` (still version 2): an older Pandora ignores it and drops it on its next write. The Bitwarden import now puts a login's user name there instead of in the notes.
+- Interface, viewer: `V` (rebindable as `view`) opens the whole value of the selected secret in a scrollable viewer; it closes `reveal_seconds` after the last key.
+- Interface, filters: `f` (rebindable as `filters`) opens a picker of every category and tag with counts, so categories past the ninth are reachable. The `/` filter understands `tag:x`, `cat:x` and `user:x` qualifiers alongside free text.
+- Interface, mouse: double-clicking a row copies that secret (like `c`), and clicking the detail card's value box reveals or hides the value (like `v`).
+- Interface, keys: the list-screen keys can be rebound with a `keys` object in `config.json` (see the README, "Rebinding keys"). The help overlay, the footer and the in-card hints show the effective keys. `pandora config get keys` prints them.
+- `config.json` key `background` (`auto`, `light`, `dark`) fixes the colour scheme without asking the terminal.
+
 ### Fixed
 - Interface, layout: the screen is now exactly as tall as the terminal in every mode and at every size from 60×18 up. Before, the header scrolled off the screen on the first-run welcome and the load-error card, on the detail card when a category, expiry or history hint was too wide for it, and on the list while a filter was being typed or applied. Long category names, search terms and form errors are cut with an ellipsis.
 - Interface, resizing: shrinking the terminal while editing no longer leaves the cursor outside the Secret, Name or other field (a blank row until the next key). Fields you are not in show their beginning.
@@ -11,6 +21,7 @@ All notable changes are documented here. The format follows [Keep a Changelog](h
 - Interface, keys: `pgup` / `pgdn` page through the list as the README says, and `ctrl+c` quits from the add/edit form like everywhere else.
 
 ### Changed
+- Interface, start-up: the terminal's background colour is asked for before the interface takes over the keyboard, not during its first frame, where the reply could not be read. Set `background` to `light` or `dark` to skip the question.
 - Interface: the footer shows `enter apply · esc cancel` while a filter is typed and `esc clear filter` once it is applied; the detail pane says when nothing matches; at 60×18 the toast is one line so it does not cover the value box; the detail card drops its notes and then its metadata rows, never the value box, when the terminal is short.
 
 ## [0.6.0] - 2026-11-23

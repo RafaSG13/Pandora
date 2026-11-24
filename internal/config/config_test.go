@@ -265,3 +265,71 @@ func TestGetCoversEveryKeyAndRejectsUnknown(t *testing.T) {
 		t.Errorf("lock_minutes = %q", v)
 	}
 }
+
+func TestKeysOverrideOnlyWhatTheFileNames(t *testing.T) {
+	isolate(t)
+	writeFile(t, `{"keys":{"copy":["y"]}}`)
+	s, warns := Load(env(nil))
+	if len(warns) != 0 {
+		t.Fatalf("warnings = %q", warns)
+	}
+	want := DefaultKeyBindings()
+	want["copy"] = []string{"y"}
+	if !reflect.DeepEqual(s.KeyBindings, want) {
+		t.Errorf("bindings = %v, want %v", s.KeyBindings, want)
+	}
+	if got, _ := s.Get("keys"); !strings.HasPrefix(got, "copy=y copy_username=u reveal=v ") {
+		t.Errorf("Get(keys) = %q", got)
+	}
+}
+
+func TestKeysAreRejectedAsAWhole(t *testing.T) {
+	for name, body := range map[string]string{
+		"unknown action":     `{"keys":{"zap":["z"]}}`,
+		"list-nav key":       `{"keys":{"reveal":["j"]}}`,
+		"digit":              `{"keys":{"reveal":["1"]}}`,
+		"collides":           `{"keys":{"reveal":["n"]}}`,
+		"empty list":         `{"keys":{"copy":[]}}`,
+		"not a single key":   `{"keys":{"copy":["esc"]}}`,
+		"ctrl+c is reserved": `{"keys":{"copy":["ctrl+c"]}}`,
+		"valid next to bad":  `{"keys":{"copy":["y"],"reveal":["/"]}}`,
+		"wrong type":         `{"keys":["y"]}`,
+	} {
+		t.Run(name, func(t *testing.T) {
+			isolate(t)
+			writeFile(t, body)
+			s, warns := Load(env(nil))
+			if len(warns) != 1 || !strings.Contains(warns[0], "keys: ") {
+				t.Fatalf("warnings = %q, want one for keys", warns)
+			}
+			if !reflect.DeepEqual(s.KeyBindings, DefaultKeyBindings()) {
+				t.Errorf("bindings changed despite the error: %v", s.KeyBindings)
+			}
+		})
+	}
+}
+
+func TestKeyCollisionIsJudgedAfterMerging(t *testing.T) {
+	isolate(t)
+	writeFile(t, `{"keys":{"reveal":["n"],"new":["m"]}}`)
+	s, warns := Load(env(nil))
+	if len(warns) != 0 {
+		t.Fatalf("warnings = %q", warns)
+	}
+	if s.KeyBindings["reveal"][0] != "n" || s.KeyBindings["new"][0] != "m" {
+		t.Errorf("bindings = %v", s.KeyBindings)
+	}
+}
+
+func TestBackgroundAcceptsAutoLightDarkOnly(t *testing.T) {
+	isolate(t)
+	writeFile(t, `{"background":"light"}`)
+	if s, warns := Load(env(nil)); len(warns) != 0 || s.Background != "light" {
+		t.Errorf("background = %q, warnings %q", s.Background, warns)
+	}
+	writeFile(t, `{"background":"blue"}`)
+	s, warns := Load(env(nil))
+	if len(warns) != 1 || !strings.Contains(warns[0], "background: must be one of auto, light, dark") || s.Background != DefaultBackground {
+		t.Errorf("background = %q, warnings %q", s.Background, warns)
+	}
+}

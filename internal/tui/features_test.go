@@ -171,7 +171,7 @@ func TestCategoryFilterResetsWhenCategoryDisappears(t *testing.T) {
 }
 
 func TestFormSavesExpiresAndNotesAndEditSetsUpdated(t *testing.T) {
-	m := press(newTestModel(t), "n", "a", "enter", "X", "enter", "v", "tab", "2030-01-31", "enter", "see https://x.example", "enter", "Prod, db,PROD", "enter")
+	m := press(newTestModel(t), "n", "a", "enter", "X", "enter", "enter", "v", "tab", "2030-01-31", "enter", "see https://x.example", "enter", "Prod, db,PROD", "enter")
 
 	metas, _ := store.LoadMetadata()
 	if len(metas) != 1 || metas[0].Expires != "2030-01-31" || metas[0].Notes != "see https://x.example" || metas[0].Updated != "" || strings.Join(metas[0].Tags, ",") != "db,prod" {
@@ -194,7 +194,7 @@ func TestFormSavesExpiresAndNotesAndEditSetsUpdated(t *testing.T) {
 }
 
 func TestInvalidExpiresKeepsFormOpen(t *testing.T) {
-	m := press(newTestModel(t), "n", "a", "enter", "X", "enter", "v", "tab", "tomorrow", "enter", "", "enter", "", "enter")
+	m := press(newTestModel(t), "n", "a", "enter", "X", "enter", "enter", "v", "tab", "tomorrow", "enter", "", "enter", "", "enter")
 	mm := m.(model)
 	if mm.mode != modeForm || !mm.statusErr || !strings.Contains(mm.statusMsg, "Expires") {
 		t.Errorf("mode=%v status=%q, want open form with an Expires error", mm.mode, mm.statusMsg)
@@ -265,7 +265,7 @@ func TestExpiryInfo(t *testing.T) {
 
 func TestExpiryShownInListHeaderAndDetail(t *testing.T) {
 	soon := time.Now().AddDate(0, 0, 3).Format(store.DateLayout)
-	m := press(newTestModel(t), "n", "a", "enter", "X", "enter", "v", "tab", soon, "enter", "", "enter", "", "enter")
+	m := press(newTestModel(t), "n", "a", "enter", "X", "enter", "enter", "v", "tab", soon, "enter", "", "enter", "", "enter")
 
 	out := m.View()
 	if !strings.Contains(out, "1 expiring") {
@@ -370,7 +370,7 @@ func TestIdleLockDiscardsAnOpenForm(t *testing.T) {
 	now := time.Now()
 	m = withClock(mm, &now)
 
-	m = press(m, "n", "half-typed-name", "enter", "cat", "enter", "typed-secret")
+	m = press(m, "n", "half-typed-name", "enter", "cat", "enter", "enter", "typed-secret")
 	now = now.Add(2 * time.Minute)
 	m = tickAt(m, now)
 

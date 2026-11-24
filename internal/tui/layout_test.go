@@ -68,7 +68,7 @@ func busiestCard(t *testing.T) tea.Model {
 	notes := strings.Repeat("line of notes with some words ", 12)
 
 	m := newTestModel(t)
-	m = press(m, "n", longTitle, "enter", longCategory, "enter", "v1", "tab", soon, "enter", notes, "enter", "alpha, beta, gamma, delta", "enter")
+	m = press(m, "n", longTitle, "enter", longCategory, "enter", "enter", "v1", "tab", soon, "enter", notes, "enter", "alpha, beta, gamma, delta", "enter")
 	return editValue(m, "v2")
 }
 
@@ -146,7 +146,7 @@ func TestReloadKeepsAnActiveFilter(t *testing.T) {
 		t.Fatalf("filter shows %v, want %v", got, want)
 	}
 
-	m = press(m, "e", "enter", "enter", "", "tab", "", "enter", "", "enter", "", "enter") // edit and save
+	m = press(m, "e", "enter", "enter", "enter", "", "tab", "", "enter", "", "enter", "", "enter") // edit and save
 	if got := visibleTitles(m); !sameStrings(got, want) {
 		t.Errorf("after editing, the filtered list shows %v, want %v", got, want)
 	}
@@ -237,7 +237,7 @@ func TestCtrlCQuitsFromTheForm(t *testing.T) {
 }
 
 func TestBlurredFormFieldsShowTheirBeginning(t *testing.T) {
-	m := press(newTestModel(t), "n", "b", "enter", "X", "enter", "v", "tab", "", "enter", "BEGINNING "+strings.Repeat("0123456789 ", 8))
+	m := press(newTestModel(t), "n", "b", "enter", "X", "enter", "enter", "v", "tab", "", "enter", "BEGINNING "+strings.Repeat("0123456789 ", 8))
 	m = press(m, "tab") // Notes loses focus
 	m, _ = m.Update(tea.WindowSizeMsg{Width: 60, Height: 18})
 	if out := m.View(); !strings.Contains(out, "BEGINNING") {
@@ -255,6 +255,11 @@ func TestEveryModeFitsTheWindow(t *testing.T) {
 	fitsWindow(t, "edit form", press(withHistory, "e"))
 	fitsWindow(t, "delete confirmation", press(withHistory, "d"))
 	fitsWindow(t, "help", press(withHistory, "?"))
+	fitsWindow(t, "viewer", press(withHistory, "V"))
+	fitsWindow(t, "picker", press(withHistory, "f"))
+	long := seed(t, newTestModel(t), store.SecretMeta{Title: "long", Category: "X"}, numberedLines(100))
+	fitsWindow(t, "viewer of a long value", press(long, "V"))
+	fitsWindow(t, "picker with many entries", press(seedCategories(t, 30), "f"))
 
 	fitsWindow(t, "setup", newModelFor(t, false, 100, 30))
 	migrating := newModelFor(t, false, 100, 30).(model)

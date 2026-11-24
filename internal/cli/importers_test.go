@@ -283,18 +283,18 @@ func TestParseBitwardenJSONMapping(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	type row struct{ title, category, notes, value, created, updated string }
+	type row struct{ title, category, username, notes, value, created, updated string }
 	var got []row
 	for _, s := range batch.secrets {
-		got = append(got, row{s.Title, s.Category, s.Notes, *s.Value, s.Created, s.Updated})
+		got = append(got, row{s.Title, s.Category, s.Username, s.Notes, *s.Value, s.Created, s.Updated})
 	}
 	today := batch.secrets[len(batch.secrets)-1].Created // dates that were not usable fall back to today
 	want := []row{
-		{"Prod DB", "Work/Servers", "line one line two [31mred | user: admin | url: https://db.example.test", "p@ss\nword", "2024-02-03", "2025-06-07"},
-		{"Prod DB (2)", "", "", "second", today, ""},
-		{"Recovery codes", "Personal", "", "code-1\ncode-2\n", today, ""},
-		{"Prod DB (3)", "", "", "third", today, ""},
-		{"Orphan folder", "", "", "o", today, ""},
+		{"Prod DB", "Work/Servers", "admin", "line one line two [31mred | url: https://db.example.test", "p@ss\nword", "2024-02-03", "2025-06-07"},
+		{"Prod DB (2)", "", "", "", "second", today, ""},
+		{"Recovery codes", "Personal", "", "", "code-1\ncode-2\n", today, ""},
+		{"Prod DB (3)", "", "", "", "third", today, ""},
+		{"Orphan folder", "", "", "", "o", today, ""},
 	}
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("secrets:\n got %q\nwant %q", got, want)

@@ -25,8 +25,8 @@ Pandora keeps API keys, tokens and passwords out of dotfiles, shell history and 
 
 - **Encrypted storage** — a master password protects everything: names, notes and values are encrypted, and values also live in the OS keyring under random IDs.
 - **Full management** — add, edit (including rename), delete with confirmation, and reload.
-- **Rich metadata** — category (with autocomplete), tags, notes or URL, and an optional expiry date with warning badges.
-- **Fast lookup** — fuzzy filter over name, category, tags and notes, quick category filters (`1`–`9`), a tag filter (`T`), and sorting by name, category or date.
+- **Rich metadata** — category (with autocomplete), user name, tags, notes or URL, and an optional expiry date with warning badges.
+- **Fast lookup** — fuzzy filter over name, user name, category, tags and notes (with `tag:`, `cat:` and `user:` qualifiers), quick category filters (`1`–`9`), a category/tag picker (`f`), a tag filter (`T`), and sorting by name, category or date.
 - **Safe copying** — copy to the clipboard, cleared automatically after 15 seconds (or right away with `x`), with a visible countdown; on macOS and Windows the copy is marked so clipboard history skips it.
 - **Masked by default** — the value is revealed one secret at a time and hides again after 10 seconds or when you move.
 - **Secret generator** — `ctrl+g` in the form fills a random password or token (length and charset selectable); `pandora gen` does the same from the shell.
@@ -86,7 +86,7 @@ pandora
 ```
 
 0. The first time, Pandora asks you to create a **master password** (at least 10 characters). It cannot be recovered. If you used an older version, your secrets are migrated to the encrypted vault at this point.
-1. Press `n`, fill in a name, a category and the secret value (or press `ctrl+g` to generate one), and press `enter` through the optional **Expires**, **Notes** and **Tags** fields to save.
+1. Press `n`, fill in a name, a category, an optional user name and the secret value (or press `ctrl+g` to generate one), and press `enter` through the optional **Expires**, **Notes** and **Tags** fields to save.
 2. Move with `↑`/`↓` (or `j`/`k`), press `v` to reveal the value, `c` or `enter` to copy it.
 3. Press `/` to filter, `s` to sort, `e` to edit, `d` to delete, `?` for every key, `q` to quit.
 
@@ -98,20 +98,24 @@ pandora
 | ----------------- | ------------------------------------------------------ |
 | `↑` `↓` / `j` `k` | Move through the list                                  |
 | `g` / `G`, `pgup` / `pgdn` | First / last, previous / next page            |
-| `/`               | Filter by name, category, tags or notes (`esc` clears the filter) |
+| `/`               | Filter by name, user name, category, tags or notes (`esc` clears the filter). `tag:x`, `cat:x` and `user:x` keep only secrets whose tag, category or user name contains `x`; other words are fuzzy-matched (`tag:prod db`). A qualifier with no value is ignored |
 | `1`–`9`, `0`      | Show only the n-th category (same key again, or `0`, shows all) |
+| `f`               | Pick a category or tag from a list with counts (reaches categories past the ninth; `enter` applies, picking the active one again clears it) |
 | `T`               | Cycle the tag filter: each tag in use, then all secrets (combines with the category filter) |
 | `s`               | Cycle sort: date added, name, category                 |
 | `t`               | Toggle compact one-line rows                           |
 | `enter` / `c`     | Copy the selected secret to the clipboard (cleared after 15 s) |
+| `u`               | Copy the selected secret's user name (plain clipboard, not cleared automatically) |
 | `x`               | Clear the clipboard now                                |
 | `v`               | Reveal / hide the selected secret's value (hides after 10 s or when the selection changes) |
+| `V`               | Open the whole value in a scrollable viewer (`↑` `↓` `pgup` `pgdn` `g` `G` scroll, `c` copies, `esc` closes); it stays open while you press keys and closes 10 s after the last one |
 | `H`               | Previous values of the selected secret: `↑` `↓` choose one, `r` reveal it (hides like `v`), `enter` make it current again, `esc` close |
 | `n`               | New secret                                             |
 | `e`               | Edit the selected secret                               |
 | `d`               | Delete the selected secret (asks for confirmation)     |
 | `r`               | Reload the list from disk and re-check the keyring     |
 | `?`               | Show the full key list; on small terminals it scrolls (`↑/↓`, `PgUp/PgDn`, `Home/End`), `esc` / `?` / `q` closes it |
+| `L`               | Lock now: masks everything and asks for the master password |
 | `q` / `ctrl+c`    | Quit                                                   |
 
 ### Mouse
@@ -119,6 +123,8 @@ pandora
 | Input        | Action                                      |
 | ------------ | ------------------------------------------- |
 | Click        | Select the secret under the pointer         |
+| Double-click | Copy the secret under the pointer (same as `c`) |
+| Click on the value box | Reveal / hide the value (same as `v`) |
 | Wheel        | Scroll the list without changing the selection (arrow keys scroll back to it) |
 
 Mouse input is ignored while a dialog, the form or the filter prompt is open. Because Pandora captures the mouse, select terminal text with `Shift` held (`Alt` in some terminals).
@@ -135,9 +141,9 @@ Mouse input is ignored while a dialog, the form or the filter prompt is open. Be
 | `→`                   | Accept the suggested category                               |
 | `ctrl+g`              | Generate a random secret (shown so you can see it)          |
 | `ctrl+l` / `ctrl+t`   | Cycle the generated length (16–64) / charset (letters+digits, +symbols, hex) |
-| `esc`                 | Cancel                                                      |
+| `esc`                 | Cancel; with unsaved changes it asks first: press `esc` again to discard (`ctrl+c` works the same way to quit) |
 
-Fields: **Name**, **Category**, **Secret**, **Expires** (`YYYY-MM-DD`, optional), **Notes** (optional, e.g. a URL) and **Tags** (optional, comma-separated, e.g. `prod, db`). Tags are stored lowercase, trimmed, unique and sorted; a tag cannot contain spaces or commas, is at most 24 characters, and a secret has at most 10. The **Secret** can have several lines (SSH keys, certificates, JSON credentials; up to 32 KB): paste it, or type `enter` for a new line. It is shown as bullets until you press `ctrl+r`; `↑`/`↓` move through its lines and leave it from the first or last line, and `tab` moves on. When editing, leave **Secret** empty to keep the current value. Renaming a secret keeps its value. Names must be unique. A secret that expires within 14 days, or already has, shows a `◷` badge in the list, the detail card and the header. Revealing a long value in the detail card shows its first lines and says how many more there are; `c` always copies all of it.
+Fields: **Name**, **Category**, **Username** (optional, e.g. a login or e-mail), **Secret**, **Expires** (`YYYY-MM-DD`, optional), **Notes** (optional, e.g. a URL) and **Tags** (optional, comma-separated, e.g. `prod, db`). Tags are stored lowercase, trimmed, unique and sorted; a tag cannot contain spaces or commas, is at most 24 characters, and a secret has at most 10. The **Secret** can have several lines (SSH keys, certificates, JSON credentials; up to 32 KB): paste it, or type `enter` for a new line. It is shown as bullets until you press `ctrl+r`; `↑`/`↓` move through its lines and leave it from the first or last line, and `tab` moves on. When editing, leave **Secret** empty to keep the current value. Renaming a secret keeps its value. Names must be unique. A secret that expires within 14 days, or already has, shows a `◷` badge in the list, the detail card and the header. Revealing a long value in the detail card shows its first lines and says how many more there are; `c` always copies all of it, and `V` opens all of it.
 
 ### Configuration
 
@@ -155,7 +161,9 @@ Optional settings live in `config.json` next to `vault.json` (`pandora config pa
   "sort": "created",
   "compact": false,
   "history_depth": 3,
-  "audit_log": false
+  "audit_log": false,
+  "background": "auto",
+  "keys": { "copy": ["enter", "c"], "quit": ["q"] }
 }
 ```
 
@@ -172,6 +180,8 @@ Optional settings live in `config.json` next to `vault.json` (`pandora config pa
 | `compact`           | `false`   | `true`, `false`                                | Start with one-line rows |
 | `history_depth`     | `3`       | `0`–`20` (`0` disables)                        | Previous values kept per secret when its value changes (see [Value history](#value-history)) |
 | `audit_log`         | `false`   | `true`, `false`                                | Record actions in the encrypted audit log (see [Audit log](#audit-log)) |
+| `background`        | `auto`    | `auto`, `light`, `dark`                        | Which colours to use. `auto` asks the terminal once at start; set `light` or `dark` to skip the question (a terminal that never answers delays the start by several seconds) |
+| `keys`              | see below | object: action → list of keys                  | Rebind the list-screen keys (see [Rebinding keys](#rebinding-keys)) |
 
 The environment variables below remain available and win over the file.
 
@@ -181,6 +191,14 @@ The environment variables below remain available and win over the file.
 | `PANDORA_MASTER_PASSWORD` | CLI only: the master password when there is no terminal (visible to your user's other processes; a warning is printed). Removed from the environment of `pandora run` children |
 | `PANDORA_ASCII=1`        | Draw with plain ASCII; also used automatically when the locale is not UTF-8 |
 | `NO_COLOR`               | Any non-empty value turns colour off (also `TERM=dumb`); the selected row is then marked with `▌` (`>` in ASCII mode) and expired secrets show `◷!` in compact rows |
+
+### Rebinding keys
+
+`keys` maps an action to the keys that trigger it; actions you leave out keep their default. The actions are `copy` (`enter`, `c`), `copy_username` (`u`), `reveal` (`v`), `view` (`V`), `new` (`n`), `edit` (`e`), `delete` (`d`), `reload` (`r`), `sort` (`s`), `tag` (`T`), `filters` (`f`), `compact` (`t`), `history` (`H`), `clear_clipboard` (`x`), `lock` (`L`), `help` (`?`) and `quit` (`q`). A key is `enter`, one printable character, or `ctrl+` and a letter. Digits, `/`, `j`, `k`, `g`, `G`, `esc`, the arrows and `ctrl+c` cannot be rebound, and a key cannot be bound to two actions. The help overlay, the footer and the hints in the detail card show the keys you chose. Only the list screen is affected: the form, the unlock screen, the filter prompt, the history list, the viewer, the picker and the delete confirmation keep their keys. The whole object is accepted or rejected as one unit (one warning); `pandora config get keys` prints the effective bindings.
+
+```json
+{ "keys": { "copy": ["y"], "quit": ["Q"] } }
+```
 
 ### Terminal size
 
@@ -209,14 +227,14 @@ See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the vault format and data f
 
 | Command | What it does |
 | ------- | ------------ |
-| `pandora list [--category C] [--tag T] [--json]` | Titles, categories, creation and expiry dates, and tags. Never shows values. `--tag` (`-t`) keeps secrets that have the tag; repeat it or separate with commas to require several. `--json` always includes `tags` (an empty list when there are none). |
+| `pandora list [--category C] [--tag T] [--json]` | Titles, categories, creation and expiry dates, and tags. Never shows values. `--tag` (`-t`) keeps secrets that have the tag; repeat it or separate with commas to require several. `--json` always includes `tags` (an empty list when there are none) and includes `username` when the secret has one. |
 | `pandora expiring [--within 14d] [--json]` | Lists secrets that have expired or expire within the window, soonest first (never values). The window is `--within` (days, `14` or `14d`) or else `expiry_warn_days` from the config file (default 14). Exits `3` when the list is not empty and `0` when nothing is due, so cron and CI can act on it. `--json` prints an array of `{title, category, expires, days, status}`: `days` is negative once expired and `status` is `expired` or `expiring` (today counts as expiring); an empty result is `[]`. |
 | `pandora get <title> [-q] [--newline=false] [--copy]` | Prints the value followed by a newline, so `add` then `get` reproduces the file you piped in. `-q` or `--newline=false` omits the newline (for `$(...)` and pipes). `--copy` puts the value on the clipboard instead of printing it, concealed like the TUI copy; the CLI process exits right away, so the clipboard is **not** cleared automatically (only the TUI does that). Exit `1` if the secret does not exist. |
 | `pandora history <title> [--json]` | Lists the previous values of a secret, newest first: `-1` is the latest, with the date it stopped being current. Never prints values. `--json` prints `[{version, replaced}]`; a secret without history gives `[]`. |
 | `pandora get <title> --version -1` | `get` also reads a previous value: `0` is the current one (default), `-1` the one before, `-2` the one before that. Exit `1` if there is no such version. |
 | `pandora restore <title> [--version -1]` | Makes a previous value current again. The value it replaces becomes `-1`, so a restore can be undone with another `restore`. Only the vault changes; nothing is rewritten in the keyring. |
 | `pandora log [--since 7d\|12h\|YYYY-MM-DD] [--json]` | Prints the audit log, oldest first: time (local), action and secret title, never values. Needs the master password. `--json` prints `[{time, action, title}]` with `time` in RFC 3339 UTC; an `export` of metadata only has an empty title. If `audit_log` is off and nothing was ever recorded it says so on stderr. Lines that cannot be read are counted in a warning. |
-| `pandora add <title> [-c CATEGORY] [--tag TAG] [--notes TEXT] [--expires YYYY-MM-DD]` | Stores a new secret. The value is read from stdin when piped (any number of lines, one trailing newline removed; `pandora add key < id_ed25519`) or typed at a hidden prompt on a terminal (one line). `--tag` (`-t`) may be repeated or comma-separated. Empty values, values over 32 KB, duplicate titles, invalid dates and invalid tags are rejected. |
+| `pandora add <title> [-c CATEGORY] [-u USERNAME] [--tag TAG] [--notes TEXT] [--expires YYYY-MM-DD]` | Stores a new secret. The value is read from stdin when piped (any number of lines, one trailing newline removed; `pandora add key < id_ed25519`) or typed at a hidden prompt on a terminal (one line). `--username` (`-u`) records a login or e-mail. `--tag` (`-t`) may be repeated or comma-separated. Empty values, values over 32 KB, duplicate titles, invalid dates and invalid tags are rejected. |
 | `pandora rm <title> [-y]` | Deletes a secret. Asks on a terminal; without a terminal it refuses unless `-y` is given. |
 | `pandora run -s TITLE[=ENV_NAME] [-s ...] -- cmd args...` | Runs `cmd` with each secret in an environment variable that exists only for that process. `ENV_NAME` defaults to the title upper-cased with other characters replaced by `_`. Fails before running anything if a secret is missing; exits with the command's exit code. |
 | `pandora env -s TITLE[=ENV_NAME] [-s ...] [--force]` | Prints one `KEY=value` line per secret, in dotenv format (`pandora env -s github-token > .env`). Names default as in `run`. Values made only of letters, digits and `_./:@%+-` are bare; anything else is double-quoted with `\\`, `\"`, `\n`, `\r` and `\$` escaped, so multi-line values stay on one line. Because it prints values, it refuses (exit `2`) when stdout is a terminal unless you pass `--force`. Fails before printing anything if a secret is missing. |
@@ -285,7 +303,7 @@ pandora import --format bitwarden-json bitwarden_export.json
 | Format | How it maps |
 | ------ | ----------- |
 | `dotenv` | The inverse of `pandora env`. Title = variable name, value = its value. Accepts blank lines, `#` comments, an optional `export ` prefix, bare values (a trailing ` # comment` is dropped), `'literal'` values and `"double-quoted"` values with `\\ \" \n \r \t \$` escapes, which may span lines. `--category` gives every secret a category. A syntax error or a repeated variable aborts the whole import and names the line; an empty value is skipped. |
-| `bitwarden-json` | An **unencrypted** Bitwarden export (Settings, Export vault, `.json`; encrypted exports are rejected). A login becomes a secret whose value is its password; its notes, user name and first URL are kept in the (single-line) notes. A secure note becomes a secret whose value is the note. The folder becomes the category and the original dates are kept. Items with the same name get ` (2)`, ` (3)`. Cards, identities, logins without a password, **TOTP seeds** and custom fields are not imported; each skipped item is listed with its reason on stderr. |
+| `bitwarden-json` | An **unencrypted** Bitwarden export (Settings, Export vault, `.json`; encrypted exports are rejected). A login becomes a secret whose value is its password; its user name becomes the secret's username, and its notes and first URL are kept in the (single-line) notes. A secure note becomes a secret whose value is the note. The folder becomes the category and the original dates are kept. Items with the same name get ` (2)`, ` (3)`. Cards, identities, logins without a password, **TOTP seeds** and custom fields are not imported; each skipped item is listed with its reason on stderr. |
 
 The mapping follows Bitwarden's documented export layout and was tested with synthetic files only; if a real export imports oddly, `--dry-run` shows the plan before anything changes.
 

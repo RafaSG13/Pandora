@@ -19,6 +19,7 @@ import (
 type listEntry struct {
 	Title    string   `json:"title"`
 	Category string   `json:"category"`
+	Username string   `json:"username,omitempty"`
 	Created  string   `json:"created"`
 	Expires  string   `json:"expires"`
 	Tags     []string `json:"tags"`
@@ -62,7 +63,7 @@ func (a *app) cmdList(args []string) error {
 		if tags == nil {
 			tags = []string{}
 		}
-		entries = append(entries, listEntry{m.Title, m.Category, m.Created, m.Expires, tags})
+		entries = append(entries, listEntry{Title: m.Title, Category: m.Category, Username: m.Username, Created: m.Created, Expires: m.Expires, Tags: tags})
 	}
 
 	if asJSON {
@@ -149,12 +150,14 @@ func secretValue(title string) (string, error) {
 }
 
 func (a *app) cmdAdd(args []string) error {
-	const usage = "add <title> [-c CATEGORY] [--tag TAG] [--notes TEXT] [--expires YYYY-MM-DD]"
+	const usage = "add <title> [-c CATEGORY] [-u USERNAME] [--tag TAG] [--notes TEXT] [--expires YYYY-MM-DD]"
 	fs := flag.NewFlagSet("add", flag.ContinueOnError)
-	var category, notes, expires string
+	var category, username, notes, expires string
 	var tagArgs repeatFlag
 	fs.StringVar(&category, "c", "", "category")
 	fs.StringVar(&category, "category", "", "category")
+	fs.StringVar(&username, "u", "", "user name / login")
+	fs.StringVar(&username, "username", "", "user name / login")
 	fs.Var(&tagArgs, "t", "tag; repeat or comma-separate for several")
 	fs.Var(&tagArgs, "tag", "tag; repeat or comma-separate for several")
 	fs.StringVar(&notes, "notes", "", "free-form notes")
@@ -191,6 +194,7 @@ func (a *app) cmdAdd(args []string) error {
 	meta := store.SecretMeta{
 		Title:    title,
 		Category: strings.TrimSpace(category),
+		Username: strings.TrimSpace(username),
 		Created:  time.Now().Format(store.DateLayout),
 		Expires:  expires,
 		Notes:    notes,

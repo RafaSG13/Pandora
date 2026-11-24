@@ -27,14 +27,15 @@ type item struct {
 	meta store.SecretMeta
 }
 
+// fieldSep separates FilterValue's fields. ValidateText rejects control characters, so no field contains it.
+const fieldSep = "\x1f"
+
 // FilterValue is what the "/" filter searches: title first (rows highlight
-// matches inside the title only), then category, tags and notes. The list
-// holds metadata only, so the secret value is never searched.
+// matches inside the title only), then username, category, tags and notes,
+// joined by fieldSep so qualifiedFilter can tell them apart. The list holds
+// metadata only, so the secret value is never searched.
 func (i item) FilterValue() string {
-	parts := []string{i.meta.Title, i.meta.Category}
-	parts = append(parts, i.meta.Tags...)
-	parts = append(parts, i.meta.Notes)
-	return strings.Join(parts, " ")
+	return strings.Join([]string{i.meta.Title, i.meta.Username, i.meta.Category, strings.Join(i.meta.Tags, " "), i.meta.Notes}, fieldSep)
 }
 
 // mode is what the keyboard currently drives.
@@ -48,12 +49,15 @@ const (
 	modeUnlock  // asks for the master password; nothing is loaded
 	modeSetup   // first run: choose the master password (or migrate an old store)
 	modeHistory // previous values of one secret
+	modeView    // the whole revealed value of one secret, scrollable
+	modePicker  // choose a category or tag filter
 )
 
 // Form fields, in tab order.
 const (
 	fieldName = iota
 	fieldCategory
+	fieldUsername
 	fieldSecret
 	fieldExpires
 	fieldNotes
@@ -79,13 +83,22 @@ func (s sortMode) String() string {
 // Timings. The others come from config.Settings (config.json).
 const toastTTL = 3 * time.Second
 
+// doubleClickWindow is the longest gap between two clicks on the same row
+// that still counts as a double-click.
+const doubleClickWindow = 400 * time.Millisecond
+
 type model struct {
 	list          list.Model
 	width, height int
 	mode          mode
 	now           func() time.Time
 	cfg           config.Settings
+	keys          keyMap
 	cfgWarn       string // config warning waiting for the vault to unlock
+
+	// Last list-row click, for double-click copy; cleared by lock().
+	lastClickTitle string
+	lastClickAt    time.Time
 
 	// Master-password screens (modeUnlock, modeSetup).
 	pwInput, pwConfirm textinput.Model
@@ -143,12 +156,19 @@ type model struct {
 	secret      textarea.Model
 	secretShown bool
 	focusIndex  int
+
+	// Unsaved-edit guard: the field values when the form opened, and the key
+	// ("esc" or "ctrl+c") pressed once on an edited form; the same key again confirms.
+	formInitial [numFields]string
+	discardKey  string
 	editing     string // title of the secret being edited; empty when adding
 	genLen      int    // index into genLengths
 	genSet      int    // index into genCharsets
 
 	deleting string       // title awaiting delete confirmation
 	hist     historyState // the previous-values screen (modeHistory)
+	viewTop  int          // first wrapped line shown in modeView
+	picker   pickerState  // the category/tag picker (modePicker)
 	auditErr error        // first failure to write the audit log during this update
 
 	helpScroll int // first help line shown when the overlay does not fit
@@ -159,6 +179,7 @@ func New() tea.Model {
 	applyColorMode(detectNoColor(os.Getenv)) // before any style can resolve a colour
 
 	cfg, warns := config.Load(os.Getenv)
+	applyBackground(cfg.Background)
 	store.SetHistoryDepth(cfg.HistoryDepth)
 	store.SetAuditEnabled(cfg.AuditLog)
 	if cfg.ASCII != nil && os.Getenv("PANDORA_ASCII") != "1" {
@@ -176,6 +197,10 @@ func New() tea.Model {
 	l.Title = "Secrets"
 	l.Styles.Title = lipgloss.NewStyle().Bold(true).Foreground(accent)
 	l.SetShowHelp(false)
+	// Quitting on "q" belongs to the rebindable "quit" action; esc keeps its
+	// bubbles behaviour (clear the filter, else quit).
+	l.KeyMap.Quit = key.NewBinding(key.WithKeys("esc"))
+	l.Filter = qualifiedFilter
 	l.SetShowPagination(false) // the list is scrolled by model.scroll, not paginated
 
 	inputs := make([]textinput.Model, numFields)
@@ -185,6 +210,7 @@ func New() tea.Model {
 	}
 	inputs[fieldName].Placeholder = "e.g. Stripe API Key"
 	inputs[fieldCategory].Placeholder = "TOKENS / INFRA"
+	inputs[fieldUsername].Placeholder = "login or e-mail (optional)"
 	inputs[fieldCategory].ShowSuggestions = true
 	// tab moves between fields, so accept a category suggestion with →.
 	inputs[fieldCategory].KeyMap.AcceptSuggestion = key.NewBinding(key.WithKeys("right"))
@@ -211,6 +237,7 @@ func New() tea.Model {
 		genLen:     nearestLengthIndex(cfg.GenLength),
 		genSet:     charsetIndex(cfg.GenCharset),
 		lastActive: time.Now(),
+		keys:       newKeyMap(cfg.KeyBindings),
 	}
 	m.pwInput, m.pwConfirm = newPasswordInput(), newPasswordInput()
 	m.setFocus(fieldName)

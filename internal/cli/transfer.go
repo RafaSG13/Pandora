@@ -458,7 +458,7 @@ func normalizeSecret(s *exportSecret, today string) error {
 	if strings.TrimSpace(s.Title) == "" {
 		return errors.New("empty title")
 	}
-	for _, text := range []string{s.Title, s.Category, s.Notes} {
+	for _, text := range []string{s.Title, s.Category, s.Username, s.Notes} {
 		if err := store.ValidateText(text); err != nil {
 			return err
 		}

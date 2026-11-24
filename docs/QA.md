@@ -18,6 +18,7 @@ Use a throwaway test vault: start with a clean `HOME`-level config (move `~/Libr
 | Linux without a running Secret Service (e.g. a bare SSH session) | The error screen / CLI message says the keyring is unavailable. |
 | First start on a profile with an older plain-text store (`metadata.json`) | Asks for a new master password, migrates, `metadata.json*` is gone, and `security dump-keychain` shows only 32-hex accounts under `pandora-cli`. |
 | Idle lock (`PANDORA_LOCK_MINUTES=1`) | Unlock screen with an empty list; a key press does not unlock; the master password does; a wrong password stays locked. |
+| `L` in the list | Unlock screen at once (no idle wait), empty list, any pending clipboard cleared. |
 | `PANDORA_MASTER_PASSWORD=… pandora get <title> \| cat` | Prints the value; the env warning is on stderr only. |
 
 ## 2. Clipboard
@@ -31,6 +32,7 @@ Use a throwaway test vault: start with a clean `HOME`-level config (move `~/Libr
 | macOS: `c`, then `osascript -l JavaScript -e "ObjC.import('AppKit'); $.NSPasteboard.generalPasteboard.types.js.map(function(t){return ObjC.unwrap(t)}).join(',')"` | Lists `org.nspasteboard.ConcealedType`; a clipboard manager that honours it (e.g. Maccy) does not record the entry; pasting works. |
 | Windows: `c`, then `Win+V` | The secret is not in clipboard history; pasting works. |
 | Linux without `xclip`/`xsel`/`wl-clipboard` | `✗ Could not copy` toast, not `✓ Copied`. |
+| Add a secret with a username; `u` | Username pasted elsewhere; the clipboard history (if any) records it (it is plain text, by design); a secret copy's countdown stops. |
 
 ## 3. Terminals
 
@@ -40,6 +42,12 @@ Run the TUI in each terminal you can reach: Terminal.app, iTerm2, Windows Termin
 | --- | --- |
 | Colours on a dark and on a light background | Text and selection readable; category colours distinct. |
 | Click a row; wheel over the list | Click selects the clicked row; wheel scrolls without moving the selection. |
+| Double-click a row; click the value box | Double-click copies that secret (toast, clipboard); clicking the value box reveals, again hides. |
+| A 30-line value: `V`, `G`, leave it idle | Whole value scrollable; the viewer closes by itself about 10 s after the last key and the value is masked again. |
+| 11 categories: `f`, move to the last one, `enter` | Only that category is listed; `f`, `enter` shows everything again. |
+| `/tag:x`, `/user:alice`, `/cat:work` | Only secrets matching the qualifier; a lone `tag:` leaves the list unchanged. |
+| Type in the add form, then `esc` | Warning in the form; a second `esc` discards it. |
+| `{"keys":{"copy":["y"]}}` in `config.json` | `y` copies, `c` does not; footer and `?` show `y`. |
 | Select text with `Shift` (or `Alt`) + drag | Terminal selection works (mouse capture is bypassed). |
 | Resize down to 60×18 and up again | No garbled layout; below the minimum the "Terminal too small" screen shows. |
 | `?` help at 60×18 | Every line is reachable by scrolling. |

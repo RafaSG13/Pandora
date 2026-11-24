@@ -50,7 +50,7 @@ func filterBy(m tea.Model, term string) tea.Model {
 
 // addWith adds a secret through the form with notes and tags.
 func addWith(m tea.Model, name, notes, tags string) tea.Model {
-	return press(m, "n", name, "enter", "X", "enter", "v", "tab", "enter", notes, "enter", tags, "enter")
+	return press(m, "n", name, "enter", "X", "enter", "enter", "v", "tab", "enter", notes, "enter", tags, "enter")
 }
 
 func TestFilterFindsAWordThatOnlyExistsInNotes(t *testing.T) {

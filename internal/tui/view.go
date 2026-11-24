@@ -21,7 +21,7 @@ var maskedValue = strings.Repeat(g.mask, 12)
 // asciiReplacer maps the non-ASCII characters that appear in literal strings
 // to single-column ASCII, so PANDORA_ASCII never needs a wider layout.
 var asciiReplacer = strings.NewReplacer(
-	"✓", "+", "✗", "x", "—", "-", "…", ".", "↑", "^", "↓", "v", "→", ">", "×", "x",
+	"✓", "+", "✗", "x", "—", "-", "–", "-", "…", ".", "↑", "^", "↓", "v", "→", ">", "×", "x",
 	"·", "-", "•", "*", "●", "*", "◆", "#", "▌", ">", "█", "#", "░", "-", "┃", "#", "┆", "|", "“", `"`, "”", `"`,
 )
 
@@ -50,6 +50,10 @@ func (m model) view() string {
 		return m.placeModal(m.renderConfirmDelete())
 	case modeHistory:
 		return m.placeModal(m.renderHistory())
+	case modeView:
+		return m.placeModal(m.renderViewer())
+	case modePicker:
+		return m.placeModal(m.renderPicker())
 	case modeHelp:
 		return m.placeModal(m.renderHelpOverlay())
 	}
@@ -158,7 +162,7 @@ func (m model) renderEmpty() string {
 		head = []string{lipgloss.NewStyle().Bold(true).Foreground(accent).Render("Welcome to Pandora")}
 		para = wrap("Secret values live in your operating system's keyring (" + backendName() + "), encrypted with your master password. " +
 			"Names, categories and notes are kept encrypted in a local vault file; Pandora never uses the network.")
-		cta = []string{textStyle.Bold(true).Render("Press " + keyStyle.Render("n") + " to add your first secret")}
+		cta = []string{textStyle.Bold(true).Render("Press " + keyStyle.Render(m.keys.first("new")) + " to add your first secret")}
 	}
 	art := strings.Split(lipgloss.NewStyle().Foreground(accent).Render(vaultArt()), "\n")
 
@@ -253,12 +257,23 @@ type detailRow struct {
 	drop int
 }
 
-// renderDetail draws the selected secret as a card inside a w×h content area:
+// boxRect locates the detail card's value box: its first row relative to the
+// card's first line and its height. The zero value means there is no box.
+type boxRect struct{ top, height int }
+
+// renderDetail draws the selected secret as a card inside a w×h content area.
+func (m model) renderDetail(w, h int) string {
+	card, _ := m.detailCard(w, h)
+	return card
+}
+
+// detailCard draws the selected secret as a card inside a w×h content area:
 // title with its category badge, a metadata block, a bordered value box and
 // the notes. Every line is at most w columns and the card at most h lines:
 // the pane wraps what is too wide, which would grow it past the list's height.
 // When h is short the notes go first, then the metadata rows, never the value.
-func (m model) renderDetail(w, h int) string {
+// The second result locates the value box for mouse hit-testing.
+func (m model) detailCard(w, h int) (string, boxRect) {
 	sel, ok := m.list.SelectedItem().(item)
 	if !ok {
 		if len(m.list.Items()) > 0 { // secrets exist, the filter hides them all
@@ -266,10 +281,10 @@ func (m model) renderDetail(w, h int) string {
 			if m.list.FilterState() == list.Filtering {
 				msg = "No secret matches yet."
 			}
-			return lipgloss.PlaceVertical(h, lipgloss.Center, subtleStyle.Width(w).Align(lipgloss.Center).Render(msg))
+			return lipgloss.PlaceVertical(h, lipgloss.Center, subtleStyle.Width(w).Align(lipgloss.Center).Render(msg)), boxRect{}
 		}
-		empty := subtleStyle.Width(w).Align(lipgloss.Center).Render("No secrets yet — press n to add one.")
-		return lipgloss.PlaceVertical(h, lipgloss.Center, empty)
+		empty := subtleStyle.Width(w).Align(lipgloss.Center).Render(fmt.Sprintf("No secrets yet — press %s to add one.", m.keys.first("new")))
+		return lipgloss.PlaceVertical(h, lipgloss.Center, empty), boxRect{}
 	}
 	meta := sel.meta
 	now := m.nowOr()
@@ -288,7 +303,15 @@ func (m model) renderDetail(w, h int) string {
 	row := func(label, content string, drop int) detailRow {
 		return detailRow{lipgloss.JoinHorizontal(lipgloss.Top, labelStyle.Render(label), ansi.Truncate(content, valueW, g.ellipsis)), drop}
 	}
-	rows := []detailRow{row("Created", textStyle.Render(meta.Created), 2)}
+	var rows []detailRow
+	if meta.Username != "" {
+		content := textStyle.Render(meta.Username)
+		if hint := "  " + subtleStyle.Render(m.keys.first("copy_username")+" to copy"); lipgloss.Width(content+hint) <= valueW {
+			content += hint
+		}
+		rows = append(rows, row("Username", content, 0))
+	}
+	rows = append(rows, row("Created", textStyle.Render(meta.Created), 2))
 	if meta.Updated != "" {
 		rows = append(rows, row("Updated", textStyle.Render(meta.Updated), 3))
 	}
@@ -316,14 +339,14 @@ func (m model) renderDetail(w, h int) string {
 	}
 	if n := m.versions[meta.Title]; n > 0 {
 		content := textStyle.Render(fmt.Sprintf("%d previous", n))
-		if hint := "  " + subtleStyle.Render("H to browse"); lipgloss.Width(content+hint) <= valueW {
+		if hint := "  " + subtleStyle.Render(m.keys.first("history")+" to browse"); lipgloss.Width(content+hint) <= valueW {
 			content += hint
 		}
 		rows = append(rows, row("History", content, 4))
 	}
 
 	// What the value box shows besides a masked row decides how much else fits.
-	icon, hint, borderColor := g.lock, "v to reveal", subtle
+	icon, hint, borderColor := g.lock, m.keys.first("reveal")+" to reveal", subtle
 	minValue := 1 // lines the box needs, at least
 	var message *string
 	messageStyle := subtleStyle
@@ -331,7 +354,7 @@ func (m model) renderDetail(w, h int) string {
 	switch {
 	case m.orphans[meta.Title]:
 		icon, borderColor, hint = g.orphan, danger, ""
-		msg := "Value missing from the keyring — press e to set it"
+		msg := fmt.Sprintf("Value missing from the keyring — press %s to set it", m.keys.first("edit"))
 		message, messageStyle, minValue = &msg, lipgloss.NewStyle().Foreground(danger), 2
 	case m.revealed(meta.Title):
 		if m.revealErr != nil {
@@ -340,7 +363,7 @@ func (m model) renderDetail(w, h int) string {
 			break
 		}
 		left := int(m.revealUntil.Sub(now).Round(time.Second) / time.Second)
-		icon, hint, borderColor = g.unlock, fmt.Sprintf("v to hide %s %ds", g.sep, max(0, left)), accent
+		icon, hint, borderColor = g.unlock, fmt.Sprintf("%s to hide %s %ds", m.keys.first("reveal"), g.sep, max(0, left)), accent
 		revealing, minValue = true, 2
 	}
 
@@ -389,14 +412,16 @@ func (m model) renderDetail(w, h int) string {
 	for _, r := range rows {
 		parts = append(parts, r.text)
 	}
-	parts = append(parts, "", label, box)
+	parts = append(parts, "", label)
+	boxTop := lipgloss.Height(lipgloss.JoinVertical(lipgloss.Left, parts...))
+	parts = append(parts, box)
 	parts = append(parts, tail...)
 
 	out := strings.Split(lipgloss.JoinVertical(lipgloss.Left, parts...), "\n")
 	if len(out) > h {
 		out = out[:h]
 	}
-	return strings.Join(out, "\n")
+	return strings.Join(out, "\n"), boxRect{top: boxTop, height: max(0, min(lipgloss.Height(box), h-boxTop))}
 }
 
 // renderToast is the bordered pill showing the latest status message.
@@ -517,7 +542,7 @@ const formLabelW = 10
 
 func (m model) renderForm() string {
 	inner := m.modalWidth() - 8
-	labels := [numFields]string{"Name", "Category", "Secret", "Expires", "Notes", "Tags"}
+	labels := [numFields]string{"Name", "Category", "Username", "Secret", "Expires", "Notes", "Tags"}
 
 	title := "New secret"
 	if m.editing != "" {
@@ -528,7 +553,9 @@ func (m model) renderForm() string {
 	b.WriteString(titleStyle.Render(title))
 	b.WriteString("\n")
 	for i, in := range m.inputs {
-		b.WriteString("\n")
+		if i > 0 || m.height >= formBaseHeight { // at the 60×18 floor the title is followed directly by the first field
+			b.WriteString("\n")
+		}
 		label := lipgloss.NewStyle().Width(formLabelW)
 		if i == m.focusIndex {
 			b.WriteString(lipgloss.NewStyle().Foreground(accent).Render(g.marker) + " ")
@@ -576,47 +603,55 @@ type helpGroup struct {
 	rows  [][2]string
 }
 
-// helpColumns is the full key reference, laid out in columns by renderHelpOverlay.
-var helpColumns = [][]helpGroup{
-	{
-		{"Browse", [][2]string{
-			{"↑/↓ j/k", "move"},
-			{"g/G", "first / last"},
-			{"pgup/pgdn", "page"},
-			{"/", "filter"},
-			{"esc", "clear filter"},
-			{"1-9 / 0", "category filter"},
-			{"T", "cycle tag filter"},
-			{"s", "cycle sort"},
-			{"t", "compact rows"},
-			{"enter/c", "copy"},
-			{"x", "clear clipboard"},
-			{"v", "reveal / hide"},
-			{"H", "previous values"},
-			{"n / e / d", "new / edit / delete"},
-			{"r", "reload"},
-			{"?", "this help"},
-			{"q", "quit"},
-		}},
-	},
-	{
-		{"Form", [][2]string{
-			{"tab/↓", "next field"},
-			{"shift+tab/↑", "previous field"},
-			{"enter", "next / save (new line in Secret)"},
-			{"ctrl+s", "save"},
-			{"ctrl+r", "show / hide the secret"},
-			{"→", "accept category"},
-			{"ctrl+g", "generate secret"},
-			{"ctrl+l", "secret length"},
-			{"ctrl+t", "secret charset"},
-			{"esc", "cancel"},
-		}},
-		{"Mouse", [][2]string{
-			{"click", "select secret"},
-			{"wheel", "scroll list"},
-		}},
-	},
+// helpColumns is the full key reference, laid out in columns by
+// renderHelpOverlay. Browse rows that bind an action show the effective keys.
+func (m model) helpColumns() [][]helpGroup {
+	k := m.keys
+	return [][]helpGroup{
+		{
+			{"Browse", [][2]string{
+				{"↑/↓ j/k", "move"},
+				{"g/G", "first / last"},
+				{"pgup/pgdn", "page"},
+				{"/", "filter (esc clears)"},
+				{"", "tag: cat: user:"},
+				{"1-9 / 0", "category filter"},
+				{k.label("tag"), "cycle tag filter"},
+				{k.label("filters"), "pick category / tag"},
+				{k.label("sort"), "cycle sort"},
+				{k.label("compact"), "compact rows"},
+				{k.label("copy") + " / " + k.first("copy_username"), "copy / copy username"},
+				{k.label("clear_clipboard"), "clear clipboard"},
+				{k.label("reveal") + " / " + k.first("view"), "reveal / view all"},
+				{k.label("history"), "previous values"},
+				{k.first("new") + " / " + k.first("edit") + " / " + k.first("delete"), "new / edit / delete"},
+				{k.label("reload"), "reload"},
+				{k.label("lock"), "lock now"},
+				{k.label("help"), "this help"},
+				{k.label("quit"), "quit"},
+			}},
+		},
+		{
+			{"Form", [][2]string{
+				{"tab/↓", "next field"},
+				{"shift+tab/↑", "previous field"},
+				{"enter", "next / save (new line in Secret)"},
+				{"ctrl+s", "save"},
+				{"ctrl+r", "show / hide the secret"},
+				{"→", "accept category"},
+				{"ctrl+g", "generate secret"},
+				{"ctrl+l", "secret length"},
+				{"ctrl+t", "secret charset"},
+				{"esc", "cancel"},
+			}},
+			{"Mouse", [][2]string{
+				{"click", "select secret"},
+				{"double-click", "copy secret"},
+				{"click value", "reveal / hide"},
+				{"wheel", "scroll list"},
+			}},
+		},
+	}
 }
 
 // helpChrome is the rows around the help overlay's text: its border and
@@ -642,14 +677,15 @@ func (m model) helpLines() []string {
 			b.WriteString(subtleStyle.Bold(true).Render(grp.title))
 			for _, r := range grp.rows {
 				b.WriteString("\n")
-				b.WriteString(keyStyle.Inherit(keyCol).Render(r[0]) + subtleStyle.Render(r[1]))
+				b.WriteString(keyStyle.Inherit(keyCol).Render(truncate(r[0], 12)) + subtleStyle.Render(r[1]))
 			}
 		}
 		return b.String()
 	}
 
 	width, _ := m.helpLayout()
-	cols := []string{render(helpColumns[0]), render(helpColumns[1])}
+	hc := m.helpColumns()
+	cols := []string{render(hc[0]), render(hc[1])}
 	var body string
 	if width >= 70 { // two columns when there is room
 		body = lipgloss.JoinHorizontal(lipgloss.Top, cols[0], "    ", cols[1])
@@ -714,6 +750,10 @@ func (m model) renderHelp() string {
 		keys = [][2]string{{"y", "delete"}, {"any other key", "cancel"}}
 	case modeHistory:
 		keys = [][2]string{{"↑/↓", "choose"}, {"r", "reveal"}, {"enter", "restore"}, {"esc", "close"}}
+	case modeView:
+		keys = [][2]string{{"↑/↓ pgup/pgdn", "scroll"}, {"c", "copy"}, {"esc", "close"}}
+	case modePicker:
+		keys = [][2]string{{"↑/↓", "choose"}, {"enter", "apply"}, {"esc", "close"}}
 	case modeHelp:
 		keys = [][2]string{{"any key", "close"}}
 		if m.helpScrollable() {
@@ -731,18 +771,19 @@ func (m model) renderHelp() string {
 		}
 	default:
 		if len(m.list.Items()) == 0 {
-			keys = [][2]string{{"n", "new"}, {"?", "help"}, {"q", "quit"}}
+			keys = [][2]string{{m.keys.first("new"), "new"}, {m.keys.first("help"), "help"}, {m.keys.first("quit"), "quit"}}
 			if m.loadErr != "" {
-				keys = [][2]string{{"r", "retry"}, {"n", "new"}, {"q", "quit"}}
+				keys = [][2]string{{m.keys.first("reload"), "retry"}, {m.keys.first("new"), "new"}, {m.keys.first("quit"), "quit"}}
 			}
 			break
 		}
 		keys = [][2]string{
-			{"↑/↓", "move"}, {"/", "filter"}, {"enter/c", "copy"}, {"v", "reveal"},
-			{"n", "new"}, {"e", "edit"}, {"d", "delete"}, {"s", "sort"}, {"?", "help"}, {"q", "quit"},
+			{"↑/↓", "move"}, {"/", "filter"}, {m.keys.label("copy"), "copy"}, {m.keys.label("reveal"), "reveal"},
+			{m.keys.label("new"), "new"}, {m.keys.label("edit"), "edit"}, {m.keys.label("delete"), "delete"},
+			{m.keys.label("sort"), "sort"}, {m.keys.label("help"), "help"}, {m.keys.label("quit"), "quit"},
 		}
 		if !m.clipUntil.IsZero() {
-			keys = append([][2]string{{"x", "clear clipboard"}}, keys...)
+			keys = append([][2]string{{m.keys.label("clear_clipboard"), "clear clipboard"}}, keys...)
 		}
 		switch m.list.FilterState() {
 		case list.Filtering: // every other key is text for the filter
