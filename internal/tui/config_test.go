@@ -132,7 +132,7 @@ func TestConfigRevealSecondsControlsAutoHide(t *testing.T) {
 func TestConfigExpiryWarnDaysDecidesWhatIsExpiring(t *testing.T) {
 	addExpiring := func(m tea.Model, name string, days int) tea.Model {
 		expires := time.Now().AddDate(0, 0, days).Format(store.DateLayout)
-		return press(m, "n", name, "enter", "X", "enter", "v", "tab", expires, "enter", "", "enter", "", "enter")
+		return press(m, "n", name, "enter", "X", "enter", "enter", "v", "tab", expires, "enter", "", "enter", "", "enter")
 	}
 	m := withConfig(t, `{"expiry_warn_days":3}`, 100, 30, nil)
 	m = addExpiring(m, "later", 5)

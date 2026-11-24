@@ -29,6 +29,7 @@ var (
 type SecretMeta struct {
 	Title    string   `json:"title"`
 	Category string   `json:"category"`
+	Username string   `json:"username,omitempty"`
 	Created  string   `json:"created"`
 	Updated  string   `json:"updated,omitempty"`
 	Expires  string   `json:"expires,omitempty"`
@@ -132,7 +133,7 @@ func GetSecretValue(title string) (string, error) {
 }
 
 // UpdateSecret changes the secret recorded as oldTitle. meta.Title,
-// meta.Category, meta.Expires, meta.Notes and meta.Tags replace the stored fields;
+// meta.Category, meta.Username, meta.Expires, meta.Notes and meta.Tags replace the stored fields;
 // meta.Created is ignored and the original date is kept, and Updated is set to
 // today. A non-nil newValue replaces the stored value; nil keeps it. Renaming
 // to a title that is already in use returns ErrExists. A rename only touches

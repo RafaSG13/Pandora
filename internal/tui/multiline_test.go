@@ -31,7 +31,7 @@ func pemBlock(size int) string {
 
 // openSecretField opens the add form with name filled in and the secret focused.
 func openSecretField(m tea.Model, name string) tea.Model {
-	return press(m, "n", name, "enter", "Keys", "enter")
+	return press(m, "n", name, "enter", "Keys", "enter", "enter")
 }
 
 func TestTypedMultilineSecretIsSavedWithItsNewlines(t *testing.T) {
@@ -104,7 +104,7 @@ func TestUpDownMoveInsideTheSecretBeforeLeavingIt(t *testing.T) {
 		t.Fatalf("first up: focus %d line %d; want to stay in the secret on line 1", m.(model).focusIndex, m.(model).secret.Line())
 	}
 	m = up(up(m))
-	if m.(model).focusIndex != fieldCategory {
+	if m.(model).focusIndex != fieldUsername {
 		t.Errorf("up from the first line: focus %d, want the field above the secret", m.(model).focusIndex)
 	}
 
@@ -126,13 +126,13 @@ func TestEditKeepsMultilineValueWhenSecretIsLeftEmpty(t *testing.T) {
 	m = pasteText(m, "a\nb\nc\n")
 	m = ctrl(m, tea.KeyCtrlS)
 
-	m = press(m, "e", "tab", "tab", "tab", "tab") // walk past the empty secret
+	m = press(m, "e", "tab", "tab", "tab", "tab", "tab") // walk past the empty secret
 	m = ctrl(m, tea.KeyCtrlS)
 	if v, _ := store.GetSecretValue("ssh"); v != "a\nb\nc\n" {
 		t.Errorf("value after a metadata-only edit: %q", v)
 	}
 
-	m = press(m, "e", "tab", "tab")
+	m = press(m, "e", "tab", "tab", "tab")
 	m = pasteText(m, "x\ny")
 	m = ctrl(m, tea.KeyCtrlS)
 	if v, _ := store.GetSecretValue("ssh"); v != "x\ny" {
@@ -213,7 +213,7 @@ func TestMultilineLayoutKeepsTheWindowHeight(t *testing.T) {
 		if out := m.View(); !regexp.MustCompile(`\+\d+ (more )?lines`).MatchString(out) {
 			t.Errorf("%dx%d: a long revealed value does not say it is cut:\n%s", w, h, out)
 		}
-		m = press(m, "v", "e", "tab", "tab")
+		m = press(m, "v", "e", "tab", "tab", "tab")
 		m = pasteText(m, pemBlock(3000))
 		check("form masked", m)
 		m = ctrl(m, tea.KeyCtrlR)

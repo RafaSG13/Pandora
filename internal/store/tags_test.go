@@ -148,3 +148,25 @@ func TestRecordsWithoutTagsKeepTheOldShape(t *testing.T) {
 		t.Errorf("record without tags marshals a tags key: %s", out)
 	}
 }
+
+func TestUsernameRoundTripsAndRejectsControlCharacters(t *testing.T) {
+	setup(t)
+	if err := SaveSecret(SecretMeta{Title: "site", Username: "alice", Created: "2026-01-02"}, "v"); err != nil {
+		t.Fatal(err)
+	}
+	metas, err := LoadMetadata()
+	if err != nil || len(metas) != 1 || metas[0].Username != "alice" {
+		t.Fatalf("LoadMetadata = %+v, %v; want the username", metas, err)
+	}
+	err = SaveSecret(SecretMeta{Title: "evil", Username: "a\x1b[31m", Created: "2026-01-02"}, "v")
+	if !errors.Is(err, ErrInvalidText) {
+		t.Errorf("SaveSecret with an escape in the username = %v, want ErrInvalidText", err)
+	}
+	v := "v2"
+	if err := UpdateSecret("site", SecretMeta{Title: "site", Username: "bob"}, &v); err != nil {
+		t.Fatal(err)
+	}
+	if metas, _ := LoadMetadata(); metas[0].Username != "bob" {
+		t.Errorf("username after UpdateSecret = %q, want bob", metas[0].Username)
+	}
+}

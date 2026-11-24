@@ -61,7 +61,7 @@ func ParseTags(s string) ([]string, error) {
 // prepareMeta validates the text fields and replaces Tags by their normalised
 // form, so every writer stores the same representation.
 func prepareMeta(m *SecretMeta) error {
-	for _, s := range []string{m.Title, m.Category, m.Notes} {
+	for _, s := range []string{m.Title, m.Category, m.Username, m.Notes} {
 		if err := ValidateText(s); err != nil {
 			return err
 		}

@@ -267,6 +267,7 @@ func parseBitwardenJSON(data []byte, _ importOptions) (*importBatch, error) {
 
 		var value string
 		var noteParts []string
+		var username string
 		switch it.Type {
 		case bwLogin:
 			if it.Login == nil || deref(it.Login.Password) == "" {
@@ -277,9 +278,7 @@ func parseBitwardenJSON(data []byte, _ importOptions) (*importBatch, error) {
 			if oneLine(deref(it.Notes)) != "" {
 				noteParts = append(noteParts, oneLine(deref(it.Notes)))
 			}
-			if u := oneLine(deref(it.Login.Username)); u != "" {
-				noteParts = append(noteParts, "user: "+u)
-			}
+			username = oneLine(deref(it.Login.Username))
 			for _, uri := range it.Login.URIs {
 				if u := oneLine(deref(uri.URI)); u != "" {
 					noteParts = append(noteParts, "url: "+u)
@@ -314,6 +313,7 @@ func parseBitwardenJSON(data []byte, _ importOptions) (*importBatch, error) {
 			SecretMeta: store.SecretMeta{
 				Title:    title,
 				Category: category,
+				Username: username,
 				Created:  bitwardenDate(it.CreationDate),
 				Updated:  bitwardenDate(it.RevisionDate),
 				Notes:    strings.Join(noteParts, " | "),

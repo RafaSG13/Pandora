@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"slices"
 	"strings"
+	"time"
 	"unicode/utf8"
 
 	"github.com/atotto/clipboard"
@@ -121,6 +122,10 @@ func (m model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m.updateHelp(msg)
 		case modeHistory:
 			return m.updateHistory(msg)
+		case modeView:
+			return m.updateViewer(msg)
+		case modePicker:
+			return m.updatePicker(msg)
 		}
 
 		if m.list.FilterState() == list.Filtering {
@@ -131,41 +136,45 @@ func (m model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 
 		sel, hasSel := m.list.SelectedItem().(item)
-		switch msg.String() {
-		case "ctrl+c", "q":
+		if msg.String() == "ctrl+c" {
 			return m, tea.Quit
-		case "n":
-			m.openForm("", store.SecretMeta{})
-			return m, nil
-		case "e":
-			if hasSel {
-				m.openForm(sel.meta.Title, sel.meta)
-			}
-			return m, nil
-		case "d":
-			if hasSel {
-				m.mode, m.deleting = modeConfirmDelete, sel.meta.Title
-			}
-			return m, nil
-		case "r":
-			if err := m.reload(""); err != nil {
-				m.notify(fmt.Sprintf("✗ Could not reload: %v", err), true)
-				return m, nil
-			}
-			m.notify(fmt.Sprintf("✓ Reloaded (%s)", count(m.total)), false)
-			return m, m.startOrphanCheck()
-		case "pgup", "pgdown":
+		}
+		if s := msg.String(); s == "pgup" || s == "pgdown" {
 			// bubbles pages by its own page size, but the list is one page tall
 			// (see fitList): move by what the pane shows instead.
 			step := m.itemsInView()
-			if msg.String() == "pgup" {
+			if s == "pgup" {
 				step = -step
 			}
 			if n := len(m.list.VisibleItems()); n > 0 {
 				m.list.Select(max(0, min(n-1, m.list.Index()+step)))
 			}
 			return m, nil
-		case "s":
+		}
+		switch m.keys.action(msg.String()) {
+		case "quit":
+			return m, tea.Quit
+		case "new":
+			m.openForm("", store.SecretMeta{})
+			return m, nil
+		case "edit":
+			if hasSel {
+				m.openForm(sel.meta.Title, sel.meta)
+			}
+			return m, nil
+		case "delete":
+			if hasSel {
+				m.mode, m.deleting = modeConfirmDelete, sel.meta.Title
+			}
+			return m, nil
+		case "reload":
+			if err := m.reload(""); err != nil {
+				m.notify(fmt.Sprintf("✗ Could not reload: %v", err), true)
+				return m, nil
+			}
+			m.notify(fmt.Sprintf("✓ Reloaded (%s)", count(m.total)), false)
+			return m, m.startOrphanCheck()
+		case "sort":
 			m.sort = m.sort.next()
 			if err := m.reload(""); err != nil {
 				m.notify(fmt.Sprintf("✗ Could not reload: %v", err), true)
@@ -173,53 +182,52 @@ func (m model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			m.notify("Sorted by "+m.sort.String(), false)
 			return m, nil
-		case "T":
+		case "tag":
 			return m.cycleTag(), nil
-		case "t":
+		case "filters":
+			m.openPicker()
+			return m, nil
+		case "compact":
 			m.compact = !m.compact
 			m.list.SetDelegate(m.delegate())
 			m.fitList(len(m.list.Items()))
 			return m, nil
-		case "H":
+		case "history":
 			if hasSel {
 				m.openHistory(sel.meta.Title)
 			}
 			return m, nil
-		case "v":
-			if !hasSel {
-				return m, nil
-			}
-			if m.revealed(sel.meta.Title) {
-				m.hideReveal()
-			} else {
-				m.revealSelected(sel.meta.Title)
+		case "reveal":
+			if hasSel {
+				m.toggleReveal(sel.meta.Title)
 			}
 			return m, nil
-		case "x":
+		case "view":
+			if hasSel {
+				m.openViewer(sel.meta.Title)
+			}
+			return m, nil
+		case "lock":
+			m.lock()
+			return m, nil
+		case "clear_clipboard":
 			if m.clipUntil.IsZero() {
 				m.notify("Nothing to clear", false)
 				return m, nil
 			}
 			m.clearClipboard(true)
 			return m, nil
-		case "?":
+		case "help":
 			m.mode, m.helpScroll = modeHelp, 0
 			return m, nil
-		case "enter", "c":
+		case "copy":
 			if hasSel {
-				val, err := store.GetSecretValue(sel.meta.Title)
-				if err != nil {
-					m.notify(fmt.Sprintf("✗ Could not read secret: %v", err), true)
-					return m, nil
-				}
-				if err := writeSecretClipboard(val); err != nil {
-					m.notify(fmt.Sprintf("✗ Could not copy: %v", err), true)
-					return m, nil
-				}
-				m.clipUntil = m.nowOr().Add(m.cfg.ClipboardTTL)
-				m.clipHash = sha256.Sum256([]byte(val))
-				m.notify("✓ Copied to clipboard", false)
-				m.audit("copy", sel.meta.Title)
+				m.copySelected(sel.meta.Title)
+			}
+			return m, nil
+		case "copy_username":
+			if hasSel {
+				m.copyUsername(sel.meta)
 			}
 			return m, nil
 		}
@@ -246,6 +254,9 @@ func (m model) tick() (tea.Model, tea.Cmd) {
 	}
 	if m.revealTitle != "" && !now.Before(m.revealUntil) {
 		m.hideReveal()
+	}
+	if m.mode == modeView && m.revealTitle == "" { // the viewer closes when the value hides
+		m.mode, m.viewTop = modeBrowse, 0
 	}
 	if !m.clipUntil.IsZero() && !now.Before(m.clipUntil) {
 		m.clearClipboard(false)
@@ -354,10 +365,12 @@ func (m *model) lock() {
 	m.list.SetItems(nil)
 	m.orphans, m.checking = nil, false
 	m.total, m.expiring, m.loadErr = 0, 0, ""
+	m.viewTop, m.picker = 0, pickerState{}
 	m.categories, m.category, m.scroll = nil, "", 0
 	m.tags, m.tag = nil, ""
 	m.versions, m.hist = nil, historyState{}
 	m.editing, m.deleting = "", ""
+	m.formInitial, m.discardKey = [numFields]string{}, ""
 	for i := range m.inputs {
 		m.inputs[i].SetValue("")
 		m.inputs[i].SetSuggestions(nil)
@@ -368,8 +381,44 @@ func (m *model) lock() {
 	m.pwConfirm.SetValue("")
 	m.unlocking, m.unlockErr = false, ""
 	m.mode = modeUnlock
+	m.lastClickTitle, m.lastClickAt = "", time.Time{}
 	m.setReveal(false)
 	m.focusPassword(0)
+}
+
+// copySelected puts title's value on the clipboard (concealed) and arms the
+// clipboard timer. Keyboard and double-click share it.
+func (m *model) copySelected(title string) {
+	val, err := store.GetSecretValue(title)
+	if err != nil {
+		m.notify(fmt.Sprintf("✗ Could not read secret: %v", err), true)
+		return
+	}
+	if err := writeSecretClipboard(val); err != nil {
+		m.notify(fmt.Sprintf("✗ Could not copy: %v", err), true)
+		return
+	}
+	m.clipUntil = m.nowOr().Add(m.cfg.ClipboardTTL)
+	m.clipHash = sha256.Sum256([]byte(val))
+	m.notify("✓ Copied to clipboard", false)
+	m.audit("copy", title)
+}
+
+// copyUsername puts meta's username on the plain clipboard: it is metadata,
+// not a secret value, so it is neither concealed, auto-cleared nor audited.
+// A pending secret-clear is dropped because the secret is no longer on the
+// clipboard.
+func (m *model) copyUsername(meta store.SecretMeta) {
+	if meta.Username == "" {
+		m.notify("No username for this secret", false)
+		return
+	}
+	if err := writeClipboard(meta.Username); err != nil {
+		m.notify(fmt.Sprintf("✗ Could not copy: %v", err), true)
+		return
+	}
+	m.clipUntil, m.clipHash = zeroTime, [sha256.Size]byte{}
+	m.notify("✓ Username copied", false)
 }
 
 // unlockedMsg reports the result of an unlock or first-run setup, which runs
@@ -541,28 +590,17 @@ func (m model) updateHelp(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 // pickCategory applies the n-th category filter (1-based); 0 clears it and
 // repeating the active one toggles it off.
 func (m model) pickCategory(n int) model {
+	newCategory := ""
 	switch {
 	case n == 0:
-		m.category = ""
 	case n > len(m.categories):
 		m.notify(fmt.Sprintf("No category %d", n), false)
 		return m
 	case strings.EqualFold(m.categories[n-1], m.category):
-		m.category = ""
 	default:
-		m.category = m.categories[n-1]
+		newCategory = m.categories[n-1]
 	}
-	m.scroll = 0
-	if err := m.reload(""); err != nil {
-		m.notify(fmt.Sprintf("✗ Could not reload: %v", err), true)
-		return m
-	}
-	if m.category == "" {
-		m.notify("All categories", false)
-	} else {
-		m.notify("Category: "+m.category, false)
-	}
-	return m
+	return m.applyFilter(newCategory, m.tag)
 }
 
 // cycleTag moves the tag filter to the next tag in use: every tag in turn,
@@ -579,18 +617,31 @@ func (m model) cycleTag() model {
 	case i >= 0 && i+1 < len(m.tags):
 		next = m.tags[i+1]
 	}
-	m.tag = next
-	m.scroll = 0
+	return m.applyFilter(m.category, next)
+}
+
+// applyFilter sets the category and tag filters, scrolls to the top, reloads and toasts what is shown.
+func (m model) applyFilter(category, tag string) model {
+	m.category, m.tag, m.scroll = category, tag, 0
 	if err := m.reload(""); err != nil {
 		m.notify(fmt.Sprintf("✗ Could not reload: %v", err), true)
 		return m
 	}
-	if m.tag == "" {
-		m.notify("All tags", false)
-	} else {
-		m.notify("Tag: #"+m.tag, false)
-	}
+	m.notify("Showing "+describeFilter(category, tag), false)
 	return m
+}
+
+// describeFilter names what the category and tag filters show.
+func describeFilter(category, tag string) string {
+	switch {
+	case category != "" && tag != "":
+		return "category " + category + ", #" + tag
+	case category != "":
+		return "category " + category
+	case tag != "":
+		return "#" + tag
+	}
+	return "all secrets"
 }
 
 // openForm shows the form. editTitle is the secret being edited, or "" to add;
@@ -599,6 +650,7 @@ func (m *model) openForm(editTitle string, meta store.SecretMeta) {
 	m.mode, m.editing = modeForm, editTitle
 	m.inputs[fieldName].SetValue(meta.Title)
 	m.inputs[fieldCategory].SetValue(meta.Category)
+	m.inputs[fieldUsername].SetValue(meta.Username)
 	m.inputs[fieldCategory].SetSuggestions(m.categories)
 	m.secret.Reset()
 	m.secretShown = false
@@ -610,6 +662,20 @@ func (m *model) openForm(editTitle string, meta store.SecretMeta) {
 	m.inputs[fieldNotes].SetValue(meta.Notes)
 	m.inputs[fieldTags].SetValue(strings.Join(meta.Tags, ", "))
 	m.setFocus(fieldName)
+	for i := range m.inputs {
+		m.formInitial[i] = m.inputs[i].Value()
+	}
+	m.formInitial[fieldSecret], m.discardKey = "", ""
+}
+
+// formDirty reports whether the open form differs from what it opened with.
+func (m model) formDirty() bool {
+	for i := range m.inputs {
+		if i != fieldSecret && m.inputs[i].Value() != m.formInitial[i] {
+			return true
+		}
+	}
+	return m.secret.Value() != ""
 }
 
 // updateForm handles key presses while the add/edit form is open. In the
@@ -618,12 +684,24 @@ func (m *model) openForm(editTitle string, meta store.SecretMeta) {
 // the text.
 func (m model) updateForm(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	last := len(m.inputs) - 1
+	armed := m.discardKey
+	m.discardKey = ""
 	inSecret := m.focusIndex == fieldSecret
 
 	switch msg.String() {
 	case "ctrl+c":
+		if m.formDirty() && armed != "ctrl+c" {
+			m.discardKey = "ctrl+c"
+			m.notify("Unsaved changes: ctrl+c again quits", true)
+			return m, nil
+		}
 		return m, tea.Quit // like every other screen; esc is the way to cancel
 	case "esc":
+		if m.formDirty() && armed != "esc" {
+			m.discardKey = "esc"
+			m.notify("Unsaved changes: esc again discards", true)
+			return m, nil
+		}
 		m.mode = modeBrowse
 		return m, nil
 	case "up":
@@ -716,6 +794,7 @@ func (m model) saveForm() (tea.Model, tea.Cmd) {
 	meta := store.SecretMeta{
 		Title:    name,
 		Category: strings.TrimSpace(m.inputs[fieldCategory].Value()),
+		Username: strings.TrimSpace(m.inputs[fieldUsername].Value()),
 		Created:  m.nowOr().Format(store.DateLayout),
 		Expires:  expires,
 		Notes:    strings.TrimSpace(m.inputs[fieldNotes].Value()),
@@ -795,7 +874,10 @@ func (m model) updateMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 	case tea.MouseButtonWheelDown:
 		m.scroll++
 	case tea.MouseButtonLeft:
-		leftW, _ := m.paneWidths()
+		leftW, rightW := m.paneWidths()
+		if m.clickValueBox(msg, leftW, rightW) {
+			return m, nil
+		}
 		if msg.X < 1 || msg.X > leftW || msg.Y < listTopRow {
 			return m, nil
 		}
@@ -809,8 +891,49 @@ func (m model) updateMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 		m.list.Select(idx)
+		sel, ok := m.list.SelectedItem().(item)
+		if !ok {
+			return m, nil
+		}
+		now := m.nowOr()
+		if title := sel.meta.Title; title == m.lastClickTitle && !m.lastClickAt.IsZero() && now.Sub(m.lastClickAt) <= doubleClickWindow {
+			m.copySelected(title)
+			m.lastClickTitle, m.lastClickAt = "", time.Time{} // a third click starts a new pair
+		} else {
+			m.lastClickTitle, m.lastClickAt = title, now
+		}
 	}
 	return m, nil
+}
+
+// Detail card position on screen, in 0-based coordinates: header (0), rule (1),
+// pane border (2) and padding (3) come first; horizontally the left pane's
+// outer width (leftW+2), the 2-column gap, then the right pane's border and
+// 2 columns of padding. Mirrors renderBody.
+const (
+	cardTopRow    = 4
+	cardLeftExtra = 2 + 2 + 1 + 2 // added to the left pane's inner width
+)
+
+// clickValueBox toggles the reveal when msg lands on the detail card's value
+// box, and reports whether it did.
+func (m *model) clickValueBox(msg tea.MouseMsg, leftW, rightW int) bool {
+	sel, ok := m.list.SelectedItem().(item)
+	if !ok || m.total == 0 {
+		return false
+	}
+	cardW := rightW - 4
+	_, box := m.detailCard(cardW, m.paneOuter()-4)
+	left := leftW + cardLeftExtra
+	if box.height == 0 || msg.X < left || msg.X >= left+cardW {
+		return false
+	}
+	top := cardTopRow + box.top
+	if msg.Y < top || msg.Y >= top+box.height {
+		return false
+	}
+	m.toggleReveal(sel.meta.Title)
+	return true
 }
 
 // setFocus focuses input i and blurs the rest. The secret is a textarea, not

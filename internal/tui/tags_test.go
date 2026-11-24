@@ -10,7 +10,7 @@ import (
 
 // addTagged adds a secret through the form, typing tags into the last field.
 func addTagged(m tea.Model, name, tags string) tea.Model {
-	return press(m, "n", name, "enter", "X", "enter", "v", "tab", "enter", "enter", tags, "enter")
+	return press(m, "n", name, "enter", "X", "enter", "enter", "v", "tab", "enter", "enter", tags, "enter")
 }
 
 func tagFixture(t *testing.T) tea.Model {
@@ -44,7 +44,7 @@ func TestTagKeyCyclesThroughTagsThenBackToAll(t *testing.T) {
 
 func TestTagFilterCombinesWithCategoryFilter(t *testing.T) {
 	m := addTagged(newTestModel(t), "a", "prod")
-	m = press(m, "n", "b", "enter", "Y", "enter", "v", "tab", "enter", "enter", "prod", "enter")
+	m = press(m, "n", "b", "enter", "Y", "enter", "enter", "v", "tab", "enter", "enter", "prod", "enter")
 	m = press(m, "T", "1") // tag prod, then the first category (X)
 	if got := visibleTitles(m); !sameStrings(got, []string{"a"}) {
 		t.Errorf("tag prod + category X shows %v, want [a]", got)

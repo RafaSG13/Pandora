@@ -14,7 +14,7 @@ import (
 
 // editValue changes the selected secret's value through the form.
 func editValue(m tea.Model, value string) tea.Model {
-	return press(m, "e", "enter", "enter", value, "tab", "enter", "enter", "enter")
+	return press(m, "e", "enter", "enter", "enter", value, "tab", "enter", "enter", "enter")
 }
 
 // withVersions adds secret "k" holding v1 and edits it through the form to
