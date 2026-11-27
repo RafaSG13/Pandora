@@ -1,0 +1,16 @@
+.gitattributes
+  h_e81853c41416fb 1
+scripts/docsgen/main_test.go
+  h_e81853c41416fb 18-19
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.6",
+  "base_commit_sha": "71a6a0f328c7eac242684a35bd69d5035c0e51fd",
+  "prompts": {},
+  "humans": {
+    "h_e81853c41416fb": {
+      "author": "RafaSG13 <rafasrrg13@gmail.com>"
+    }
+  }
+}
