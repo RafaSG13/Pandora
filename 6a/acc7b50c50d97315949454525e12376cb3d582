@@ -1,0 +1,20 @@
+README.md
+  h_e81853c41416fb 23-26
+scripts/screenshots/cli.go
+  h_e81853c41416fb 1-242
+scripts/screenshots/cli.tape
+  h_e81853c41416fb 1-96
+scripts/screenshots/record.sh
+  h_e81853c41416fb 2,11,17-18
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.6",
+  "base_commit_sha": "6aacc7b50c50d97315949454525e12376cb3d582",
+  "prompts": {},
+  "humans": {
+    "h_e81853c41416fb": {
+      "author": "RafaSG13 <rafasrrg13@gmail.com>"
+    }
+  }
+}
