@@ -1,0 +1,32 @@
+CHANGELOG.md
+  h_e81853c41416fb 8
+cmd/pandora/main.go
+  h_e81853c41416fb 11,16
+docs/security/threat-model.md
+  h_e81853c41416fb 21
+internal/harden/doc.go
+  h_e81853c41416fb 1-4
+internal/harden/harden_darwin_test.go
+  h_e81853c41416fb 1-17
+internal/harden/harden_linux.go
+  h_e81853c41416fb 1-14
+internal/harden/harden_linux_test.go
+  h_e81853c41416fb 1-24
+internal/harden/harden_other.go
+  h_e81853c41416fb 1-6
+internal/harden/harden_rlimit.go
+  h_e81853c41416fb 1-17
+internal/harden/harden_unix.go
+  h_e81853c41416fb 1-6
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.6",
+  "base_commit_sha": "b5f2ee5b7337365f4341a3f38ba4c788ed427e78",
+  "prompts": {},
+  "humans": {
+    "h_e81853c41416fb": {
+      "author": "RafaSG13 <rafasrrg13@gmail.com>"
+    }
+  }
+}
