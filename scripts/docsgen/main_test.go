@@ -15,7 +15,8 @@ func repoFile(t *testing.T, rel string) string {
 	if err != nil {
 		t.Fatal(err)
 	}
-	return string(b)
+	// Windows checkouts may convert line endings; the page is compared as text.
+	return strings.ReplaceAll(string(b), "\r\n", "\n")
 }
 
 func TestCommittedFlagReferenceIsUpToDate(t *testing.T) {
