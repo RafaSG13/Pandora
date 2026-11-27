@@ -6,12 +6,16 @@ on:
     paths:
       - "docs/**"
       - "mkdocs.yml"
+      - "scripts/docs_hooks.py"
+      - "assets/**"
       - "requirements-docs.txt"
       - ".github/workflows/docs.yml"
   pull_request:
     paths:
       - "docs/**"
       - "mkdocs.yml"
+      - "scripts/docs_hooks.py"
+      - "assets/**"
       - "requirements-docs.txt"
       - ".github/workflows/docs.yml"
   workflow_dispatch:

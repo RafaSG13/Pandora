@@ -7,8 +7,15 @@ edit_uri: edit/main/docs/
 docs_dir: docs
 strict: true
 
+hooks:
+  - scripts/docs_hooks.py
+
+extra_css:
+  - stylesheets/extra.css
+
 theme:
   name: material
+  font: false
   palette:
     - media: "(prefers-color-scheme: dark)"
       scheme: slate
@@ -25,6 +32,8 @@ theme:
         icon: material/weather-night
         name: Switch to dark mode
   features:
+    - navigation.tabs
+    - navigation.tabs.sticky
     - navigation.sections
     - navigation.top
     - navigation.footer
