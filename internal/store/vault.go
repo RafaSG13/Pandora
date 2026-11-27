@@ -1,6 +1,7 @@
 package store
 
 import (
+	"bytes"
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
@@ -32,6 +33,9 @@ var (
 	ErrInvalidText = errors.New("text must not contain control characters")
 	// ErrVaultExists is returned by Create when a vault is already present.
 	ErrVaultExists = errors.New("a vault already exists")
+	// ErrKeyChanged is returned when another process replaced the data key since
+	// this one unlocked; the session is locked and the master password is needed again.
+	ErrKeyChanged = errors.New("the vault key was changed by another Pandora process; unlock again")
 	// ErrVaultCorrupt is returned (wrapped) when vault.json cannot be parsed,
 	// has invalid parameters, or its data does not decrypt or parse. Callers
 	// never overwrite such a file; `pandora doctor --fix` restores the backup.
@@ -93,6 +97,9 @@ type record struct {
 var session struct {
 	mu  sync.Mutex
 	key []byte
+	// wrapped is the wrapped_key of the vault file the session was unlocked
+	// from; a different one later means another process rotated the data key.
+	wrapped []byte
 }
 
 func vaultPath() (string, error) {
@@ -127,13 +134,24 @@ func Lock() {
 	defer session.mu.Unlock()
 	zero(session.key)
 	session.key = nil
+	session.wrapped = nil
 }
 
-func setSession(key []byte) {
+// setSession unlocks with key, the data key wrapped on disk as wrapped.
+func setSession(key, wrapped []byte) {
 	session.mu.Lock()
 	defer session.mu.Unlock()
 	zero(session.key)
 	session.key = append([]byte(nil), key...)
+	session.wrapped = append([]byte(nil), wrapped...)
+}
+
+// keyChanged reports whether wrapped differs from the wrapped_key this
+// session was unlocked with.
+func keyChanged(wrapped []byte) bool {
+	session.mu.Lock()
+	defer session.mu.Unlock()
+	return session.wrapped != nil && !bytes.Equal(wrapped, session.wrapped)
 }
 
 // currentKey returns a private copy of the data key; callers zero it after use.
@@ -335,7 +353,7 @@ func Create(password string) error {
 	if err := writeVault(vf); err != nil {
 		return err
 	}
-	setSession(key)
+	setSession(key, vf.WrappedKey)
 	return nil
 }
 
@@ -350,7 +368,7 @@ func Unlock(password string) error {
 		return err
 	}
 	defer zero(key)
-	setSession(key)
+	setSession(key, vf.WrappedKey)
 	return nil
 }
 
@@ -389,6 +407,12 @@ func ChangePassword(oldPw, newPw string) error {
 	if err := writeVault(vf); err != nil {
 		return err
 	}
+	return replaceBackupWithCurrent()
+}
+
+// replaceBackupWithCurrent overwrites vault.json.bak with the current
+// vault.json, so the backup no longer holds the previous wrapping.
+func replaceBackupWithCurrent() error {
 	path, err := vaultPath()
 	if err != nil {
 		return err
@@ -414,7 +438,12 @@ func loadRecords() ([]record, error) {
 	} else if err != nil {
 		return nil, err
 	}
-	return vf.records(key)
+	recs, err := vf.records(key)
+	if err != nil && errors.Is(err, ErrVaultCorrupt) && keyChanged(vf.WrappedKey) {
+		Lock()
+		return nil, ErrKeyChanged
+	}
+	return recs, err
 }
 
 // saveRecords re-encrypts recs (fresh nonce) into the existing vault file.
@@ -484,13 +513,34 @@ func replaceFile(path string, data []byte, keepBackup bool) error {
 		tmp.Close()
 		return err
 	}
+	if err := tmp.Sync(); err != nil {
+		tmp.Close()
+		return err
+	}
 	if err := tmp.Close(); err != nil {
 		return err
 	}
-	if old, err := os.ReadFile(path); err == nil {
-		if err := os.WriteFile(path+".bak", old, 0600); err != nil {
-			return err
+	if keepBackup {
+		if old, err := os.ReadFile(path); err == nil {
+			if err := os.WriteFile(path+".bak", old, 0600); err != nil {
+				return err
+			}
 		}
 	}
-	return os.Rename(tmp.Name(), path) // CreateTemp files are 0600
+	if err := os.Rename(tmp.Name(), path); err != nil { // CreateTemp files are 0600
+		return err
+	}
+	syncDir(dir)
+	return nil
+}
+
+// syncDir flushes a directory entry change to disk. Best effort: Windows
+// cannot fsync a directory handle, and a failure here does not undo the rename.
+func syncDir(dir string) {
+	d, err := os.Open(dir)
+	if err != nil {
+		return
+	}
+	_ = d.Sync()
+	_ = d.Close()
 }

@@ -165,3 +165,51 @@ func AuditExists() bool {
 	_, err = os.Stat(p)
 	return err == nil
 }
+
+// resealAudit re-encrypts every readable audit line from oldKey to newKey.
+// Lines that do not open under oldKey were already unreadable and are dropped.
+// The files are replaced without a backup, which would keep old-key lines.
+// The caller holds the vault write lock.
+func resealAudit(oldKey, newKey []byte) error {
+	path, err := auditPath()
+	if err != nil {
+		return err
+	}
+	for _, p := range []string{path + ".1", path} {
+		f, err := os.Open(p)
+		if errors.Is(err, os.ErrNotExist) {
+			continue
+		} else if err != nil {
+			return err
+		}
+		var out []byte
+		sc := bufio.NewScanner(f)
+		sc.Buffer(make([]byte, 0, 64*1024), 1<<20)
+		for sc.Scan() {
+			raw, err := base64.StdEncoding.DecodeString(sc.Text())
+			if err != nil {
+				continue
+			}
+			plain, err := open(oldKey, raw, []byte(aadAudit))
+			if err != nil {
+				continue
+			}
+			sealed, err := seal(newKey, plain, []byte(aadAudit))
+			if err != nil {
+				f.Close()
+				return err
+			}
+			out = append(out, base64.StdEncoding.EncodeToString(sealed)...)
+			out = append(out, '\n')
+		}
+		scErr := sc.Err()
+		f.Close()
+		if scErr != nil {
+			return scErr
+		}
+		if err := replaceFile(p, out, false); err != nil {
+			return err
+		}
+	}
+	return nil
+}

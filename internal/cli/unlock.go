@@ -137,10 +137,14 @@ func (a *app) createVault() error {
 	return errors.New("too many invalid attempts")
 }
 
-// cmdPasswd changes the master password. The data key stays the same, so the
-// values in the keyring remain valid.
+// cmdPasswd changes the master password. By default the data key stays the
+// same, so the values in the keyring remain valid; with --rotate-key a fresh
+// data key replaces it and every value is re-encrypted, which also locks out
+// anyone holding an old copy of vault.json and its old password.
 func (a *app) cmdPasswd(args []string) error {
-	if _, err := a.parse("passwd", "passwd", flag.NewFlagSet("passwd", flag.ContinueOnError), args, 0, 0); err != nil {
+	fs := flag.NewFlagSet("passwd", flag.ContinueOnError)
+	rotate := fs.Bool("rotate-key", false, "also replace the data key and re-encrypt every value")
+	if _, err := a.parse("passwd", "passwd [--rotate-key]", fs, args, 0, 0); err != nil {
 		return err
 	}
 	if !a.isTTY() {
@@ -157,9 +161,21 @@ func (a *app) cmdPasswd(args []string) error {
 	if err != nil {
 		return err
 	}
-	if err := store.ChangePassword(old, pw); err != nil {
+	if *rotate {
+		err = store.RotateKey(old, pw)
+	} else {
+		err = store.ChangePassword(old, pw)
+	}
+	var cleanup *store.RotationCleanupError
+	if errors.As(err, &cleanup) {
+		fmt.Fprintf(a.err, "pandora: warning: %v\n", cleanup)
+	} else if err != nil {
 		return err
 	}
-	fmt.Fprintln(a.err, "Master password changed.")
+	if *rotate {
+		fmt.Fprintln(a.err, "Master password changed and data key rotated.")
+	} else {
+		fmt.Fprintln(a.err, "Master password changed.")
+	}
 	return nil
 }

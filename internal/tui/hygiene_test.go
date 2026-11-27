@@ -422,3 +422,22 @@ func TestCopySchedulesTheDetachedClear(t *testing.T) {
 		t.Errorf("scheduled clears = %v, want one for the copied value with the clipboard TTL", clearScheduled)
 	}
 }
+
+func TestSessionDroppedByTheStoreLocksTheApp(t *testing.T) {
+	m := add(newTestModel(t), "a", "X", "val")
+	now := time.Now()
+	m = withClock(m, &now)
+
+	store.Lock() // what the store does when it finds the key rotated by another process
+	m = tickAt(m, now.Add(time.Second))
+
+	mm := m.(model)
+	if mm.mode != modeUnlock || !strings.Contains(mm.View(), "Key changed elsewhere") {
+		t.Fatalf("mode %v, view:\n%s", mm.mode, mm.View())
+	}
+	fitsWindow(t, "unlock after a key change", mm)
+	small, _ := m.Update(tea.WindowSizeMsg{Width: 60, Height: 18})
+	if !strings.Contains(small.View(), "Key changed elsewhere") {
+		t.Error("the message does not fit the 60×18 unlock screen")
+	}
+}

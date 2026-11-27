@@ -27,7 +27,7 @@ flowchart TD
     DK -->|"AAD = record ID"| VAL["Values in the OS keyring"]
 ```
 
-The data key is random and independent of the password. It is generated once with `crypto/rand` when the vault is created, and it does not change when you change your master password.
+The data key is random and independent of the password. It is generated once with `crypto/rand` when the vault is created, and it does not change when you change your master password. `pandora passwd --rotate-key` replaces it: a new key re-encrypts every value (under new keyring IDs, since the ID is the AAD), the records, the sharing data and the audit log.
 
 ## Password stretching
 
@@ -81,4 +81,4 @@ All random values come from `crypto/rand`. `pandora gen` and the form's `ctrl+g`
 
 - A secret in **memory** or on the **clipboard** while you use it. See the [threat model](threat-model.md).
 - **Metadata size and timing.** The ciphertext length reveals roughly how many secrets exist and how long their values are, and file modification times show when you changed the vault.
-- **Forward secrecy for the vault.** Anyone who later learns the master password can open any copy of `vault.json` they kept.
+- **Forward secrecy for the vault.** Anyone who later learns the master password can open any copy of `vault.json` they kept, and with a plain `passwd` that copy still unlocks the current keyring values. `--rotate-key` limits this to values that existed before the rotation.

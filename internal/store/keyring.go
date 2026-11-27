@@ -65,6 +65,11 @@ func openValue(id, stored string) (string, error) {
 		return "", err
 	}
 	defer zero(key)
+	return openValueWith(key, id, stored)
+}
+
+// openValueWith reverses sealValueWith under an explicit data key.
+func openValueWith(key []byte, id, stored string) (string, error) {
 	rest, ok := strings.CutPrefix(stored, valuePrefix)
 	if !ok {
 		return "", errCorruptValue

@@ -21,7 +21,7 @@
 | `pandora id` | Prints this vault's share key (stdout) and its fingerprint (stderr). |
 | `pandora peer add NAME KEY\|KEYFILE [-y]` / `peer list [--json]` / `peer rm NAME [-y]` | Manage the vaults you trust to exchange secrets with. `add` shows the key's fingerprint and asks you to confirm it matches `pandora id` on the other machine. |
 | `pandora export --values --to PEER [-s TITLE ...]` | Encrypts (and signs) just those secrets for a trusted peer; `pandora import FILE --values` on the other machine opens it with no passphrase and rejects unsigned, altered or foreign files. |
-| `pandora passwd` | Changes the master password (needs a terminal). Values stay valid. |
+| `pandora passwd [--rotate-key]` | Changes the master password (needs a terminal). Values stay valid. `--rotate-key` also replaces the data key and re-encrypts every value, so an old copy of `vault.json` plus the old password opens nothing current; use it after a suspected leak. |
 | `pandora version` | Prints the version, commit and build date (also `pandora --version`). |
 | `pandora gen [--length 8-128] [--charset alnum\|symbols\|hex] [--count 1-100]` | Prints random secrets (default: one of 24 letters and digits) using `crypto/rand`. Stores nothing. |
 | `pandora config path` / `config get [KEY]` | Prints where `config.json` lives (the file need not exist), or the effective settings after merging environment, file and defaults (one `key = value` per line, or just the value for one key). Read-only: edit the file by hand. |

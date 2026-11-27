@@ -25,7 +25,7 @@ Commands:
   id          Print this vault's share key (give it to the machines that send you secrets)
   peer        Manage the vaults trusted to share secrets with this one (add, list, rm)
   doctor      Check the vault files and the keyring values
-  passwd      Change the master password
+  passwd      Change the master password (--rotate-key also replaces the data key)
   gen         Generate random secrets (printed to stdout, not stored)
   config      Show the config file path or the effective settings
   version     Print version information (also --version)
@@ -220,7 +220,9 @@ Usage: pandora doctor [--fix] [-y]
 ## `pandora passwd`
 
 ```text
-Usage: pandora passwd
+Usage: pandora passwd [--rotate-key]
+  -rotate-key
+    	also replace the data key and re-encrypt every value
 ```
 
 ## `pandora gen`
