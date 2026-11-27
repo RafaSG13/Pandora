@@ -1,0 +1,50 @@
+CHANGELOG.md
+  h_e81853c41416fb 8
+docs/reference/cli.md
+  h_e81853c41416fb 9
+docs/security/hardening.md
+  h_e81853c41416fb 25
+docs/security/threat-model.md
+  h_e81853c41416fb 29,61
+internal/cli/cli.go
+  h_e81853c41416fb 10,69-74,107-109
+internal/cli/cli_test.go
+  h_e81853c41416fb 5,51-62,94-105
+internal/cli/clipclear.go
+  h_e81853c41416fb 1-43
+internal/cli/clipclear_test.go
+  h_e81853c41416fb 1-76
+internal/cli/commands.go
+  h_e81853c41416fb 132-137
+internal/cli/env_test.go
+  h_e81853c41416fb 135
+internal/cli/registry.go
+  h_e81853c41416fb 9,218
+internal/config/config.go
+  h_e81853c41416fb 40-41,220,226
+internal/secretclip/clear.go
+  h_e81853c41416fb 1-87
+internal/secretclip/clear_test.go
+  h_e81853c41416fb 1-44
+internal/secretclip/clear_unix.go
+  h_e81853c41416fb 1-9
+internal/secretclip/clear_windows.go
+  h_e81853c41416fb 1-18
+internal/tui/hygiene_test.go
+  h_e81853c41416fb 416-424
+internal/tui/update.go
+  h_e81853c41416fb 26-27,32-33,321-322,410-412
+internal/tui/update_test.go
+  h_e81853c41416fb 8,24-32,59-64,74-76
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.6",
+  "base_commit_sha": "b9e94693cb468675c406bbd84855a834cf4446f3",
+  "prompts": {},
+  "humans": {
+    "h_e81853c41416fb": {
+      "author": "RafaSG13 <rafasrrg13@gmail.com>"
+    }
+  }
+}
