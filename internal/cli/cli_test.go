@@ -52,6 +52,7 @@ type harness struct {
 	tty    bool
 	outTTY bool               // stdout is a terminal
 	clip   func(string) error // replaces the clipboard write of get --copy
+	x11    bool               // the session is X11
 	// clearLater replaces the scheduling of the clipboard-clearing helper (default: no-op).
 	clearLater func(string, time.Duration) error
 	// clearIfHolds replaces the clipboard clear of the helper command (default: fails the test).
@@ -102,6 +103,7 @@ func (h harness) run(t *testing.T, args ...string) (code int, stdout, stderr str
 	if h.clearIfHolds != nil {
 		a.clearIfHolds = h.clearIfHolds
 	}
+	a.onX11 = func() bool { return h.x11 }
 	a.sleep = func(time.Duration) {}
 	answers := append([]string(nil), h.hidden...)
 	a.readHidden = func(string) (string, error) {
