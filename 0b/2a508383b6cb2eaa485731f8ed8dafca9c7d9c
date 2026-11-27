@@ -1,0 +1,22 @@
+.github/workflows/docs.yml
+  h_e81853c41416fb 9-10,17-18
+docs/index.md
+  h_e81853c41416fb 1-6,8,10-11,13,15,17-22,24-47,49-54,56-60,62-100,103,105,107
+docs/stylesheets/extra.css
+  h_e81853c41416fb 1-111
+mkdocs.yml
+  h_e81853c41416fb 10-15,18,35-36
+scripts/docs_hooks.py
+  h_e81853c41416fb 1-23
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.6",
+  "base_commit_sha": "0b2a508383b6cb2eaa485731f8ed8dafca9c7d9c",
+  "prompts": {},
+  "humans": {
+    "h_e81853c41416fb": {
+      "author": "RafaSG13 <rafasrrg13@gmail.com>"
+    }
+  }
+}
