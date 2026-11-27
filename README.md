@@ -5,21 +5,43 @@
 
 
 <p align="center">
-  A terminal user interface vault for your secrets, backed by your operating system's keyring.
+  A terminal vault for developer secrets: API keys, tokens and passwords, encrypted with a master password and backed by your OS keyring. No account, no cloud, no telemetry.
 </p>
 
 <p align="center">
+  <a href="https://github.com/RafaSG13/Pandora/releases/latest"><img alt="Release" src="https://img.shields.io/github/v/release/RafaSG13/Pandora"></a>
+  <a href="https://github.com/RafaSG13/Pandora/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/RafaSG13/Pandora/actions/workflows/ci.yml/badge.svg"></a>
   <a href="LICENSE"><img alt="License: MIT" src="https://img.shields.io/badge/license-MIT-blue.svg"></a>
   <img alt="Go" src="https://img.shields.io/badge/go-1.27-00ADD8.svg">
   <img alt="Platforms" src="https://img.shields.io/badge/platforms-macOS%20%7C%20Linux%20%7C%20Windows-lightgrey.svg">
 </p>
 
 <p align="center">
-  <video src="assets/demo.mp4" autoplay loop muted playsinline width="100%"></video>
+  <img src="assets/demo.gif" alt="Pandora demo: create a secret, reveal it and copy it to the clipboard" width="100%">
 </p>
 
+```sh
+brew install RafaSG13/tap/pandora   # or: go install github.com/RafaSG13/Pandora/cmd/pandora@latest
+pandora
+```
 
 Pandora keeps API keys, tokens and passwords out of dotfiles, shell history and plain-text notes. Secret **values** are stored by the OS (macOS Keychain, Windows Credential Manager, Linux Secret Service); Pandora only adds a fast interface for browsing, copying and managing them. It makes no network connections.
+
+## Highlights
+
+- **Encrypted and local.** Names, notes and values are encrypted with a master password (Argon2id + XChaCha20-Poly1305); values also live in the OS keyring. Single static binary, no network code.
+- **TUI and scriptable CLI.** Browse and edit in the terminal UI, or use `pandora get|add|run|export|import` in scripts. `pandora run -- <cmd>` injects secrets into a command's environment.
+- **Safe by default.** Masked values, clipboard cleared after 15 seconds and hidden from clipboard history on macOS and Windows, idle lock after 5 minutes.
+- **Fast lookup.** Fuzzy filter with `tag:`, `cat:` and `user:` qualifiers, category and tag pickers, expiry warnings.
+- **Share between machines.** Signed, peer-encrypted files with `pandora id`, `pandora peer` and `export --to`.
+
+<p align="center">
+  <img src="assets/screenshot-list.png" alt="Secret list with a masked value in the details card" width="49%">
+  <img src="assets/screenshot-reveal.png" alt="A revealed value with clipboard and reveal countdowns" width="49%">
+</p>
+<p align="center">
+  <img src="assets/screenshot-form.png" alt="New secret form with a random-secret generator" width="49%">
+</p>
 
 ## Features
 
