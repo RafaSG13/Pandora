@@ -18,7 +18,7 @@ Pandora is designed to **reduce accidental exposure**, not to defend against a c
 | Someone who can **read your keyring entries** but not your vault password | Yes | Entries are opaque: a random ID as the account name, an encrypted blob as the value. |
 | A **clipboard history manager** | Partly | Copies are marked as concealed on macOS and Windows. A tool that ignores the marker still records them. Linux has no such convention. |
 | **Another machine** you share secrets with | Partly | Shares are signed by the sender and encrypted for the recipient. See [Sharing](sharing.md). |
-| **Malware or another process running as your user** | **No** | It can read the keyring (subject to OS prompts), the process environment and memory, and log your keystrokes. |
+| **Malware or another process running as your user** | **No** | It can read the keyring (subject to OS prompts) and log your keystrokes. On Linux Pandora is non-dumpable, so `/proc/<pid>/{mem,environ}` and same-user ptrace are refused, and on every Unix core dumps are disabled; macOS and Windows have no such protection here. |
 | An attacker with **root or physical access to an unlocked session** | **No** | Out of scope. |
 | An attacker who can **modify the Pandora binary** | **No** | Verify downloads against `checksums.txt`. |
 

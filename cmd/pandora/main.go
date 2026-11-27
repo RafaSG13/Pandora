@@ -8,10 +8,12 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/RafaSG13/Pandora/internal/cli"
+	"github.com/RafaSG13/Pandora/internal/harden"
 	"github.com/RafaSG13/Pandora/internal/tui"
 )
 
 func main() {
+	harden.Process()
 	if len(os.Args) > 1 {
 		os.Exit(cli.Run(os.Args[1:], os.Stdin, os.Stdout, os.Stderr))
 	}
