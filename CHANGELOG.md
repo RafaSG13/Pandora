@@ -5,6 +5,7 @@ All notable changes are documented here. The format follows [Keep a Changelog](h
 ## [Unreleased]
 
 ### Added
+- **Documentation site** (MkDocs Material, in `docs/`, published to GitHub Pages): getting started, how Pandora works, threat model, cryptography, vault format, sharing, hardening, guides and a full reference. `docs/reference/cli-flags.md` is generated from the command table by `go run ./scripts/docsgen`, and a test fails when it is stale or when `configuration.md` misses a setting or key action. The README is shorter and links to it.
 - **Sharing secrets between machines, without a network.** `pandora id` prints this vault's share key (a post-quantum age key plus an Ed25519 signing key, stored encrypted in `vault.json`). `pandora peer add|list|rm` manages trusted peers after you compare fingerprints. `pandora export --values --to PEER [-s TITLE]` encrypts only the chosen secrets for that peer and signs them; `pandora import FILE --values` opens it with no passphrase and refuses files not signed by a trusted peer or not made for this vault. Moving the file (AirDrop, scp, USB) is up to you. An older Pandora that rewrites the vault drops the identity, so peers must be added again.
 - Interface, lock: `L` locks at once (rebindable as `lock`): everything is masked and the master password is asked for, without waiting for the idle timeout.
 - Interface, form: pressing `esc` (or `ctrl+c`) on an add/edit form with unsaved changes asks first; the same key again discards them.
