@@ -46,7 +46,7 @@ Pandora keeps API keys, tokens and passwords out of dotfiles, shell history and 
 - **Full management** — add, edit (including rename), delete with confirmation, and reload.
 - **Rich metadata** — category (with autocomplete), user name, tags, notes or URL, and an optional expiry date with warning badges.
 - **Fast lookup** — fuzzy filter over name, user name, category, tags and notes (with `tag:`, `cat:` and `user:` qualifiers), quick category filters (`1`–`9`), a category/tag picker (`f`), a tag filter (`T`), and sorting by name, category or date.
-- **Safe copying** — copy to the clipboard, cleared automatically after 15 seconds (or right away with `x`), with a visible countdown; on macOS and Windows the copy is marked so clipboard history skips it.
+- **Safe copying** — copy to the clipboard, cleared automatically after 15 seconds (or right away with `x`), with a visible countdown; on macOS, Windows and Wayland the copy is marked so clipboard history skips it.
 - **Masked by default** — the value is revealed one secret at a time and hides again after 10 seconds or when you move.
 - **Secret generator** — `ctrl+g` in the form fills a random password or token (length and charset selectable); `pandora gen` does the same from the shell.
 - **Idle lock** — after 5 idle minutes everything is masked, the secrets are dropped from memory, a pending clipboard is cleared, and the master password is required again.

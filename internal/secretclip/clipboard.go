@@ -5,6 +5,7 @@ package secretclip
 // Write puts a secret value on the system clipboard, marked (where the OS has
 // a convention for it) so clipboard-history managers and cloud clipboard sync
 // skip it: org.nspasteboard.ConcealedType on macOS, the history/monitor/cloud
-// exclusion formats on Windows. Linux has no standard marker and gets a plain
+// exclusion formats on Windows, `wl-copy --sensitive` (which sets
+// x-kde-passwordManagerHint) on Wayland. X11 has no marker and gets a plain
 // write. platformWrite lives in clipboard_<os>.go.
 func Write(s string) error { return platformWrite(s) }

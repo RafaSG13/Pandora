@@ -16,7 +16,7 @@ Pandora is designed to **reduce accidental exposure**, not to defend against a c
 | **Shell history, dotfiles, notes apps, git** | Yes | Secrets live in an encrypted vault and a keyring, not in `.bashrc`, `.env` files or notes. |
 | Someone with a **copy of your disk or backups** (stolen laptop, cloud backup of the config directory) | Yes | `vault.json` is ciphertext. Without the master password they see no titles and no values. Offline guessing is slowed by Argon2id (64 MiB, 3 passes). |
 | Someone who can **read your keyring entries** but not your vault password | Yes | Entries are opaque: a random ID as the account name, an encrypted blob as the value. |
-| A **clipboard history manager** | Partly | Copies are marked as concealed on macOS and Windows. A tool that ignores the marker still records them. Linux has no such convention. |
+| A **clipboard history manager** | Partly | Copies are marked as concealed on macOS, Windows and Wayland (`wl-copy --sensitive`, needs `wl-clipboard`). A tool that ignores the marker still records them. X11 has no such convention. |
 | **Another machine** you share secrets with | Partly | Shares are signed by the sender and encrypted for the recipient. See [Sharing](sharing.md). |
 | **Malware or another process running as your user** | **No** | It can read the keyring (subject to OS prompts) and log your keystrokes. On Linux Pandora is non-dumpable, so `/proc/<pid>/{mem,environ}` and same-user ptrace are refused, and on every Unix core dumps are disabled; macOS and Windows have no such protection here. |
 | An attacker with **root or physical access to an unlocked session** | **No** | Out of scope. |
@@ -27,7 +27,7 @@ Pandora is designed to **reduce accidental exposure**, not to defend against a c
 - Requires a master password to see anything, and keeps values in the OS keyring instead of files.
 - Masks values on screen until revealed.
 - Clears the clipboard 15 seconds after copying, but only if the clipboard still holds what Pandora copied. It compares a SHA-256 and keeps no plaintext, so something you copied in the meantime is left alone.
-- Marks copied values as concealed: `org.nspasteboard.ConcealedType` on macOS, and excluded from clipboard history (`Win+V`) and cloud clipboard sync on Windows.
+- Marks copied values as concealed: `org.nspasteboard.ConcealedType` on macOS, excluded from clipboard history (`Win+V`) and cloud clipboard sync on Windows, and `x-kde-passwordManagerHint` on Wayland through `wl-copy --sensitive` (older `wl-copy` falls back to a plain copy).
 - Never logs, prints or transmits values and never opens network connections.
 - Writes the vault atomically with owner-only permissions (`0600` file, `0700` directory on macOS and Linux; Windows relies on the user profile's ACLs).
 - Encrypts names, categories, notes, dates and values under a key only your master password unlocks, and stores keyring entries under random IDs.
