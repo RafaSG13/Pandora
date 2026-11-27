@@ -1,0 +1,49 @@
+internal/cli/unlock.go
+  h_e81853c41416fb 140-143,145-147,164-172,175-179
+internal/store/rotate.go
+  h_e81853c41416fb 1-169
+CHANGELOG.md
+  h_e81853c41416fb 8
+docs/security/threat-model.md
+  h_e81853c41416fb 56
+internal/store/audit.go
+  h_e81853c41416fb 168-215
+internal/cli/registry.go
+  h_e81853c41416fb 191-195
+internal/store/migrate.go
+  h_e81853c41416fb 177
+internal/store/chunks.go
+  h_e81853c41416fb 87-96,98-99,105
+docs/ARCHITECTURE.md
+  h_e81853c41416fb 147
+internal/store/rotate_test.go
+  h_e81853c41416fb 1-230
+docs/reference/cli.md
+  h_e81853c41416fb 24
+internal/store/keyring.go
+  h_e81853c41416fb 68-72
+docs/reference/cli-flags.md
+  h_e81853c41416fb 28,223-225
+internal/tui/update.go
+  h_e81853c41416fb 270-272,296-299,307-309,311-317
+  h_e81853c41416fb 310
+internal/store/vault.go
+  h_e81853c41416fb 4,36-38,100-102,137,140-141,146-154,356,371,410-415,441-446,516-519,523-527,530-545
+docs/concepts/overview.md
+  h_e81853c41416fb 34
+docs/security/cryptography.md
+  h_e81853c41416fb 30,84
+internal/tui/hygiene_test.go
+  h_e81853c41416fb 416-434
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.6",
+  "base_commit_sha": "55b732648f11945ca810d4f51a0d8fc7669b82a9",
+  "prompts": {},
+  "humans": {
+    "h_e81853c41416fb": {
+      "author": "RafaSG13 <rafasrrg13@gmail.com>"
+    }
+  }
+}
