@@ -29,7 +29,8 @@ jobs:
           args: release --clean
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # Fine-grained token with contents:write on RafaSG13/homebrew-tap; empty skips the formula.
+          # Fine-grained token on RafaSG13/homebrew-tap with contents:write and pull_requests:write
+          # (the formula arrives as a PR, main is protected); empty skips the formula.
           HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
       # Passing --release-notes to GoReleaser left the v0.1.0 body empty (its changelog
       # is disabled), so the notes are set explicitly after the release exists.

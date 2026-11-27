@@ -44,6 +44,9 @@ brews:
       owner: RafaSG13
       name: homebrew-tap
       token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"
+      branch: "update-pandora-{{ .Version }}"
+      pull_request:
+        enabled: true
     directory: Formula
     homepage: https://github.com/RafaSG13/Pandora
     description: Keyboard-driven terminal vault for secrets, backed by the OS keyring
