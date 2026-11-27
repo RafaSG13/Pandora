@@ -1,0 +1,28 @@
+CHANGELOG.md
+  h_e81853c41416fb 9
+README.md
+  h_e81853c41416fb 49
+docs/ARCHITECTURE.md
+  h_e81853c41416fb 182
+docs/security/hardening.md
+  h_e81853c41416fb 24
+docs/security/threat-model.md
+  h_e81853c41416fb 19,30
+internal/secretclip/clipboard.go
+  h_e81853c41416fb 8-9
+internal/secretclip/clipboard_other.go
+  h_e81853c41416fb 5-10,12-43
+internal/secretclip/clipboard_other_test.go
+  h_e81853c41416fb 1-45
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.6",
+  "base_commit_sha": "64853cf6c6d0dca8c229d08ee104ce888086c222",
+  "prompts": {},
+  "humans": {
+    "h_e81853c41416fb": {
+      "author": "RafaSG13 <rafasrrg13@gmail.com>"
+    }
+  }
+}
