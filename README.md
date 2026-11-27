@@ -20,6 +20,10 @@
   <img src="assets/demo.gif" alt="Pandora demo: browsing secrets, revealing a value, filtering by tag, the category picker, compact rows, the add form with the generator and the help overlay" width="100%">
 </p>
 
+<p align="center">
+  <img src="assets/demo-cli.gif" alt="Command-line demo: list secrets, inject one into a command with pandora run, then share it with another machine using pandora id, peer add, export --to and import" width="100%">
+</p>
+
 ```sh
 brew install RafaSG13/tap/pandora   # or: go install github.com/RafaSG13/Pandora/cmd/pandora@latest
 pandora
