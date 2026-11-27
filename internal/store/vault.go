@@ -74,6 +74,9 @@ type vaultFile struct {
 	KDF        kdfParams `json:"kdf"`
 	WrappedKey []byte    `json:"wrapped_key"`
 	Data       []byte    `json:"data"`
+	// Sharing is the encrypted share identity and trusted peers (share.go);
+	// absent until first needed.
+	Sharing []byte `json:"sharing,omitempty"`
 }
 
 // record is one secret in the encrypted metadata: SecretMeta plus the opaque

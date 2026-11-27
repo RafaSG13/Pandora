@@ -153,6 +153,8 @@ func commands() []command {
 				{names: []string{"values"}, help: "include values, encrypted with a passphrase"},
 				{names: []string{"o", "output"}, help: "write to FILE instead of stdout", arg: argSpec{kind: argFile}},
 				{names: []string{"force"}, help: "overwrite an existing output file"},
+				{names: []string{"to"}, help: "encrypt for this trusted peer instead of a passphrase (needs --values)", arg: argSpec{kind: argText}, repeat: true},
+				{names: []string{"s", "secret"}, help: "export only this secret", arg: title, repeat: true},
 			},
 			run: (*app).cmdExport,
 		},
@@ -160,13 +162,23 @@ func commands() []command {
 			name: "import", summary: "Import a Pandora export, a dotenv file or a Bitwarden JSON export",
 			flags: []flagSpec{
 				{names: []string{"format"}, help: "format of FILE (default pandora)", arg: argSpec{kind: argChoice, choices: importFormats}},
-				{names: []string{"values"}, help: "restore the values in an encrypted Pandora export"},
+				{names: []string{"values"}, help: "restore the values in an encrypted Pandora export or a share made with --to"},
 				{names: []string{"overwrite"}, help: "replace secrets that already exist"},
 				{names: []string{"dry-run"}, help: "list what would change and write nothing"},
 				{names: []string{"category"}, help: "with --format dotenv: category for every imported secret", arg: argSpec{kind: argCategory}},
 			},
 			args: argSpec{kind: argFile},
 			run:  (*app).cmdImport,
+		},
+		{name: "id", summary: "Print this vault's share key (give it to the machines that send you secrets)", run: (*app).cmdID},
+		{
+			name: "peer", summary: "Manage the vaults trusted to share secrets with this one (add, list, rm)",
+			flags: []flagSpec{
+				yes("with add or rm, do not ask"),
+				{names: []string{"json"}, help: "with list, print JSON"},
+			},
+			args: argSpec{kind: argChoice, choices: []string{"add", "list", "rm"}},
+			run:  (*app).cmdPeer,
 		},
 		{
 			name: "doctor", summary: "Check the vault files and the keyring values",

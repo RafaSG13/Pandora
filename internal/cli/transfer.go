@@ -46,16 +46,23 @@ type exportSecret struct {
 }
 
 func (a *app) cmdExport(args []string) error {
-	const usage = "export [--values] [-o FILE] [--force]"
+	const usage = "export [--values] [--to PEER ...] [-s TITLE ...] [-o FILE] [--force]"
 	fs := flag.NewFlagSet("export", flag.ContinueOnError)
 	var withValues, force bool
+	var to, only repeatFlag
 	var output string
 	fs.BoolVar(&withValues, "values", false, "include secret values; the output is then encrypted with a passphrase (prompted twice, or from "+passphraseEnv+")")
 	fs.StringVar(&output, "o", "", "write to `FILE` instead of stdout")
 	fs.StringVar(&output, "output", "", "write to `FILE` instead of stdout")
 	fs.BoolVar(&force, "force", false, "overwrite an existing output file")
+	fs.Var(&to, "to", "encrypt for this trusted peer instead of a passphrase; needs --values (repeatable)")
+	fs.Var(&only, "s", "export only this secret (repeatable)")
+	fs.Var(&only, "secret", "same as -s")
 	if _, err := a.parse("export", usage, fs, args, 0, 0); err != nil {
 		return err
+	}
+	if len(to) > 0 && !withValues {
+		return usageErrorf("export: --to needs --values (a share always carries the values)")
 	}
 	toStdout := output == "" || output == "-"
 	if !toStdout && !force {
@@ -70,6 +77,14 @@ func (a *app) cmdExport(args []string) error {
 	items, err := store.LoadMetadata()
 	if err != nil {
 		return err
+	}
+	if len(only) > 0 {
+		for _, t := range only {
+			if !hasTitle(items, t) {
+				return fmt.Errorf("secret %q not found", t)
+			}
+		}
+		items = slices.DeleteFunc(items, func(m store.SecretMeta) bool { return !slices.Contains(only, m.Title) })
 	}
 	doc := exportFile{
 		Format:         exportFormat,
@@ -104,12 +119,18 @@ func (a *app) cmdExport(args []string) error {
 	}
 	data = append(data, '\n')
 	if withValues {
-		pass, err := a.passphrase(true)
-		if err != nil {
-			return err
-		}
-		if data, err = a.encrypt(data, pass); err != nil {
-			return err
+		if len(to) > 0 {
+			if data, err = store.SealShare(data, to); err != nil {
+				return err
+			}
+		} else {
+			pass, err := a.passphrase(true)
+			if err != nil {
+				return err
+			}
+			if data, err = a.encrypt(data, pass); err != nil {
+				return err
+			}
 		}
 	}
 
@@ -136,6 +157,9 @@ func (a *app) cmdExport(args []string) error {
 	kind := "plain-text metadata (titles are not encrypted)"
 	if withValues {
 		kind = "encrypted metadata and values"
+		if len(to) > 0 {
+			kind = "metadata and values, encrypted for peer(s) " + strings.Join(to, ", ")
+		}
 	}
 	fmt.Fprintf(a.err, "Exported %d secrets (%s) to %s.\n", len(doc.Secrets), kind, output)
 	return nil
@@ -282,7 +306,7 @@ func (a *app) cmdImport(args []string) error {
 	var withValues, overwrite, dryRun bool
 	var format, category string
 	fs.StringVar(&format, "format", formatPandora, "format of FILE: "+strings.Join(importFormats, ", "))
-	fs.BoolVar(&withValues, "values", false, "restore the secret values contained in the file (needs an encrypted Pandora export made with --values)")
+	fs.BoolVar(&withValues, "values", false, "restore the values in an encrypted Pandora export or a share made with --to")
 	fs.BoolVar(&overwrite, "overwrite", false, "replace secrets that already exist instead of skipping them")
 	fs.BoolVar(&dryRun, "dry-run", false, "list what would be imported, replaced and skipped, and change nothing")
 	fs.StringVar(&category, "category", "", "with --format dotenv: category for every imported secret")
@@ -330,11 +354,20 @@ func (a *app) cmdImport(args []string) error {
 		withValues = true
 	} else {
 		if isEncrypted(data) {
-			pass, err := a.passphrase(false)
-			if err != nil {
-				return err
-			}
-			if data, err = decrypt(data, pass); err != nil {
+			plain, from, err := store.OpenShare(data)
+			switch {
+			case err == nil:
+				data = plain
+				fmt.Fprintf(a.err, "Shared by peer %q (fingerprint %s).\n", from.Name, store.Fingerprint(from.Key))
+			case errors.Is(err, store.ErrNotShare):
+				pass, err := a.passphrase(false)
+				if err != nil {
+					return err
+				}
+				if data, err = decrypt(data, pass); err != nil {
+					return err
+				}
+			default:
 				return err
 			}
 		}
