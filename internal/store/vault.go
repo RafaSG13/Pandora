@@ -462,9 +462,15 @@ func ValidateText(s string) error {
 	return nil
 }
 
-// writeFileAtomic replaces path with data through a temp file and rename,
-// first keeping the previous contents as path+".bak".
-func writeFileAtomic(path string, data []byte) error {
+// writeFileAtomic replaces path with data, first keeping the previous
+// contents as path+".bak".
+func writeFileAtomic(path string, data []byte) error { return replaceFile(path, data, true) }
+
+// replaceFile replaces path with data through a temp file and rename. The
+// temp file and then the directory are fsynced, so a crash leaves either the
+// old or the new file, never an empty one. keepBackup first saves the previous
+// contents as path+".bak".
+func replaceFile(path string, data []byte, keepBackup bool) error {
 	dir := filepath.Dir(path)
 	if err := os.MkdirAll(dir, 0700); err != nil {
 		return err
