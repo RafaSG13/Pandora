@@ -29,7 +29,7 @@ Pandora is designed to **reduce accidental exposure**, not to defend against a c
 - Clears the clipboard 15 seconds after copying, but only if the clipboard still holds what Pandora copied. It compares a SHA-256 and keeps no plaintext, so something you copied in the meantime is left alone. A detached helper process does the clearing, so it still happens if you quit the interface, and for `pandora get --copy`. The helper receives only the hash, over a pipe, and none of the `PANDORA_*` variables.
 - Marks copied values as concealed: `org.nspasteboard.ConcealedType` on macOS, and excluded from clipboard history (`Win+V`) and cloud clipboard sync on Windows.
 - Never logs, prints or transmits values and never opens network connections.
-- Writes the vault atomically with owner-only permissions (`0600` file, `0700` directory on macOS and Linux; Windows relies on the user profile's ACLs).
+- Writes the vault atomically (the new file and its directory are fsynced before and after the rename) with owner-only permissions (`0600` file, `0700` directory on macOS and Linux; Windows relies on the user profile's ACLs).
 - Encrypts names, categories, notes, dates and values under a key only your master password unlocks, and stores keyring entries under random IDs.
 - Rejects control characters in titles, categories and notes, so an imported file cannot inject terminal escape sequences.
 - Treats the vault file as **untrusted input**: KDF parameters are bounded before any key derivation, and a corrupt or tampered vault is reported, never overwritten.
