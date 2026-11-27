@@ -129,7 +129,12 @@ func (a *app) cmdGet(args []string) error {
 		if err := a.copySecret(value); err != nil {
 			return fmt.Errorf("copy to clipboard: %w", err)
 		}
-		fmt.Fprintln(a.err, "pandora: copied to the clipboard; it is not cleared automatically (only the TUI clears it after its deadline)")
+		ttl := a.loadConfig().ClipboardTTL
+		if err := a.clearLater(value, ttl); err != nil {
+			fmt.Fprintf(a.err, "pandora: copied to the clipboard; could not schedule clearing it: %v\n", err)
+			return nil
+		}
+		fmt.Fprintf(a.err, "pandora: copied to the clipboard; it is cleared in %d s unless it changes\n", int(ttl/time.Second))
 		return nil
 	}
 	if *quiet || !*newline {

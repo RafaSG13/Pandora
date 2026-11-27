@@ -6,6 +6,7 @@ import (
 
 	"github.com/RafaSG13/Pandora/internal/config"
 	"github.com/RafaSG13/Pandora/internal/gen"
+	"github.com/RafaSG13/Pandora/internal/secretclip"
 )
 
 // argKind says what a flag value or a positional argument looks like, which
@@ -210,6 +211,7 @@ func commands() []command {
 			run:  (*app).cmdCompletion,
 		},
 		{name: "help", aliases: []string{"-h", "-help", "--help"}, summary: "Show this help", run: (*app).cmdHelp},
+		{name: secretclip.ClearCommand, hidden: true, summary: "Clear the clipboard later if it still holds a copied secret", run: (*app).cmdClearClipboard},
 		{name: "__complete", hidden: true, summary: "Print completion candidates for the shell scripts", run: (*app).cmdComplete},
 	}
 }

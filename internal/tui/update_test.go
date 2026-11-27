@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/charmbracelet/bubbles/list"
 	tea "github.com/charmbracelet/bubbletea"
@@ -19,6 +20,15 @@ const testPassword = "correct horse battery"
 
 // clipboardLog records what the app wrote to the (stubbed) system clipboard.
 var clipboardLog []string
+
+// scheduledClear is one call to the stubbed scheduleClipboardClear.
+type scheduledClear struct {
+	value string
+	after time.Duration
+}
+
+// clearScheduled records the detached clear helpers the app asked for.
+var clearScheduled []scheduledClear
 
 // newTestModel isolates keyring, config dir and clipboard, creates an
 // unlocked vault and returns a sized model.
@@ -46,7 +56,12 @@ func newModelFor(t *testing.T, createVault bool, w, h int) tea.Model {
 	}
 
 	clipboardLog = nil
-	origWrite, origSecret, origRead := writeClipboard, writeSecretClipboard, readClipboard
+	origWrite, origSecret, origRead, origSchedule := writeClipboard, writeSecretClipboard, readClipboard, scheduleClipboardClear
+	clearScheduled = nil
+	scheduleClipboardClear = func(value string, after time.Duration) error {
+		clearScheduled = append(clearScheduled, scheduledClear{value, after})
+		return nil
+	}
 	writeClipboard = func(s string) error { clipboardLog = append(clipboardLog, s); return nil }
 	writeSecretClipboard = writeClipboard
 	// The stub clipboard holds whatever was written last, like a real one.
@@ -56,7 +71,9 @@ func newModelFor(t *testing.T, createVault bool, w, h int) tea.Model {
 		}
 		return clipboardLog[len(clipboardLog)-1], nil
 	}
-	t.Cleanup(func() { writeClipboard, writeSecretClipboard, readClipboard = origWrite, origSecret, origRead })
+	t.Cleanup(func() {
+		writeClipboard, writeSecretClipboard, readClipboard, scheduleClipboardClear = origWrite, origSecret, origRead, origSchedule
+	})
 
 	// Keep the developer's NO_COLOR / TERM out of the tests; New applies them.
 	t.Setenv("NO_COLOR", "")

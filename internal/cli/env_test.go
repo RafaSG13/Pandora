@@ -132,7 +132,7 @@ func TestGetCopyKeepsValueOffStreams(t *testing.T) {
 	if code != 0 || copied != "clip-me" {
 		t.Fatalf("exit %d copied %q stderr %q", code, copied, stderr)
 	}
-	if stdout != "" || strings.Contains(stderr, "clip-me") || !strings.Contains(stderr, "TUI") {
+	if stdout != "" || strings.Contains(stderr, "clip-me") || !strings.Contains(stderr, "cleared in") {
 		t.Errorf("stdout %q stderr %q", stdout, stderr)
 	}
 

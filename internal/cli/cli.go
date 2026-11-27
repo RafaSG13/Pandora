@@ -7,6 +7,7 @@ package cli
 
 import (
 	"bufio"
+	"crypto/sha256"
 	"errors"
 	"flag"
 	"fmt"
@@ -65,6 +66,12 @@ type app struct {
 	isOutTTY func() bool
 	// copySecret puts a value on the system clipboard (concealed where the OS allows).
 	copySecret func(string) error
+	// clearLater schedules a detached helper that clears the clipboard after a delay if it still holds the value.
+	clearLater func(value string, after time.Duration) error
+	// clearIfHolds empties the clipboard when it still holds the value with this SHA-256.
+	clearIfHolds func([sha256.Size]byte) (bool, error)
+	// sleep waits; tests replace it.
+	sleep func(time.Duration)
 	// readHidden prompts on stderr and reads a line from the terminal without echo.
 	readHidden func(prompt string) (string, error)
 	// now returns the current time; tests replace it.
@@ -97,6 +104,9 @@ func newApp(stdin io.Reader, stdout, stderr io.Writer) *app {
 		return ok && term.IsTerminal(int(f.Fd()))
 	}
 	a.copySecret = secretclip.Write
+	a.clearLater = secretclip.ClearLater
+	a.clearIfHolds = secretclip.ClearIfHolds
+	a.sleep = time.Sleep
 	a.readHidden = func(prompt string) (string, error) {
 		f, ok := a.in.(*os.File)
 		if !ok || !term.IsTerminal(int(f.Fd())) {

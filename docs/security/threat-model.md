@@ -26,8 +26,8 @@ Pandora is designed to **reduce accidental exposure**, not to defend against a c
 
 - Requires a master password to see anything, and keeps values in the OS keyring instead of files.
 - Masks values on screen until revealed.
-- Clears the clipboard 15 seconds after copying, but only if the clipboard still holds what Pandora copied. It compares a SHA-256 and keeps no plaintext, so something you copied in the meantime is left alone.
-- Marks copied values as concealed: `org.nspasteboard.ConcealedType` on macOS, excluded from clipboard history (`Win+V`) and cloud clipboard sync on Windows, and `x-kde-passwordManagerHint` on Wayland through `wl-copy --sensitive` (older `wl-copy` falls back to a plain copy).
+- Clears the clipboard 15 seconds after copying, but only if the clipboard still holds what Pandora copied. It compares a SHA-256 and keeps no plaintext, so something you copied in the meantime is left alone. A detached helper process does the clearing, so it still happens if you quit the interface, and for `pandora get --copy`. The helper receives only the hash, over a pipe, and none of the `PANDORA_*` variables.
+- Marks copied values as concealed: `org.nspasteboard.ConcealedType` on macOS, and excluded from clipboard history (`Win+V`) and cloud clipboard sync on Windows.
 - Never logs, prints or transmits values and never opens network connections.
 - Writes the vault atomically with owner-only permissions (`0600` file, `0700` directory on macOS and Linux; Windows relies on the user profile's ACLs).
 - Encrypts names, categories, notes, dates and values under a key only your master password unlocks, and stores keyring entries under random IDs.
@@ -58,6 +58,7 @@ Pandora is designed to **reduce accidental exposure**, not to defend against a c
 - The write lock is advisory: it protects against other Pandora processes, not against something editing `vault.json` or the keyring by hand. On a network share, locking may not exclude other machines.
 - The keyring library cannot enumerate entries, so `pandora doctor` finds vault entries without a value but not keyring entries without a vault record.
 - Values are text up to 32 KB. There is no binary value type.
+- The clipboard helper is a second short-lived process. If it cannot start, or the machine sleeps or shuts down before the deadline, the copy stays on the clipboard until something replaces it.
 - The concealed clipboard marker helps only with managers that honour it. On macOS each copy starts `osascript` (about 100 ms); if it fails, the copy falls back to an unmarked write.
 - Removing keyring entries is not secure erasure on SSD or APFS.
 - No independent security audit is on record. A security review is part of the [1.0 gate](../ROADMAP.md); until then, the design is documented here so that it can be reviewed, and reviews are welcome.

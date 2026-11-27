@@ -37,7 +37,8 @@ const (
 // Upper bounds of the numeric settings.
 const (
 	maxLockMinutes = 7 * 24 * 60
-	maxSeconds     = 3600
+	// MaxSeconds is the upper bound of the *_seconds settings.
+	MaxSeconds = 3600
 	// MaxExpiryWarnDays is the largest expiry_warn_days; `expiring --within` shares it.
 	MaxExpiryWarnDays = 3650
 	// MaxHistoryDepth is the largest history_depth.
@@ -216,13 +217,13 @@ func set(s *Settings, key string, raw json.RawMessage) error {
 		}
 		s.ASCII = &b
 	case "clipboard_seconds":
-		n, err := intIn(raw, 1, maxSeconds)
+		n, err := intIn(raw, 1, MaxSeconds)
 		if err != nil {
 			return err
 		}
 		s.ClipboardTTL = time.Duration(n) * time.Second
 	case "reveal_seconds":
-		n, err := intIn(raw, 1, maxSeconds)
+		n, err := intIn(raw, 1, MaxSeconds)
 		if err != nil {
 			return err
 		}

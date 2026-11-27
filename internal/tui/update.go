@@ -23,11 +23,14 @@ import (
 // writeClipboard and readClipboard are the plain system clipboard accessors
 // (reads and clears); variables so tests never touch the developer's real
 // clipboard. writeSecretClipboard is the concealed copy for secret values
-// (see internal/secretclip).
+// (see internal/secretclip). scheduleClipboardClear starts the detached helper
+// that clears a copied secret after its deadline even if the TUI has quit.
 var (
 	writeClipboard       = clipboard.WriteAll
 	readClipboard        = clipboard.ReadAll
 	writeSecretClipboard = secretclip.Write
+
+	scheduleClipboardClear = secretclip.ClearLater
 )
 
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -307,18 +310,6 @@ func (m *model) startOrphanCheck() tea.Cmd {
 	return tea.Batch(m.spinner.Tick, checkOrphans(m.titles()))
 }
 
-// clipboardHolds reports whether the clipboard still contains the value whose
-// SHA-256 is want. Terminals and clipboard tools sometimes append a trailing
-// newline, which is ignored.
-func clipboardHolds(got string, want [sha256.Size]byte) bool {
-	for _, s := range []string{got, strings.TrimRight(got, "\r\n")} {
-		if sha256.Sum256([]byte(s)) == want {
-			return true
-		}
-	}
-	return false
-}
-
 // wipeClipboard ends the pending copy: the deadline and the remembered hash
 // are dropped, and the clipboard is emptied only if it still holds what
 // Pandora copied. When it cannot be read it is cleared anyway. It reports
@@ -327,10 +318,8 @@ func clipboardHolds(got string, want [sha256.Size]byte) bool {
 func (m *model) wipeClipboard() (changed bool, err error) {
 	want := m.clipHash
 	m.clipUntil, m.clipHash = zeroTime, [sha256.Size]byte{}
-	if got, rerr := readClipboard(); rerr == nil && !clipboardHolds(got, want) {
-		return true, nil
-	}
-	return false, writeClipboard("")
+	cleared, err := secretclip.ClearIfHoldsUsing(readClipboard, writeClipboard, want)
+	return !cleared && err == nil, err
 }
 
 // clearClipboard clears the clipboard if it still holds the copied secret and
@@ -400,6 +389,9 @@ func (m *model) copySelected(title string) {
 	}
 	m.clipUntil = m.nowOr().Add(m.cfg.ClipboardTTL)
 	m.clipHash = sha256.Sum256([]byte(val))
+	// The helper outlives the TUI; its failure is harmless because the
+	// in-process deadline still clears the clipboard while the TUI runs.
+	_ = scheduleClipboardClear(val, m.cfg.ClipboardTTL)
 	m.notify("✓ Copied to clipboard", false)
 	m.audit("copy", title)
 }

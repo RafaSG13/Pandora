@@ -413,3 +413,12 @@ func TestHelpOverlayShowsVersion(t *testing.T) {
 		t.Errorf("help overlay lacks %q:\n%s", want, m.View())
 	}
 }
+
+func TestCopySchedulesTheDetachedClear(t *testing.T) {
+	m := add(newTestModel(t), "a", "X", "val")
+	m = press(m, "c")
+
+	if len(clearScheduled) != 1 || clearScheduled[0].value != "val" || clearScheduled[0].after != m.(model).cfg.ClipboardTTL {
+		t.Errorf("scheduled clears = %v, want one for the copied value with the clipboard TTL", clearScheduled)
+	}
+}
