@@ -1,0 +1,18 @@
+CHANGELOG.md
+  h_e81853c41416fb 11
+docs/security/threat-model.md
+  h_e81853c41416fb 32
+internal/store/vault.go
+  h_e81853c41416fb 465-473
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.6",
+  "base_commit_sha": "cbf25442788d715e2c85745e6ac2900dc71e7b92",
+  "prompts": {},
+  "humans": {
+    "h_e81853c41416fb": {
+      "author": "RafaSG13 <rafasrrg13@gmail.com>"
+    }
+  }
+}
