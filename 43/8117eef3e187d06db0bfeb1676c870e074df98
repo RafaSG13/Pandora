@@ -1,0 +1,16 @@
+.github/workflows/release.yml
+  h_e81853c41416fb 32-33
+.goreleaser.yaml
+  h_e81853c41416fb 47-49
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.6",
+  "base_commit_sha": "438117eef3e187d06db0bfeb1676c870e074df98",
+  "prompts": {},
+  "humans": {
+    "h_e81853c41416fb": {
+      "author": "RafaSG13 <rafasrrg13@gmail.com>"
+    }
+  }
+}
