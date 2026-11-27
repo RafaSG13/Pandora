@@ -15,7 +15,7 @@
 </p>
 
 <p align="center">
-  <video src="assets/demo.mp4" autoplay loop muted playsinline width="100%"></video>
+  <img src="assets/demo.gif" alt="Pandora demo: browsing secrets, revealing a value, filtering by tag, the category picker, compact rows, the add form with the generator and the help overlay" width="100%">
 </p>
 
 
@@ -36,6 +36,25 @@ Pandora keeps API keys, tokens and passwords out of dotfiles, shell history and 
 - **Command-line mode** — `list`, `get`, `add`, `rm`, `run`, `env`, `expiring`, `gen`, `passwd`, encrypted `export`/`import`, `doctor` and shell completions.
 - **Safe vault handling** — atomic writes with a `vault.json.bak` backup; a corrupt or tampered file is reported, never overwritten.
 - **Single binary, no network, no telemetry.**
+
+## Screenshots
+
+<table>
+  <tr>
+    <td width="50%" align="center"><img src="assets/screenshots/browse.png" alt="Browse mode with per-category colours, expiry badges and the detail card"><br><sub><b>Browse</b> — per-category colours, expiry badges and the detail card</sub></td>
+    <td width="50%" align="center"><img src="assets/screenshots/reveal.png" alt="A revealed secret value in the detail card"><br><sub><b>Reveal</b> — <code>v</code> shows one value; it hides again after 10 s or when you move</sub></td>
+  </tr>
+  <tr>
+    <td width="50%" align="center"><img src="assets/screenshots/picker.png" alt="The category and tag picker with counts"><br><sub><b>Filter picker</b> — <code>f</code> lists categories and tags with counts</sub></td>
+    <td width="50%" align="center"><img src="assets/screenshots/compact.png" alt="Compact mode with one line per secret"><br><sub><b>Compact rows</b> — <code>t</code> switches to one line per secret</sub></td>
+  </tr>
+  <tr>
+    <td width="50%" align="center"><img src="assets/screenshots/form.png" alt="The new secret form with a generated secret"><br><sub><b>New secret</b> — <code>ctrl+g</code> fills a generated secret; <code>ctrl+l</code> / <code>ctrl+t</code> change length and charset</sub></td>
+    <td width="50%" align="center"><img src="assets/screenshots/help.png" alt="The help overlay listing every key"><br><sub><b>Help</b> — <code>?</code> lists every key, including your rebinds</sub></td>
+  </tr>
+</table>
+
+<sub>Images are generated from a throwaway vault with fake secrets: <code>scripts/screenshots/record.sh</code>.</sub>
 
 ## Installation
 
@@ -210,6 +229,20 @@ The interface needs at least 60×18 characters and shows `Terminal too small` be
 
 ## How your data is stored
 
+```mermaid
+%%{init: {'theme':'base','themeVariables':{'primaryColor':'#2E1F4D','primaryTextColor':'#F8FAFC','primaryBorderColor':'#A855F7','lineColor':'#A855F7','secondaryColor':'#2E1F4D','tertiaryColor':'#1A1325','actorBkg':'#2E1F4D','actorBorder':'#A855F7','actorTextColor':'#F8FAFC','signalColor':'#A855F7','signalTextColor':'#A855F7','noteBkgColor':'#3B2A08','noteBorderColor':'#FACC15','noteTextColor':'#FEF08A','fontFamily':'ui-monospace, SFMono-Regular, Menlo, monospace'}}}%%
+flowchart LR
+    PW["Master password"] -->|"Argon2id (64 MiB, 3 passes)"| WK["Wrapping key"]
+    WK -->|unwraps| DK["Random data key"]
+    DK -->|"XChaCha20-Poly1305"| VAULT[("vault.json<br/>names, categories, notes, dates")]
+    DK -->|"encrypts each value"| KR[("OS keyring<br/>service pandora-cli<br/>account = random 32-hex ID")]
+    VAULT -. "copy before every write" .-> BAK[("vault.json.bak")]
+    classDef gold fill:#3B2A08,stroke:#FACC15,color:#FEF08A
+    classDef cyan fill:#0E3A44,stroke:#22D3EE,color:#CFFAFE
+    class PW gold
+    class VAULT,BAK,KR cyan
+```
+
 | Data                            | Where                                                              |
 | ------------------------------- | ------------------------------------------------------------------ |
 | Secret values                   | OS keyring, service `pandora-cli`, account = a random 32-hex ID; the stored value is itself encrypted with the vault key. Values over about 1.5 KB are split across several entries (`<id>`, `<id>.1`, …) to stay under the OS limits |
@@ -280,6 +313,30 @@ pandora completion fish > ~/.config/fish/completions/pandora.fish
 pandora completion powershell | Out-String | Invoke-Expression
 ```
 
+### Sharing secrets between machines
+
+Two vaults that trust each other can exchange chosen secrets as a file, with no passphrase and no network. Each side runs `pandora id` and adds the other with `pandora peer add`, after checking the fingerprint matches; how the file travels (AirDrop, scp, USB) is up to you.
+
+```mermaid
+%%{init: {'theme':'base','themeVariables':{'primaryColor':'#2E1F4D','primaryTextColor':'#F8FAFC','primaryBorderColor':'#A855F7','lineColor':'#A855F7','secondaryColor':'#2E1F4D','tertiaryColor':'#1A1325','actorBkg':'#2E1F4D','actorBorder':'#A855F7','actorTextColor':'#F8FAFC','signalColor':'#A855F7','signalTextColor':'#A855F7','noteBkgColor':'#3B2A08','noteBorderColor':'#FACC15','noteTextColor':'#FEF08A','fontFamily':'ui-monospace, SFMono-Regular, Menlo, monospace'}}}%%
+sequenceDiagram
+    participant A as Desktop (sender)
+    participant B as Laptop (receiver)
+    A->>A: pandora id
+    B->>B: pandora id
+    A-->>B: share key
+    B-->>A: share key
+    A->>A: pandora peer add laptop KEY
+    B->>B: pandora peer add desktop KEY
+    Note over A,B: compare the fingerprints both commands print
+    A->>A: pandora export --values --to laptop -s github-token -o github.share
+    A-->>B: github.share (AirDrop, scp, USB)
+    B->>B: pandora import github.share --values
+    Note over B: refused if unsigned, altered, or not made for this vault
+```
+
+The file is encrypted for the peer and signed by the sender; the share key (a post-quantum age key plus an Ed25519 signing key) is stored encrypted in `vault.json`.
+
 ### Audit log
 
 Off by default. With `"audit_log": true` in `config.json`, Pandora records what is done with your secrets: **when**, **what** (`reveal`, `copy`, `get`, `run`, `env`, `export`, `import`, `add`, `edit`, `rm`, `restore`) and **which secret**, in the interface and on the command line alike. It never records a value. The log is `audit.log` next to `vault.json`; each line is encrypted under the same key as the vault, so the file shows no title or time without your master password. When it reaches 1 MiB it rotates once to `audit.log.1` (the older one is discarded). Read it with `pandora log [--since 7d|12h|YYYY-MM-DD] [--json]`.
@@ -344,13 +401,36 @@ To report a vulnerability, see [SECURITY.md](SECURITY.md).
 ## Project layout
 
 ```
-cmd/pandora/     program entry point
-internal/cli/    command-line mode (list, get, add, rm, run, gen, export, import, doctor, completion)
-internal/store/  keyring access and metadata persistence
-internal/gen/    random secret generator (crypto/rand)
-internal/tui/    Bubble Tea model, update logic, views and styles
-internal/version/ build version, commit and date
-docs/            architecture notes and roadmap
+cmd/pandora/        program entry point
+internal/cli/       command-line mode (list, get, add, rm, run, env, gen, export, import, peer, doctor, completion)
+internal/config/    config.json loading: defaults, file, environment
+internal/store/     encrypted vault, session key, keyring access, sharing
+internal/gen/       random secret generator (crypto/rand)
+internal/secretclip/ clipboard writes marked as concealed
+internal/tui/       Bubble Tea model, update logic, views and styles
+internal/version/   build version, commit and date
+scripts/            release notes and README screenshot generation
+docs/               architecture notes, QA checklist and roadmap
+```
+
+```mermaid
+%%{init: {'theme':'base','themeVariables':{'primaryColor':'#2E1F4D','primaryTextColor':'#F8FAFC','primaryBorderColor':'#A855F7','lineColor':'#A855F7','secondaryColor':'#2E1F4D','tertiaryColor':'#1A1325','actorBkg':'#2E1F4D','actorBorder':'#A855F7','actorTextColor':'#F8FAFC','signalColor':'#A855F7','signalTextColor':'#A855F7','noteBkgColor':'#3B2A08','noteBorderColor':'#FACC15','noteTextColor':'#FEF08A','fontFamily':'ui-monospace, SFMono-Regular, Menlo, monospace'}}}%%
+flowchart TD
+    main["cmd/pandora"] -->|no arguments| tui["internal/tui<br/>Bubble Tea interface"]
+    main -->|subcommand| cli["internal/cli<br/>scripts and CI"]
+    tui --> store["internal/store<br/>vault, keyring, sharing"]
+    cli --> store
+    tui --> config["internal/config"]
+    cli --> config
+    tui --> gen["internal/gen"]
+    cli --> gen
+    config --> gen
+    tui --> clip["internal/secretclip"]
+    cli --> clip
+    store --> KR[("OS keyring")]
+    store --> VF[("vault.json")]
+    classDef cyan fill:#0E3A44,stroke:#22D3EE,color:#CFFAFE
+    class KR,VF cyan
 ```
 
 ## Documentation
@@ -368,6 +448,7 @@ make build   # build bin/pandora with the version embedded
 make run     # run without building a binary
 make vet     # go vet ./...
 make test    # go test ./...
+scripts/screenshots/record.sh   # regenerate assets/demo.gif and assets/screenshots (needs vhs)
 ```
 
 Tests use an in-memory keyring and a temporary config directory; they never touch your real secrets. See [CONTRIBUTING.md](CONTRIBUTING.md).
