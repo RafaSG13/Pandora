@@ -1,0 +1,78 @@
+site_name: Pandora
+site_description: Terminal vault for developer secrets, encrypted with a master password and backed by your OS keyring.
+site_url: https://rafasg13.github.io/Pandora/
+repo_url: https://github.com/RafaSG13/Pandora
+repo_name: RafaSG13/Pandora
+edit_uri: edit/main/docs/
+docs_dir: docs
+strict: true
+
+theme:
+  name: material
+  palette:
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: deep purple
+      accent: amber
+      toggle:
+        icon: material/weather-sunny
+        name: Switch to light mode
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: deep purple
+      accent: amber
+      toggle:
+        icon: material/weather-night
+        name: Switch to dark mode
+  features:
+    - navigation.sections
+    - navigation.top
+    - navigation.footer
+    - search.suggest
+    - search.highlight
+    - content.code.copy
+    - content.action.edit
+
+markdown_extensions:
+  - admonition
+  - attr_list
+  - md_in_html
+  - tables
+  - toc:
+      permalink: true
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+
+nav:
+  - Home: index.md
+  - Getting started:
+      - Installation: getting-started/installation.md
+      - Quick start: getting-started/quickstart.md
+  - Concepts:
+      - How Pandora works: concepts/overview.md
+  - Security:
+      - Threat model: security/threat-model.md
+      - Cryptography: security/cryptography.md
+      - Vault format: security/vault-format.md
+      - Sharing between machines: security/sharing.md
+      - Using Pandora safely: security/hardening.md
+  - Guides:
+      - Scripting and CI: guides/scripting-and-ci.md
+      - Backup and recovery: guides/backup-and-recovery.md
+      - Importing from other tools: guides/importing.md
+      - History and audit log: guides/history-and-audit.md
+  - Reference:
+      - Command-line guide: reference/cli.md
+      - Command flags: reference/cli-flags.md
+      - Configuration: reference/configuration.md
+      - Keybindings: reference/keybindings.md
+  - Project:
+      - Architecture: ARCHITECTURE.md
+      - QA checklist: QA.md
+      - Roadmap: ROADMAP.md
+      - Changelog: https://github.com/RafaSG13/Pandora/blob/main/CHANGELOG.md
+      - Contributing: https://github.com/RafaSG13/Pandora/blob/main/CONTRIBUTING.md
+      - Security policy: https://github.com/RafaSG13/Pandora/blob/main/SECURITY.md
