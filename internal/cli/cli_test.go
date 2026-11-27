@@ -2,6 +2,7 @@ package cli
 
 import (
 	"bytes"
+	"crypto/sha256"
 	"encoding/json"
 	"os"
 	"path/filepath"
@@ -47,14 +48,18 @@ func isolate(t *testing.T) {
 // password comes from PANDORA_MASTER_PASSWORD unless noMaster is set or env
 // already defines it.
 type harness struct {
-	env      map[string]string
-	tty      bool
-	outTTY   bool               // stdout is a terminal
-	clip     func(string) error // replaces the clipboard write of get --copy
-	hidden   []string           // answers returned by successive hidden prompts
-	stdin    string
-	noMaster bool
-	now      time.Time // replaces the clock when set
+	env    map[string]string
+	tty    bool
+	outTTY bool               // stdout is a terminal
+	clip   func(string) error // replaces the clipboard write of get --copy
+	// clearLater replaces the scheduling of the clipboard-clearing helper (default: no-op).
+	clearLater func(string, time.Duration) error
+	// clearIfHolds replaces the clipboard clear of the helper command (default: fails the test).
+	clearIfHolds func([sha256.Size]byte) (bool, error)
+	hidden       []string // answers returned by successive hidden prompts
+	stdin        string
+	noMaster     bool
+	now          time.Time // replaces the clock when set
 }
 
 func (h harness) run(t *testing.T, args ...string) (code int, stdout, stderr string) {
@@ -86,6 +91,18 @@ func (h harness) run(t *testing.T, args ...string) (code int, stdout, stderr str
 	if h.clip != nil {
 		a.copySecret = h.clip
 	}
+	a.clearLater = func(string, time.Duration) error { return nil }
+	if h.clearLater != nil {
+		a.clearLater = h.clearLater
+	}
+	a.clearIfHolds = func([sha256.Size]byte) (bool, error) {
+		t.Fatal("test touched the real clipboard")
+		return false, nil
+	}
+	if h.clearIfHolds != nil {
+		a.clearIfHolds = h.clearIfHolds
+	}
+	a.sleep = func(time.Duration) {}
 	answers := append([]string(nil), h.hidden...)
 	a.readHidden = func(string) (string, error) {
 		if len(answers) == 0 {

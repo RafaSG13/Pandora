@@ -21,8 +21,8 @@ The interface locks itself after 5 idle minutes (`lock_minutes`; `0` disables it
 ## Mind the clipboard
 
 - Copies are cleared after 15 seconds (`clipboard_seconds`), or right away with `x`, but only if the clipboard still holds what Pandora copied.
-- On macOS, Windows and Wayland (`wl-clipboard` installed) copies are marked so clipboard history skips them. X11 has no such convention. If you run a clipboard manager, check whether it records everything.
-- `pandora get --copy` does **not** clear the clipboard afterwards, because the process exits at once. Prefer the interface for copying.
+- On macOS and Windows copies are marked so clipboard history skips them. On Linux there is no such convention. If you run a clipboard manager, check whether it records everything.
+- Clearing survives quitting: a detached helper does it, so `q` right after `c`, and `pandora get --copy`, both clear on schedule (still only if the clipboard is unchanged).
 
 ## Prefer `run` to files, and the prompt to the environment
 
