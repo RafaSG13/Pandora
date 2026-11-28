@@ -1,0 +1,31 @@
+# One-off: attest the archives of a release whose release job stopped before the
+# attestation step (v0.7.0). Delete this file once it has run.
+name: Attest release
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Release tag to attest, e.g. v0.7.0
+        required: true
+
+permissions:
+  contents: read
+  id-token: write
+  attestations: write
+
+jobs:
+  attest:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download the release assets
+        run: gh release download "${TAG}" --repo "${GITHUB_REPOSITORY}" --dir dist
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ inputs.tag }}
+      - name: Check the archives against checksums.txt
+        working-directory: dist
+        run: sha256sum --check checksums.txt
+      - uses: actions/attest-build-provenance@e8998f949152b193b063cb0ec769d69d929409be # v2.4.0
+        with:
+          subject-checksums: dist/checksums.txt
