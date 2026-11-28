@@ -55,6 +55,24 @@ func RecordAudit(action, title string) error {
 		return err
 	}
 	defer zero(key)
+	path, err := auditPath()
+	if err != nil {
+		return err
+	}
+	release, err := lockVault()
+	if err != nil {
+		return err
+	}
+	defer release()
+	// Under the lock, refuse a stale session: another process may have
+	// rotated the data key, and a line sealed under the old one is unreadable.
+	vf, err := readVault()
+	if err != nil {
+		return err
+	}
+	if _, err := openRecords(vf, key); err != nil {
+		return err
+	}
 	plain, err := json.Marshal(AuditEntry{Time: time.Now().UTC(), Action: action, Title: title})
 	if err != nil {
 		return err
@@ -65,15 +83,6 @@ func RecordAudit(action, title string) error {
 	}
 	line := append([]byte(base64.StdEncoding.EncodeToString(sealed)), '\n')
 
-	path, err := auditPath()
-	if err != nil {
-		return err
-	}
-	release, err := lockVault()
-	if err != nil {
-		return err
-	}
-	defer release()
 	if info, err := os.Stat(path); err == nil && info.Size()+int64(len(line)) > auditMaxBytes {
 		if err := os.Remove(path + ".1"); err != nil && !os.IsNotExist(err) {
 			return err
@@ -166,21 +175,28 @@ func AuditExists() bool {
 	return err == nil
 }
 
-// resealAudit re-encrypts every readable audit line from oldKey to newKey.
-// Lines that do not open under oldKey were already unreadable and are dropped.
-// The files are replaced without a backup, which would keep old-key lines.
+// stagedAudit is an audit log re-encrypted next to the original, renamed
+// into place only after the vault commit. files are the final paths; the
+// staged copy of each is path+".rotating".
+type stagedAudit struct{ files []string }
+
+// stageAuditReseal re-encrypts every readable audit line from oldKey to
+// newKey into path+".rotating" files. Lines that do not open under oldKey were
+// already unreadable and are dropped. Files that do not exist are skipped.
 // The caller holds the vault write lock.
-func resealAudit(oldKey, newKey []byte) error {
+func stageAuditReseal(oldKey, newKey []byte) (stagedAudit, error) {
+	var s stagedAudit
 	path, err := auditPath()
 	if err != nil {
-		return err
+		return s, err
 	}
 	for _, p := range []string{path + ".1", path} {
 		f, err := os.Open(p)
 		if errors.Is(err, os.ErrNotExist) {
 			continue
 		} else if err != nil {
-			return err
+			s.discard()
+			return stagedAudit{}, err
 		}
 		var out []byte
 		sc := bufio.NewScanner(f)
@@ -197,7 +213,8 @@ func resealAudit(oldKey, newKey []byte) error {
 			sealed, err := seal(newKey, plain, []byte(aadAudit))
 			if err != nil {
 				f.Close()
-				return err
+				s.discard()
+				return stagedAudit{}, err
 			}
 			out = append(out, base64.StdEncoding.EncodeToString(sealed)...)
 			out = append(out, '\n')
@@ -205,11 +222,36 @@ func resealAudit(oldKey, newKey []byte) error {
 		scErr := sc.Err()
 		f.Close()
 		if scErr != nil {
-			return scErr
+			s.discard()
+			return stagedAudit{}, scErr
 		}
-		if err := replaceFile(p, out, false); err != nil {
-			return err
+		if err := replaceFile(p+".rotating", out, false); err != nil {
+			s.discard()
+			return stagedAudit{}, err
+		}
+		s.files = append(s.files, p)
+	}
+	return s, nil
+}
+
+// commit moves the staged files over the originals. The originals are not
+// kept: a backup would hold old-key lines.
+func (s stagedAudit) commit() error {
+	var errs []error
+	for _, p := range s.files {
+		if err := os.Rename(p+".rotating", p); err != nil {
+			errs = append(errs, err)
 		}
 	}
-	return nil
+	if len(s.files) > 0 {
+		syncDir(filepath.Dir(s.files[0]))
+	}
+	return errors.Join(errs...)
+}
+
+// discard removes the staged files without touching the originals.
+func (s stagedAudit) discard() {
+	for _, p := range s.files {
+		os.Remove(p + ".rotating")
+	}
 }

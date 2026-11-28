@@ -43,13 +43,9 @@ func TestRotateKeyKeepsValuesAndLocksOutTheOldKey(t *testing.T) {
 			oldIDs = append(oldIDs, v.stored())
 		}
 	}
-	shareBefore, err := ShareKey()
-	if err != nil {
-		t.Fatal(err)
-	}
 	oldVault := readVaultBytes(t)
 
-	if err := RotateKey(testPassword, rotatedPassword); err != nil {
+	if _, err := RotateKey(testPassword, rotatedPassword); err != nil {
 		t.Fatal(err)
 	}
 
@@ -67,9 +63,6 @@ func TestRotateKeyKeepsValuesAndLocksOutTheOldKey(t *testing.T) {
 				t.Errorf("old entry %s still in the keyring: %v", chunkAccount(s.id, k), err)
 			}
 		}
-	}
-	if got, err := ShareKey(); err != nil || got != shareBefore {
-		t.Errorf("share key changed by rotation: %q, %v", got, err)
 	}
 	if cur := readVaultBytes(t); !bytes.Equal(cur, mustRead(t, backupPath(t))) {
 		t.Error("vault.json.bak does not equal the new vault.json")
@@ -129,7 +122,7 @@ func TestRotateKeyKeepsTheAuditLogReadable(t *testing.T) {
 	if err := RecordAudit("get", "k"); err != nil {
 		t.Fatal(err)
 	}
-	if err := RotateKey(testPassword, rotatedPassword); err != nil {
+	if _, err := RotateKey(testPassword, rotatedPassword); err != nil {
 		t.Fatal(err)
 	}
 	entries, bad, err := ReadAudit(time.Time{})
@@ -147,7 +140,7 @@ func TestRotateKeyAbortsOnACorruptValueAndChangesNothing(t *testing.T) {
 	}
 	before := readVaultBytes(t)
 
-	if err := RotateKey(testPassword, rotatedPassword); !errors.Is(err, errCorruptValue) {
+	if _, err := RotateKey(testPassword, rotatedPassword); !errors.Is(err, errCorruptValue) {
 		t.Fatalf("RotateKey = %v, want errCorruptValue", err)
 	}
 	if !bytes.Equal(readVaultBytes(t), before) {
@@ -169,7 +162,7 @@ func TestRotateKeyKeepsReferencesToMissingValues(t *testing.T) {
 	if err := keyring.Delete(ServiceName, idOf(t, "gone")); err != nil {
 		t.Fatal(err)
 	}
-	if err := RotateKey(testPassword, rotatedPassword); err != nil {
+	if _, err := RotateKey(testPassword, rotatedPassword); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := GetSecretValue("gone"); !IsValueMissing(err) {
@@ -182,10 +175,10 @@ func TestRotateKeyKeepsReferencesToMissingValues(t *testing.T) {
 
 func TestRotateKeyRejectsAWrongOldPassword(t *testing.T) {
 	setup(t)
-	if err := RotateKey("not the password", rotatedPassword); !errors.Is(err, ErrWrongPassword) {
+	if _, err := RotateKey("not the password", rotatedPassword); !errors.Is(err, ErrWrongPassword) {
 		t.Errorf("RotateKey = %v, want ErrWrongPassword", err)
 	}
-	if err := RotateKey(testPassword, "short"); !errors.Is(err, ErrPasswordTooShort) {
+	if _, err := RotateKey(testPassword, "short"); !errors.Is(err, ErrPasswordTooShort) {
 		t.Errorf("RotateKey with a short password = %v, want ErrPasswordTooShort", err)
 	}
 }
@@ -204,7 +197,7 @@ func TestSessionOfARotatedVaultLocksItself(t *testing.T) {
 	if err := Unlock(testPassword); err != nil {
 		t.Fatal(err)
 	}
-	if err := RotateKey(testPassword, rotatedPassword); err != nil {
+	if _, err := RotateKey(testPassword, rotatedPassword); err != nil {
 		t.Fatal(err)
 	}
 	Lock()

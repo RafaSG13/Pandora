@@ -77,7 +77,7 @@ func loadLegacy() ([]legacyItem, error) {
 	}
 	clean := func(s string) string {
 		return strings.Map(func(r rune) rune {
-			if unicode.IsControl(r) {
+			if unicode.IsControl(r) || invisibleFormat(r) {
 				return unicode.ReplacementChar
 			}
 			return r
@@ -87,6 +87,17 @@ func loadLegacy() ([]legacyItem, error) {
 	for _, m := range raw {
 		it := legacyItem{account: m.Title}
 		m.Title, m.Category, m.Notes = clean(m.Title), clean(m.Category), clean(m.Notes)
+		m.Username = clean(m.Username)
+		if tags, err := NormalizeTags(m.Tags); err == nil {
+			m.Tags = tags
+		} else {
+			m.Tags = nil
+		}
+		for _, d := range []*string{&m.Created, &m.Updated, &m.Expires} {
+			if _, err := ParseDate(*d); err != nil {
+				*d = ""
+			}
+		}
 		it.meta = m
 		replaced := false
 		for i := range items {

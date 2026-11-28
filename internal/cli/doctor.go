@@ -55,8 +55,24 @@ func (a *app) cmdDoctor(args []string) error {
 		}
 	}
 
+	pending, err := store.PendingCleanup()
+	if err != nil {
+		return err
+	}
 	fmt.Fprintf(a.out, "Checked %d metadata entries.\n", len(items))
-	if len(missing) == 0 && len(missingVersions) == 0 {
+	if pending > 0 && fix {
+		// No record refers to these entries, so removing them needs no question.
+		left, err := store.DropPendingCleanup()
+		if err != nil {
+			return err
+		}
+		fmt.Fprintf(a.out, "Removed %d old keyring entries left by a key rotation.\n", pending-left)
+		pending = left
+	}
+	if pending > 0 {
+		fmt.Fprintf(a.out, "%d old keyring entries left by a key rotation are still in the keyring.\n", pending)
+	}
+	if len(missing) == 0 && len(missingVersions) == 0 && pending == 0 {
 		fmt.Fprintln(a.out, "OK: every entry has a value in the keyring.")
 	}
 	if len(missing) > 0 {
@@ -78,7 +94,13 @@ func (a *app) cmdDoctor(args []string) error {
 	fmt.Fprintln(a.out, "Note: keyring entries without metadata cannot be detected; the keyring API cannot list entries.")
 
 	if len(missing) == 0 && len(missingVersions) == 0 {
-		return nil
+		if pending == 0 {
+			return nil
+		}
+		if fix {
+			return &exitError{code: exitRuntime, msg: "some old keyring entries could not be removed; run 'pandora doctor --fix' again"}
+		}
+		return &exitError{code: exitRuntime, msg: "inconsistencies found; run 'pandora doctor --fix' to remove them"}
 	}
 	if restored {
 		// The backup predates the last change, so values that change replaced

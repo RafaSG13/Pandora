@@ -66,6 +66,11 @@ func prepareMeta(m *SecretMeta) error {
 			return err
 		}
 	}
+	for _, d := range []string{m.Created, m.Updated, m.Expires} {
+		if _, err := ParseDate(d); err != nil {
+			return err
+		}
+	}
 	tags, err := NormalizeTags(m.Tags)
 	if err != nil {
 		return err
