@@ -9,16 +9,22 @@ import (
 	"github.com/zalando/go-keyring"
 )
 
-// RotationCleanupError reports that the key was rotated and the vault is
-// complete, but some old data could not be removed. Show it as a warning.
-type RotationCleanupError struct {
+// PasswordCleanupError reports that the master password was changed and the
+// vault is complete, but some old data could not be removed (a backup that
+// still holds the old wrapping, old keyring entries, the audit log). Show it
+// as a warning.
+type PasswordCleanupError struct {
 	// Problems describes what is left behind; it never contains a value.
 	Problems []string
 }
 
-func (e *RotationCleanupError) Error() string {
-	return "data key rotated, but some old data could not be removed: " + strings.Join(e.Problems, "; ")
+func (e *PasswordCleanupError) Error() string {
+	return "master password changed, but some old data could not be removed: " + strings.Join(e.Problems, "; ")
 }
+
+// dropOld removes old keyring entries after a rotation. A variable so tests
+// can make it fail.
+var dropOld = dropValue
 
 // RotateKey changes the master password to newPw and replaces the data key
 // with a fresh random one. Unlike ChangePassword, anyone who kept an old copy
@@ -29,51 +35,68 @@ func (e *RotationCleanupError) Error() string {
 // records and the share state; re-encrypts every current and previous value
 // into fresh keyring entries (values whose entry was already missing keep
 // their reference, `doctor` reports them; a value that does not decrypt aborts
-// the rotation); and writes the new vault.json (new KDF salt, new wrapped
-// key). Until that write nothing referenced by the old vault changes, so any
-// earlier failure removes the new entries and leaves the vault untouched.
-// After the write it replaces vault.json.bak, switches an unlocked session to
-// the new key, re-encrypts the audit log and deletes the old keyring entries;
-// failures there are returned as *RotationCleanupError. The share identity and
-// peers are unchanged, so peers need nothing.
-func RotateKey(oldPw, newPw string) error {
+// the rotation); stages the re-encrypted audit log; and writes the new
+// vault.json (new KDF salt, new wrapped key) and vault.json.bak, together with
+// the list of old keyring entries still to remove. Until that write nothing
+// referenced by the old vault changes, so any earlier failure removes the new
+// entries and leaves the vault untouched. After the write it switches an
+// unlocked session to the new key, installs the audit log and deletes the old
+// keyring entries; failures there are returned as *PasswordCleanupError, and
+// entries that could not be removed stay in the vault's pending list until
+// `pandora doctor --fix` removes them.
+//
+// The share identity is replaced by a fresh one, because a copy of the old
+// vault plus the old password could otherwise decrypt future shares and forge
+// signed ones. The peers are kept; they have to add this vault again. The new
+// share key is returned (also together with a *PasswordCleanupError), or ""
+// when the vault had no share identity.
+func RotateKey(oldPw, newPw string) (newShareKey string, err error) {
 	release, err := lockVault()
 	if err != nil {
-		return err
+		return "", err
 	}
 	defer release()
 	vf, err := readVault()
 	if err != nil {
-		return err
+		return "", err
 	}
 	oldKey, err := vf.unwrap(oldPw)
 	if err != nil {
-		return err
+		return "", err
 	}
 	defer zero(oldKey)
 	if err := checkPassword(newPw); err != nil {
-		return err
+		return "", err
 	}
 	recs, err := vf.records(oldKey)
 	if err != nil {
-		return err
+		return "", err
 	}
 	sh, err := vf.sharing(oldKey)
 	if err != nil {
-		return err
+		return "", err
+	}
+	// Entries a previous rotation could not remove stay on the list.
+	leftover, err := vf.pending(oldKey)
+	if err != nil {
+		return "", err
 	}
 	newKey := make([]byte, keyLen)
 	if _, err := rand.Read(newKey); err != nil {
-		return err
+		return "", err
 	}
 	defer zero(newKey)
 
-	var written, old []storedValue
+	var written []storedValue
+	old := leftover
 	// move re-encrypts the value in n entries of id under newKey. It returns
 	// the new id and entry count, or the old ones when the value is missing.
 	move := func(title, id string, n int) (string, int, error) {
 		sealed, err := readSealed(id, n)
 		if errors.Is(err, keyring.ErrNotFound) {
+			// The record keeps pointing at it (doctor reports it), but any
+			// chunks that survive are still sealed under the old key.
+			old = append(old, storedValue{id, n})
 			return id, n, nil
 		} else if err != nil {
 			return "", 0, err
@@ -106,14 +129,14 @@ func RotateKey(oldPw, newPw string) error {
 		r := &recs[i]
 		nid, k, err := move(r.Title, r.ID, r.chunkCount())
 		if err != nil {
-			return fail(err)
+			return "", fail(err)
 		}
 		r.ID, r.Chunks = nid, chunksField(k)
 		for j := range r.History {
 			v := &r.History[j]
 			nid, k, err := move(r.Title, v.ID, max(1, v.Chunks))
 			if err != nil {
-				return fail(err)
+				return "", fail(err)
 			}
 			v.ID, v.Chunks = nid, chunksField(k)
 		}
@@ -121,49 +144,78 @@ func RotateKey(oldPw, newPw string) error {
 
 	p, err := newKDF()
 	if err != nil {
-		return fail(err)
+		return "", fail(err)
 	}
 	kek := deriveKEK(newPw, p)
 	defer zero(kek)
 	wrapped, err := seal(kek, newKey, []byte(aadKey))
 	if err != nil {
-		return fail(err)
+		return "", fail(err)
 	}
 	nvf := vaultFile{Version: vaultVersion, KDF: p, WrappedKey: wrapped}
 	if err := nvf.setRecords(newKey, recs); err != nil {
-		return fail(err)
+		return "", fail(err)
 	}
 	if sh != nil {
-		if err := nvf.setSharing(newKey, sh); err != nil {
-			return fail(err)
+		fresh, err := newSharing()
+		if err != nil {
+			return "", fail(err)
+		}
+		fresh.Peers = sh.Peers
+		if newShareKey, err = fresh.shareKey(); err != nil {
+			return "", fail(err)
+		}
+		if err := nvf.setSharing(newKey, fresh); err != nil {
+			return "", fail(err)
 		}
 	}
-	if err := writeVault(nvf); err != nil {
-		return fail(err)
+	// Rotating matters more than the audit log, but aborting before the
+	// commit is safe and can be repeated.
+	staged, err := stageAuditReseal(oldKey, newKey)
+	if err != nil {
+		return "", fail(err)
+	}
+	if err := nvf.setPending(newKey, old); err != nil {
+		staged.discard()
+		return "", fail(err)
+	}
+	backupErr, err := commitVault(nvf)
+	if err != nil {
+		staged.discard()
+		return "", fail(err)
 	}
 
 	// The vault is committed: collect problems instead of returning early.
 	var problems []string
-	if err := replaceBackupWithCurrent(); err != nil {
-		problems = append(problems, "vault.json.bak still holds the old key: "+err.Error())
+	if backupErr != nil {
+		problems = append(problems, "vault.json.bak still holds the old key: "+backupErr.Error())
 	}
 	if IsUnlocked() {
 		setSession(newKey, wrapped)
 	}
-	if err := resealAudit(oldKey, newKey); err != nil {
+	if err := staged.commit(); err != nil {
 		problems = append(problems, "audit log: "+err.Error())
 	}
-	failed := 0
+	var failed []storedValue
 	for _, s := range old {
-		if err := dropValue(s.id, s.n); err != nil {
-			failed++
+		if dropOld(s.id, s.n) != nil {
+			failed = append(failed, s)
 		}
 	}
-	if failed > 0 {
-		problems = append(problems, fmt.Sprintf("%d old keyring entries could not be removed", failed))
+	if len(failed) != len(old) {
+		perr := nvf.setPending(newKey, failed)
+		if perr == nil {
+			_, perr = commitVault(nvf)
+		}
+		if perr != nil {
+			problems = append(problems, "the list of old keyring entries could not be updated: "+perr.Error())
+		}
+	}
+	if len(failed) > 0 {
+		problems = append(problems, fmt.Sprintf("%d old keyring entries could not be removed; run 'pandora doctor --fix'", len(failed)))
 	}
 	if len(problems) > 0 {
-		return &RotationCleanupError{Problems: problems}
+		return newShareKey, &PasswordCleanupError{Problems: problems}
 	}
-	return nil
+	return newShareKey, nil
 }

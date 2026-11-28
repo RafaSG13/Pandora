@@ -56,7 +56,7 @@ func ClearLater(value string, after time.Duration) error {
 	}
 	cmd := exec.Command(exe, ClearCommand, strconv.Itoa(int(after/time.Second)))
 	for _, kv := range os.Environ() {
-		if !strings.HasPrefix(kv, "PANDORA_") {
+		if !strings.HasPrefix(strings.ToUpper(kv), "PANDORA_") {
 			cmd.Env = append(cmd.Env, kv)
 		}
 	}

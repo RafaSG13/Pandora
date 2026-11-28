@@ -45,7 +45,7 @@ Titles, categories, notes and tags are encrypted in the vault, but they are show
 
 ## Keep it current, verify what you install
 
-Download releases only from the official [Releases page](https://github.com/RafaSG13/Pandora/releases), and check the archive against `checksums.txt` (see [Installation](../getting-started/installation.md)). Binaries are not code-signed or notarised yet.
+Download releases only from the official [Releases page](https://github.com/RafaSG13/Pandora/releases), and check the archive with `gh attestation verify <archive> --repo RafaSG13/Pandora` as well as against `checksums.txt` (see [Installation](../getting-started/installation.md)). Binaries are not code-signed by Apple or Microsoft, nor notarised yet.
 
 ## Shared machines
 

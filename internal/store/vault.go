@@ -29,8 +29,8 @@ var (
 	ErrWrongPassword = errors.New("wrong master password")
 	// ErrPasswordTooShort is returned when a new master password is shorter than MinPasswordLen.
 	ErrPasswordTooShort = fmt.Errorf("master password must be at least %d characters", MinPasswordLen)
-	// ErrInvalidText is returned for a title, category or note containing control characters.
-	ErrInvalidText = errors.New("text must not contain control characters")
+	// ErrInvalidText is returned for a title, category or note containing control or invisible formatting characters.
+	ErrInvalidText = errors.New("text must not contain control characters or invisible formatting characters")
 	// ErrVaultExists is returned by Create when a vault is already present.
 	ErrVaultExists = errors.New("a vault already exists")
 	// ErrKeyChanged is returned when another process replaced the data key since
@@ -81,6 +81,9 @@ type vaultFile struct {
 	// Sharing is the encrypted share identity and trusted peers (share.go);
 	// absent until first needed.
 	Sharing []byte `json:"sharing,omitempty"`
+	// Pending lists keyring entries a key rotation still has to remove
+	// (pending.go), sealed under the data key; absent when there are none.
+	Pending []byte `json:"pending,omitempty"`
 }
 
 // record is one secret in the encrypted metadata: SecretMeta plus the opaque
@@ -312,16 +315,45 @@ func (vf vaultFile) records(key []byte) ([]record, error) {
 	return recs, nil
 }
 
+// marshalVault is the byte form of vf written to vault.json.
+func marshalVault(vf vaultFile) ([]byte, error) {
+	return json.MarshalIndent(vf, "", "  ")
+}
+
 func writeVault(vf vaultFile) error {
 	p, err := vaultPath()
 	if err != nil {
 		return err
 	}
-	out, err := json.MarshalIndent(vf, "", "  ")
+	out, err := marshalVault(vf)
 	if err != nil {
 		return err
 	}
 	return writeFileAtomic(p, out)
+}
+
+// commitVault writes vf as vault.json and then as vault.json.bak, so the
+// backup never keeps a previous wrapping or data key. err: nothing changed.
+// backupErr: vault.json is committed but vault.json.bak still holds the
+// previous file (or vault.json.corrupt could not be removed).
+func commitVault(vf vaultFile) (backupErr, err error) {
+	p, err := vaultPath()
+	if err != nil {
+		return nil, err
+	}
+	out, err := marshalVault(vf)
+	if err != nil {
+		return nil, err
+	}
+	if err := replaceFile(p, out, false); err != nil {
+		return nil, err
+	}
+	backupErr = replaceFile(p+".bak", out, false)
+	// A leftover vault.json.corrupt may hold the previous wrapping.
+	if err := os.Remove(p + ".corrupt"); err != nil && !os.IsNotExist(err) {
+		backupErr = errors.Join(backupErr, err)
+	}
+	return backupErr, nil
 }
 
 // unwrap derives the key-encryption key from password and opens the data key.
@@ -390,6 +422,14 @@ func ChangePassword(oldPw, newPw string) error {
 		return err
 	}
 	defer zero(key)
+	// Never re-save a vault whose contents do not open: the write would copy
+	// the damaged file over the good backup.
+	if _, err := vf.records(key); err != nil {
+		return err
+	}
+	if _, err := vf.sharing(key); err != nil {
+		return err
+	}
 	if err := checkPassword(newPw); err != nil {
 		return err
 	}
@@ -404,24 +444,14 @@ func ChangePassword(oldPw, newPw string) error {
 		return err
 	}
 	vf.KDF, vf.WrappedKey = p, wrapped
-	if err := writeVault(vf); err != nil {
-		return err
-	}
-	return replaceBackupWithCurrent()
-}
-
-// replaceBackupWithCurrent overwrites vault.json.bak with the current
-// vault.json, so the backup no longer holds the previous wrapping.
-func replaceBackupWithCurrent() error {
-	path, err := vaultPath()
+	backupErr, err := commitVault(vf)
 	if err != nil {
 		return err
 	}
-	cur, err := os.ReadFile(path)
-	if err != nil {
-		return err
+	if backupErr != nil {
+		return &PasswordCleanupError{Problems: []string{"vault.json.bak still holds the old password: " + backupErr.Error()}}
 	}
-	return os.WriteFile(path+".bak", cur, 0600)
+	return nil
 }
 
 // loadRecords decrypts the vault records. A missing vault yields no records;
@@ -438,6 +468,13 @@ func loadRecords() ([]record, error) {
 	} else if err != nil {
 		return nil, err
 	}
+	return openRecords(vf, key)
+}
+
+// openRecords decrypts vf's records with the session key. When they do not
+// open and vf's wrapped key differs from the session's, another process
+// rotated the data key: the session is locked and ErrKeyChanged returned.
+func openRecords(vf vaultFile, key []byte) ([]record, error) {
 	recs, err := vf.records(key)
 	if err != nil && errors.Is(err, ErrVaultCorrupt) && keyChanged(vf.WrappedKey) {
 		Lock()
@@ -481,14 +518,29 @@ func recordIndex(recs []record, title string) int {
 }
 
 // ValidateText rejects control characters (ESC, newline, tab, ...), which
-// could inject terminal escape sequences into list output and the TUI.
+// could inject terminal escape sequences into list output and the TUI, and
+// invisible formatting characters (bidirectional overrides, zero-width
+// space, BOM) that could make one title look like another. The zero-width
+// joiner and non-joiner stay allowed: emoji and some scripts need them.
 func ValidateText(s string) error {
 	for _, r := range s {
-		if unicode.IsControl(r) {
+		if unicode.IsControl(r) || invisibleFormat(r) {
 			return ErrInvalidText
 		}
 	}
 	return nil
+}
+
+// invisibleFormat reports the zero-width and bidirectional formatting
+// characters ValidateText rejects.
+func invisibleFormat(r rune) bool {
+	switch {
+	case r == 0x061C, r == 0x200B, r == 0x200E, r == 0x200F,
+		r >= 0x202A && r <= 0x202E, r == 0x2060,
+		r >= 0x2066 && r <= 0x2069, r == 0xFEFF:
+		return true
+	}
+	return false
 }
 
 // writeFileAtomic replaces path with data, first keeping the previous
@@ -522,7 +574,7 @@ func replaceFile(path string, data []byte, keepBackup bool) error {
 	}
 	if keepBackup {
 		if old, err := os.ReadFile(path); err == nil {
-			if err := os.WriteFile(path+".bak", old, 0600); err != nil {
+			if err := replaceFile(path+".bak", old, false); err != nil {
 				return err
 			}
 		}

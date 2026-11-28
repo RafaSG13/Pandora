@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"path/filepath"
 	"time"
 )
 
@@ -111,6 +110,9 @@ func inspectBytes(raw []byte, password string) FileReport {
 	if err != nil {
 		return FileReport{Health: FileCorrupt, Err: err}
 	}
+	if _, err := vf.sharing(key); err != nil {
+		return FileReport{Health: FileCorrupt, Err: err}
+	}
 	return FileReport{Health: FileOK, Entries: len(recs)}
 }
 
@@ -159,22 +161,10 @@ func RestoreVaultBackup(password string) error {
 		default:
 			return fmt.Errorf("%w: %v", ErrRestoreRefused, v.Err)
 		}
-		if err := os.WriteFile(p+".corrupt", cur, 0600); err != nil {
+		if err := replaceFile(p+".corrupt", cur, false); err != nil {
 			return fmt.Errorf("keeping the damaged file: %w", err)
 		}
 	}
 
-	tmp, err := os.CreateTemp(filepath.Dir(p), "vault.json-*.tmp")
-	if err != nil {
-		return err
-	}
-	defer os.Remove(tmp.Name())
-	if _, err := tmp.Write(bak); err != nil {
-		tmp.Close()
-		return err
-	}
-	if err := tmp.Close(); err != nil {
-		return err
-	}
-	return os.Rename(tmp.Name(), p) // CreateTemp files are 0600
+	return replaceFile(p, bak, false)
 }

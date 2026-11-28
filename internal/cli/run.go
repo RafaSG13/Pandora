@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"os/signal"
+	"runtime"
 	"strings"
 	"syscall"
 )
@@ -127,15 +128,28 @@ func EnvName(title string) string {
 }
 
 // childBase is the parent's environment minus Pandora's own password
-// variables, which the child has no business seeing.
+// variables, which the child has no business seeing. Windows environment
+// names are case-insensitive, so the match folds case there.
 func childBase(environ []string) []string {
 	out := make([]string, 0, len(environ))
 	for _, kv := range environ {
-		if !strings.HasPrefix(kv, passphraseEnv+"=") && !strings.HasPrefix(kv, masterEnv+"=") {
+		if !isSecretEnv(kv, runtime.GOOS == "windows") {
 			out = append(out, kv)
 		}
 	}
 	return out
+}
+
+// isSecretEnv reports whether the NAME=value entry kv sets one of Pandora's
+// password variables; fold compares the name case-insensitively.
+func isSecretEnv(kv string, fold bool) bool {
+	name, _, _ := strings.Cut(kv, "=")
+	for _, secret := range []string{masterEnv, passphraseEnv} {
+		if name == secret || fold && strings.EqualFold(name, secret) {
+			return true
+		}
+	}
+	return false
 }
 
 // start runs cmd to completion, forwarding interrupt/terminate signals to it,

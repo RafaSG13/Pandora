@@ -161,12 +161,13 @@ func (a *app) cmdPasswd(args []string) error {
 	if err != nil {
 		return err
 	}
+	var shareKey string
 	if *rotate {
-		err = store.RotateKey(old, pw)
+		shareKey, err = store.RotateKey(old, pw)
 	} else {
 		err = store.ChangePassword(old, pw)
 	}
-	var cleanup *store.RotationCleanupError
+	var cleanup *store.PasswordCleanupError
 	if errors.As(err, &cleanup) {
 		fmt.Fprintf(a.err, "pandora: warning: %v\n", cleanup)
 	} else if err != nil {
@@ -176,6 +177,9 @@ func (a *app) cmdPasswd(args []string) error {
 		fmt.Fprintln(a.err, "Master password changed and data key rotated.")
 	} else {
 		fmt.Fprintln(a.err, "Master password changed.")
+	}
+	if shareKey != "" {
+		fmt.Fprintf(a.err, "Share key replaced. New fingerprint: %s\nPeers must remove this vault and add it again: run 'pandora id' and send them the new key.\n", store.Fingerprint(shareKey))
 	}
 	return nil
 }

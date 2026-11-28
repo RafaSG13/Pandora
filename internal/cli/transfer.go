@@ -207,8 +207,8 @@ func (a *app) passphrase(confirm bool) (string, error) {
 			if err := checkPassphraseLen(p); err != nil {
 				return "", err
 			}
-			a.warnEnv(passphraseEnv)
 		}
+		a.warnEnv(passphraseEnv)
 		return p, nil
 	}
 	if !a.isTTY() {
@@ -281,6 +281,9 @@ func decrypt(data []byte, pass string) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
+	// An imported file chooses its own scrypt cost: cap it so a crafted file
+	// cannot make the importer spend minutes of CPU and gigabytes of memory.
+	id.SetMaxWorkFactor(20)
 	var src io.Reader = bytes.NewReader(data)
 	if bytes.HasPrefix(bytes.TrimLeft(data, " \t\r\n"), []byte(armorHeader)) {
 		src = armor.NewReader(src)

@@ -90,8 +90,33 @@ type app struct {
 // process exit code: 0 success, 1 runtime error, 2 usage error, 3 `expiring`
 // found something.
 func Run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
-	return newApp(stdin, stdout, stderr).run(args)
+	a := newApp(stdin, stdout, stderr)
+	secrets := takeSecretEnv()
+	a.getenv = func(k string) string {
+		if v, ok := secrets[k]; ok {
+			return v
+		}
+		return os.Getenv(k)
+	}
+	return a.run(args)
 }
+
+// takeSecretEnv removes the password variables from this process's
+// environment and returns the ones that were set. Programs Pandora starts
+// (clipboard helpers, the child of `run`) then never inherit them.
+func takeSecretEnv() map[string]string {
+	out := map[string]string{}
+	for _, k := range []string{masterEnv, passphraseEnv} {
+		if v, ok := os.LookupEnv(k); ok {
+			out[k] = v
+			os.Unsetenv(k)
+		}
+	}
+	return out
+}
+
+// ScrubSecretEnv removes the password variables from this process's environment, so no program Pandora starts inherits them.
+func ScrubSecretEnv() { takeSecretEnv() }
 
 func newApp(stdin io.Reader, stdout, stderr io.Writer) *app {
 	a := &app{in: stdin, out: stdout, err: stderr, getenv: os.Getenv, environ: os.Environ, now: time.Now}
@@ -113,7 +138,7 @@ func newApp(stdin io.Reader, stdout, stderr io.Writer) *app {
 			return "", errors.New("stdin is not a terminal")
 		}
 		fmt.Fprint(a.err, prompt)
-		b, err := term.ReadPassword(int(f.Fd()))
+		b, err := readPasswordRestoring(int(f.Fd()))
 		fmt.Fprintln(a.err)
 		return string(b), err
 	}

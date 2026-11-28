@@ -14,7 +14,13 @@ tar -xzf pandora_<version>_<os>_<arch>.tar.gz
 install -m 0755 pandora /usr/local/bin/pandora
 ```
 
-Binaries are not code-signed or notarised yet. On macOS, Gatekeeper may block a downloaded binary: run `xattr -d com.apple.quarantine pandora` once, or build from source.
+Every release archive also carries a signed build-provenance attestation, made by the release workflow on GitHub. With the [GitHub CLI](https://cli.github.com) you can check that the archive you downloaded was built from this repository's workflow:
+
+```sh
+gh attestation verify pandora_<version>_<os>_<arch>.tar.gz --repo RafaSG13/Pandora
+```
+
+`checksums.txt` alone proves less, because it is downloaded from the same place as the archive. The binaries are still not code-signed by Apple or Microsoft or notarised. On macOS, Gatekeeper may block a downloaded binary: run `xattr -d com.apple.quarantine pandora` once, or build from source.
 
 **With Go** (the version in the `go` directive of [`go.mod`](https://github.com/RafaSG13/Pandora/blob/main/go.mod)):
 

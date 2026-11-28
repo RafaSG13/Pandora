@@ -14,6 +14,7 @@ import (
 	"github.com/zalando/go-keyring"
 
 	"github.com/RafaSG13/Pandora/internal/store"
+	"github.com/RafaSG13/Pandora/internal/termsafe"
 )
 
 type listEntry struct {
@@ -136,6 +137,10 @@ func (a *app) cmdGet(args []string) error {
 		}
 		fmt.Fprintf(a.err, "pandora: copied to the clipboard; it is cleared in %d s unless it changes\n", int(ttl/time.Second))
 		return nil
+	}
+	if a.isOutTTY() {
+		// A value can carry escape sequences from an import or a peer.
+		value = termsafe.Sanitize(value)
 	}
 	if *quiet || !*newline {
 		_, err = io.WriteString(a.out, value)

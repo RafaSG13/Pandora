@@ -1,6 +1,6 @@
 # Roadmap
 
-Releases 0.1.x, 0.2.0, 0.3.0 and 0.6.0 are published (0.6.0 also carries what was planned as 0.4.0 and 0.5.0; see [Release plan](#release-plan)). This file is the forward plan, written to be **read by an engineer or an AI agent that then produces a detailed implementation plan** for the next item. Read [How to use this document](#how-to-use-this-document) first.
+Releases 0.1.x, 0.2.0, 0.3.0 and 0.6.0 are published (0.6.0 also carries what was planned as 0.4.0 and 0.5.0; see [Release plan](#release-plan)). 0.7.0 is sharing and security (peer sharing, key rotation, the security-review fixes, CI and release hardening); the API freeze (R-50, R-51) moved to 0.8.0, the 1.0 release candidate. This file is the forward plan, written to be **read by an engineer or an AI agent that then produces a detailed implementation plan** for the next item. Read [How to use this document](#how-to-use-this-document) first.
 
 ## How to use this document
 
@@ -74,14 +74,25 @@ Never touch the real keychain, config directory or clipboard. Use `keyring.MockI
 | R-28 | `doctor` vault recovery (re-scoped, option B) | 0.5.0 | M | – | done |
 | R-24 | Value history | 0.5.0 | L | R-23 (done) | done |
 | R-32 | Local audit log | 0.6.0 | M | R-23 (done), R-25, R-26 | done |
-| R-50 | API freeze audit (CLI, JSON, exit codes, formats) | 0.7.0 | M | R-25, R-28, R-30, R-24, R-32 | todo |
-| R-51 | Format compatibility test corpus | 0.7.0 | M | R-24 | todo |
+| R-33 | Peer sharing (`id`, `peer`, `export --to`) | 0.7.0 | L | – | done |
+| R-34 | Data-key rotation (`passwd --rotate-key`) | 0.7.0 | M | R-33 | done |
+| R-35 | Security review fixes (2026-11-28) | 0.7.0 | M | R-33, R-34 | done |
+| R-36 | CI and release supply chain | 0.7.0 | S | – | done |
 | R-52 | TUI polish and known bugs | 0.7.0 | S | – | done |
+| R-50 | API freeze audit (CLI, JSON, exit codes, formats) | 0.8.0 | M | R-25, R-28, R-30, R-24, R-32, R-33, R-34 | todo |
+| R-51 | Format compatibility test corpus | 0.8.0 | M | R-24, R-33, R-34 | todo |
+| R-56 | Fuzz tests for untrusted-input parsers (`parseVault`, `parseExport`, `parseDotenv`, `parseBitwardenJSON`, `OpenShare`) | 0.8.0 | M | – | todo |
 | R-05 | Real-environment QA, all three OSes | 1.0.0 gate | M | – | in-progress (macOS keyring and clipboard done; other terminals and OSes open) |
 | R-11 | Concealed clipboard copies, Windows check | 1.0.0 gate | S | – | in-progress (macOS verified; Windows manual QA open) |
-| R-53 | 1.0 release (docs, security review, tag) | 1.0.0 | S | R-05, R-11, R-50, R-51, R-52 | todo |
-| R-40 | TOTP codes | post-1.0 (1.1) | L | R-20 (done) | todo |
-| R-41 | Folder-sync vault file | post-1.0 (1.2) | L | R-23 (done) | todo |
+| R-57 | Independent security review | 1.0.0 gate | M | R-35 | todo |
+| R-53 | 1.0 release (docs, security review, tag) | 1.0.0 | S | R-05, R-11, R-50, R-51, R-52, R-56, R-57 | todo |
+| R-46 | Unlock agent / session caching | post-1.0 (1.1) | L | – | todo |
+| R-43 | Secret references and templates (`pandora inject`, `run --env-file`) | post-1.0 (1.1) | M | – | todo |
+| R-42 | More importers (1Password 1PUX/CSV, KeePass XML/KDBX, Chrome CSV) | post-1.0 (1.2) | M | R-25 (done) | todo |
+| R-44 | Packaging (Scoop/winget, deb/rpm via nfpm, AUR, Nix) | post-1.0 (1.2) | M | R-36 | todo |
+| R-45 | macOS notarisation and Windows code signing | post-1.0 (1.2) | M | R-36 | todo |
+| R-40 | TOTP codes | post-1.0 (1.3) | L | R-20 (done) | todo |
+| R-41 | Folder-sync vault file | post-1.0 (1.4) | L | R-23 (done) | todo |
 
 The index is ordered by release, then by the order to build inside it; "first `todo` item whose `Depends` are `done`" therefore walks the plan top to bottom. The section order below matches.
 
@@ -95,12 +106,15 @@ Versions are SemVer `0.x` until 1.0.0, which freezes the public surface (see R-5
 | **0.4.0** (shipped in v0.6.0) | Scripting and adoption, no format change | R-26 (done), then R-30, then R-25 | R-30 first: smallest, and it reads the existing `expiry_warn_days`. R-26's dotenv quoting (`dotenvValue` in `internal/cli/dotenv.go`) is reused, inverted, by the R-25 dotenv parser. R-25 starts with `dotenv` plus one password-manager format and needs redacted sample exports from the user. New commands go through `commands()` so the completion drift tests cover them; README command table updated. |
 | **0.5.0** (shipped in v0.6.0) | Data safety | R-28 (option B), then R-24 (design first) | R-24 adds an `omitempty` field to the encrypted record and a `history_depth` config key; the vault stays `version: 2` unless the plan finds a reason to bump it. The plan must state what a downgrade does with history entries. R-24 comes before the freeze because it touches the persisted format. R-28 is independent of R-24: if R-24 slips, tag 0.5.0 with R-28 alone. |
 | **0.6.0** (published) | Auditability | R-32 | After 0.4.0 so every new command (`env`, `get --copy`, imports, `expiring`) calls the single audit writer from the start. Opt-in through an `audit_log` config key; a test greps the file for the test secret. Shipped as `v0.6.0` together with 0.4.0 and 0.5.0, without the full `docs/QA.md` macOS pass or the Windows concealed-copy check (R-05 and R-11 stay open). |
-| **0.7.0** | Stabilise (release candidate quality, no new features) | R-50, R-51, R-52 | R-50 last among features so nothing it freezes still moves. R-51 proves the formats still load; R-52 fixes known layout bugs. |
-| **1.0.0** | Stable | R-53 plus the R-05 and R-11 gates | QA gates run last, against the final release artefacts. Tag only when the user asks. |
-| 1.1 (post-1.0) | TOTP | R-40 | Additive `kind` field; needs the user's answer to its `Ask the user` question before planning. |
-| 1.2 (post-1.0) | Folder sync | R-41 | Needs the user's answer to its `Ask the user` question; additive only. |
+| **0.7.0** | Sharing and security | R-33, R-34, R-35, R-36, R-52 | Checklist for macOS in `docs/QA.md` run by the user, `keyring-linux` CI job and the rest of CI green (race detector, `govulncheck`). Peer sharing and key rotation were never planned as items; they entered without a roadmap entry and are recorded here. Tag only when the user asks; after the tag, `gh attestation verify` on an archive must succeed. |
+| **0.8.0** | Stabilise (1.0 release candidate, no new features) | R-50, R-51, R-56 | R-50 last among features so nothing it freezes still moves. R-51 proves the formats still load (now including `sharing` and `pending`); R-56 fuzzes every parser of untrusted input before the formats are frozen. |
+| **1.0.0** | Stable | R-53 plus the R-05, R-11 and R-57 gates | QA gates and the independent security review run last, against the final release artefacts. Tag only when the user asks. |
+| 1.1 (post-1.0) | Scripting ergonomics | R-46, then R-43 | R-46 first: every command asks for the master password or reads it from the environment. Needs its `Ask the user` answer before planning. |
+| 1.2 (post-1.0) | Adoption | R-42, R-44, R-45 | Importers, packages and platform signing; none touches the vault format. |
+| 1.3 (post-1.0) | TOTP | R-40 | Additive `kind` field; needs the user's answer to its `Ask the user` question before planning. |
+| 1.4 (post-1.0) | Folder sync | R-41 | Needs the user's answer to its `Ask the user` question; additive only. |
 
-**1.0.0 criteria:** R-05 and R-11 done on macOS, Linux and Windows; persisted formats (`vault.json` v2, export JSON) unchanged since 0.5 apart from additive `omitempty` fields, proved by the R-51 corpus; the R-50 stability document published; no `blocked` item; `keyring-linux` CI job green.
+**1.0.0 criteria:** R-05 and R-11 done on macOS, Linux and Windows; persisted formats (`vault.json` v2, export JSON, `pandora-share` v1) unchanged since 0.7 apart from additive `omitempty` fields, proved by the R-51 corpus; the R-50 stability document published; the R-56 fuzz targets in the tree and run in CI for a short time; R-57 (independent security review) done with its findings fixed or documented; no `blocked` item; `keyring-linux` CI job green.
 
 **Order rationale.**
 - R-30 first: smallest item, reads the existing `expiry_warn_days`.
@@ -109,6 +123,9 @@ Versions are SemVer `0.x` until 1.0.0, which freezes the public surface (see R-5
 - R-32 after the commands exist, so each calls `audit.Record` once.
 - R-50 last among features, so nothing it freezes still moves.
 - QA gates last: they run against the final artefacts.
+- R-33 to R-36 first: they are already in the tree, and the freeze must describe them.
+- R-56 before R-50: a fuzzer finds the parser bugs that would otherwise force a format change after the freeze.
+- R-57 after the freeze: the reviewer reads the code that will be 1.0.
 
 Sizing rule used for the cut: a release holds at most one L item, or up to three S/M items, so a slipping item never holds back a finished one; move it to the next release instead. 0.5.0 holds R-24 (L) plus R-28 (M): acceptable because R-28 is independent.
 
@@ -525,25 +542,53 @@ Also state the threat model in one paragraph: shoulder surfing, accidental scree
 
 ---
 
-## Release 0.7.0 — stabilise
+## Release 0.7.0 — sharing and security
 
-No new features: this release is the 1.0 release candidate. Everything here is about making the public surface boring and provable.
+Peer sharing and key rotation landed without a roadmap item; this release records them (R-33, R-34), the review of 2026-11-28 (R-35) and the CI and release hardening (R-36). R-52 is the TUI polish that was already done.
 
-### R-50 API freeze audit
-**Status** todo · **Size** M · **Depends** R-25, R-28, R-30, R-24, R-32
+### R-33 Peer sharing (`id`, `peer`, `export --to`)
+**Status** done · **Size** L · **Depends** –
 
-**Scope.** Enumerate from `commands()` (`internal/cli/registry.go`) every command, flag, exit code (`0/1/2/3`), stdout format and JSON shape (`list --json`, `expiring --json`, export JSON `SecretMeta`, `config get`). Write them into a new `docs/STABILITY.md`: *frozen from 1.0* (commands, flags, exit codes, JSON schemas, `vault.json` v2, export format) and *may change in minor releases* (TUI keys, layout, wording of messages). Rename or remove anything awkward now (for example inconsistent flag names between `get`, `env` and `run`) as a clean cutover with a changelog note; after 1.0 only additive changes.
+**Outcome.** Each vault has a share identity: a post-quantum age hybrid key (ML-KEM-768 + X25519) plus an Ed25519 signing key, stored encrypted in `vault.json` (`sharing`, AAD `pandora-v2-sharing`). `pandora id` prints the share key and its fingerprint; `pandora peer add|list|rm` manages trusted peers; `pandora export --values --to PEER` writes a share file encrypted for the peer and signed by this vault, and `import` verifies the signature against a trusted peer before reading. Code: `internal/store/share.go`, `internal/cli/` (`id`, `peer`, `transfer.go`). Protocol: `docs/security/sharing.md`.
 
-**Ask the user.** Which awkward names to change, once the audit lists them.
+### R-34 Data-key rotation (`passwd --rotate-key`)
+**Status** done · **Size** M · **Depends** R-33
 
-**Acceptance.** `docs/STABILITY.md` exists and matches the code; a test snapshots `commands()` flag names and the exit-code constants so accidental changes fail CI.
+**Outcome.** `store.RotateKey` replaces the data key and the master password together: every value and history version is re-encrypted under new keyring IDs, then `vault.json` is committed with the records, the sharing data and the audit log under the new key. An old copy of `vault.json` with the old password opens nothing current. Code: `internal/store/rotate.go`; CLI: `passwd --rotate-key`. R-35 made it durable (pending list) and made it replace the share identity.
 
-### R-51 Format compatibility test corpus
-**Status** todo · **Size** M · **Depends** R-24
+### R-35 Security review fixes (2026-11-28)
+**Status** done · **Size** M · **Depends** R-33, R-34
 
-**Scope.** Check in `internal/store/testdata/` a `vault.json` fixture per shipped format state (0.2.0 record, 0.3.0 with tags and chunks, 0.5.0 with history), created with fixed KDF parameters and a known password, plus an export JSON from each. Tests load every fixture with the current code. Fixtures use synthetic titles and values only.
+**Outcome.** A review of the code found no critical or high issue and these 19 findings, all fixed in 0.7.0:
 
-**Acceptance.** All fixtures unlock and list the expected titles; adding a field without `omitempty` or breaking an old record fails a test. If R-24 bumps the vault version, the corpus gains a migration fixture.
+| ID | Severity | Problem | Fix |
+| --- | --- | --- | --- |
+| S1 | Medium | `updateSharing` and `ChangePassword` wrote the vault without decrypting `data`, so a damaged `vault.json` was copied over the good `.bak`. | Both open the records (and sharing) first and refuse with `ErrVaultCorrupt`. |
+| S2 | Medium | After a key rotation the old keyring entries were remembered only in memory; a crash or a failed delete left current values sealed under the old key. Partial leftovers of an already missing value stayed too. | A sealed `pending` list in `vault.json` (AAD `pandora-v2-pending`); `pandora doctor --fix` removes the entries. Leftover chunks of missing values go on the list. |
+| S3 | Medium | The share identity survived a rotation: an old vault copy plus the old password could open future shares and forge signed ones. | `RotateKey` creates a new identity, keeps the peers and returns the new share key; `passwd` prints the new fingerprint. |
+| S4 | Medium | Revealed values and `get` output went to the terminal raw: escape sequences from an import or a peer ran on reveal. | New `internal/termsafe`; values are drawn in caret notation on a terminal (detail card, viewer, history, `get`, `env --force`); pipes and copy stay raw. |
+| S5 | Low | `updateSharing` and `RecordAudit` did not check for a key change after the lock. | Both call `openRecords` under the write lock and return `ErrKeyChanged`. |
+| S6 | Low | The audit log was re-encrypted after the vault commit; a crash lost it. | `stageAuditReseal` writes `.rotating` files before the commit and renames them after. |
+| S7 | Low | `.bak`, `.corrupt` and the restore used `os.WriteFile` or a rename without fsync; a `.bak` error after the commit looked like the change had failed. | `commitVault` and `replaceFile` for every file; a `.bak` failure is a `*PasswordCleanupError` warning. |
+| S8 | Low | The legacy `metadata.json` migration did not validate username, tags or dates. | Cleaned like the other fields; bad dates are emptied. |
+| S9 | Low | `ValidateText` let bidirectional controls and zero-width characters through (spoofed titles). | They are rejected; ZWJ and ZWNJ stay allowed. `prepareMeta` also validates the dates. |
+| S10 | Low | Unicode single quotes (U+2018 to U+201B) broke the PowerShell completion quoting. | They are doubled like `'`. |
+| S11 | Low | `dotenvEscaper` did not escape the backtick: sourcing the output of `pandora env` ran commands. | The backtick is escaped; `parseDotenv` reads it back. |
+| S12 | Low | Clipboard helpers (`wl-copy`, `xclip`, `osascript`) inherited `PANDORA_MASTER_PASSWORD` and `PANDORA_PASSPHRASE`. | `Run` and the TUI remove both variables from the process environment at start. |
+| S13 | Low | The environment filter was case-sensitive; Windows names are not. | `isSecretEnv` folds case on Windows; the clipboard helper filter upper-cases. |
+| S14 | Low | Ctrl-C at the password prompt left the terminal without echo. | `readPasswordRestoring` restores the terminal and re-sends the signal. |
+| S15 | Info | `inspectBytes` did not check the sharing blob. | It does. |
+| S16 | Info | `vault.json.corrupt` was never deleted and could hold the old wrapping. | `commitVault` removes it. |
+| S17 | Info | The form's visible secret never expired (the threat model promises 10 s). | `secretShownUntil`, renewed by any key in the form. |
+| S18 | Info | An imported file chose its own scrypt cost. | `SetMaxWorkFactor(20)`. |
+| S19 | Info | `PANDORA_PASSPHRASE` gave no warning on import. | `warnEnv` for every use. |
+
+Left out on purpose (documented or kept on this roadmap): size limits of chunk counts and IDs in decrypted records, the encoding of the signed share message (not exploitable; changing it breaks `pandora-share` v1), chaining the audit log, wiping memory. R-57 asks an independent reviewer to look at them.
+
+### R-36 CI and release supply chain
+**Status** done · **Size** S · **Depends** –
+
+**Outcome.** CI runs `go test -race` on Linux and macOS (Windows runners have no C toolchain) and a `govulncheck` job; Dependabot updates Go modules and GitHub Actions weekly; every `uses:` in the three workflows is pinned by commit SHA; the release workflow runs the race detector and publishes a build-provenance attestation for the archives (`actions/attest-build-provenance`, `subject-checksums: dist/checksums.txt`). Verify with `gh attestation verify <archive> --repo RafaSG13/Pandora` (documented in `docs/getting-started/installation.md`). The binaries are still not signed by Apple or Microsoft (R-45).
 
 ### R-52 TUI polish and known bugs
 **Status** done · **Size** S · **Depends** –
@@ -561,13 +606,52 @@ No new features: this release is the 1.0 release candidate. Everything here is a
 
 ---
 
+## Release 0.8.0 — stabilise (1.0 release candidate)
+
+No new features: this release is the 1.0 release candidate. Everything here is about making the public surface boring and provable.
+
+### R-50 API freeze audit
+**Status** todo · **Size** M · **Depends** R-25, R-28, R-30, R-24, R-32
+
+**Scope.** Enumerate from `commands()` (`internal/cli/registry.go`) every command, flag, exit code (`0/1/2/3`), stdout format and JSON shape (`list --json`, `expiring --json`, export JSON `SecretMeta`, `config get`). Write them into a new `docs/STABILITY.md`: *frozen from 1.0* (commands, flags, exit codes, JSON schemas, `vault.json` v2, export format) and *may change in minor releases* (TUI keys, layout, wording of messages). Rename or remove anything awkward now (for example inconsistent flag names between `get`, `env` and `run`) as a clean cutover with a changelog note; after 1.0 only additive changes.
+
+**Also in scope (added with 0.7.0).** The sharing surface: `id`, `peer add|list|rm`, `peer list --json`, `passwd --rotate-key`, `export --to` and the `pandora-share` v1 file format.
+
+**Ask the user.** Which awkward names to change, once the audit lists them.
+
+**Acceptance.** `docs/STABILITY.md` exists and matches the code; a test snapshots `commands()` flag names and the exit-code constants so accidental changes fail CI.
+
+### R-51 Format compatibility test corpus
+**Status** todo · **Size** M · **Depends** R-24
+
+**Scope.** Check in `internal/store/testdata/` a `vault.json` fixture per shipped format state (0.2.0 record, 0.3.0 with tags and chunks, 0.5.0 with history), created with fixed KDF parameters and a known password, plus an export JSON from each. Tests load every fixture with the current code. Fixtures use synthetic titles and values only.
+
+**Also in scope (added with 0.7.0).** A 0.7.0 fixture with the `sharing` and `pending` fields, and a share-file fixture that the current code opens with the fixture identity.
+
+**Acceptance.** All fixtures unlock and list the expected titles; adding a field without `omitempty` or breaking an old record fails a test. If R-24 bumps the vault version, the corpus gains a migration fixture.
+
+### R-56 Fuzz tests for untrusted-input parsers
+**Status** todo · **Size** M · **Depends** –
+
+**Why.** `vault.json`, export files, dotenv and Bitwarden imports and share files come from outside the process (a synced folder, a download, a peer). The parsers are bounded by hand-written checks and example tests only.
+
+**Scope.** Go native fuzz targets (`FuzzParseVault`, `FuzzParseExport`, `FuzzParseDotenv`, `FuzzParseBitwardenJSON`, `FuzzOpenShare`) with seed corpora from the R-51 fixtures. Invariants: no panic, no allocation proportional to a claimed size, nothing written before the input validates. A CI job runs each target for about 30 seconds.
+
+**Ask the user.** None expected.
+
+**Acceptance.** Each target runs 10 minutes locally without a crash; found crashers are fixed and kept as regression files under `testdata/fuzz`; the CI job is green.
+
+---
+
 ## Release 1.0.0
 
 ### R-53 1.0 release
-**Status** todo · **Size** S · **Depends** R-05, R-11, R-50, R-51, R-52
+**Status** todo · **Size** S · **Depends** R-05, R-11, R-50, R-51, R-52, R-56, R-57
 
 **Scope.** Gate checklist, then the release:
 - R-05: `docs/QA.md` executed on macOS, Linux and Windows against the real release artefacts, results recorded.
+- R-56: the fuzz targets exist and ran in CI.
+- R-57: the independent security review is done and every finding is fixed or documented.
 - R-11: Windows concealed-copy check done.
 - No `blocked` item in the index.
 - Final read-through of `SECURITY.md`; the "pre-1.0" supported-versions text becomes "1.x".
@@ -576,9 +660,75 @@ No new features: this release is the 1.0 release candidate. Everything here is a
 
 **Acceptance.** Every gate above is recorded as met; the release workflow publishes the archives, checksums and notes.
 
+### R-57 Independent security review
+**Status** todo · **Size** M · **Depends** R-35
+
+**Why.** The design is documented and reviewed by its author and by tools only; no outside reviewer is on record.
+
+**Scope.** A reviewer who is not the author reads `internal/store`, `internal/cli/transfer.go` and the share protocol against `docs/security/`; a written report, kept in the repository (or linked) after the fixes.
+
+**Ask the user.** Budget and reviewer (paid audit, a volunteer cryptographer, or a structured community review), and whether the report is published.
+
+**Acceptance.** Every finding is fixed, or documented as accepted in the threat model, before the 1.0 tag.
+
 ---
 
 ## After 1.0
+
+### R-46 Unlock agent / session caching
+**Status** todo · **Size** L · **Depends** –
+
+**Why.** Every CLI command runs Argon2 (about 100 ms to 1 s) and needs the password from a terminal or from `PANDORA_MASTER_PASSWORD`, which other processes of the user can read. Scripts that call `get` ten times pay ten derivations. `pass`, `rbw` and `op` all cache the unlock.
+
+**Scope.** `pandora unlock [--ttl 15m]` starts a per-user agent holding the data key; the other commands ask the agent before asking for the password; `pandora lock` stops it.
+
+**Ask the user.** The model: a per-user socket (mode `0600`, peer-credential check, a TTL, the key in a `mlock`ed buffer), or nothing cached at all. A cached key widens the threat model to "anything that runs as you can use the vault while the agent lives". Recommended: the socket with a short TTL, off by default.
+
+**Acceptance.** With the agent running, `get` needs no password and no Argon2; after the TTL or `lock`, it does; the agent never writes the key to disk; the threat model says what it changes.
+
+### R-43 Secret references and templates
+**Status** todo · **Size** M · **Depends** –
+
+**Why.** `run` and `env` take `-s TITLE=ENV` flags. Config files with several secrets need a template (`op inject`, gopass templates).
+
+**Scope.** `pandora inject -i template -o out` replaces references with values, and `pandora run --env-file FILE` reads `NAME=<reference>` lines. Output files are `0600` and refuse to overwrite without `--force`.
+
+**Ask the user.** The reference syntax: `pandora://TITLE`, `{{ pandora "TITLE" }}` or `${pandora:TITLE}`. Recommended: `pandora://TITLE`, which cannot clash with shell or Go-template syntax.
+
+**Acceptance.** A template with two references renders to the exact values, including multi-line ones; an unknown title fails without writing anything; the audit log records one `inject` entry per secret.
+
+### R-42 More importers
+**Status** todo · **Size** M · **Depends** R-25 (done)
+
+**Why.** Adoption: most people arrive with a 1Password, KeePass or browser export.
+
+**Scope.** `import --format` gains `1password-1pux`, `1password-csv`, `keepass-xml` (the XML export; KDBX itself only if a dependency is acceptable) and `chrome-csv`, each reusing `importBatch` and the `--dry-run` path.
+
+**Ask the user.** Which formats first, and whether a KDBX dependency is acceptable.
+
+**Acceptance.** Each format imports a synthetic fixture with the expected titles, categories, notes and tags; unsupported fields are listed as skipped; no plaintext is left on disk by Pandora.
+
+### R-44 Packaging
+**Status** todo · **Size** M · **Depends** R-36
+
+**Why.** Only Homebrew, `go install` and archives exist.
+
+**Scope.** Scoop and winget manifests, `.deb` and `.rpm` through GoReleaser's nfpm, an AUR `PKGBUILD` and a Nix expression, all generated or checked from the release pipeline.
+
+**Ask the user.** Which channels to maintain; each one is an ongoing commitment.
+
+**Acceptance.** For each chosen channel, the install command from the docs installs the tagged release and `pandora version` reports it.
+
+### R-45 macOS notarisation and Windows code signing
+**Status** todo · **Size** M · **Depends** R-36
+
+**Why.** Build provenance (R-36) proves where a binary came from, but Gatekeeper and SmartScreen still warn.
+
+**Scope.** An Apple Developer ID certificate and `notarytool` for the darwin archives; a Windows signing certificate or Azure Trusted Signing for the `.exe`; secrets kept as GitHub Actions secrets.
+
+**Ask the user.** Budget (Apple Developer Program is paid; Windows certificates cost money or need Trusted Signing eligibility) and who holds the keys.
+
+**Acceptance.** A downloaded darwin binary runs without `xattr`; the Windows binary shows a verified publisher; `installation.md` drops the "not signed" notes.
 
 ### R-40 TOTP codes
 **Status** todo · **Size** L · **Depends** R-20 (soft)
@@ -596,7 +746,7 @@ No new features: this release is the 1.0 release candidate. Everything here is a
 **Acceptance.** RFC 6238 vectors pass; code refreshes on the tick without redrawing the whole value box; old metadata loads as `password`.
 
 ### R-41 Folder-sync vault file
-**Status** todo · **Size** L · **Depends** R-23 (done); post-1.0 (1.2)
+**Status** todo · **Size** L · **Depends** R-23 (done); post-1.0 (1.4)
 
 **Why.** Syncing across machines is the most requested feature of any vault, but "no network" is a stated non-goal.
 

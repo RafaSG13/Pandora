@@ -17,6 +17,7 @@ func main() {
 	if len(os.Args) > 1 {
 		os.Exit(cli.Run(os.Args[1:], os.Stdin, os.Stdout, os.Stderr))
 	}
+	cli.ScrubSecretEnv()
 	if _, err := tea.NewProgram(tui.New(), tea.WithAltScreen(), tea.WithMouseCellMotion()).Run(); err != nil {
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 		os.Exit(1)

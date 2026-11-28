@@ -258,6 +258,9 @@ func (m model) tick() (tea.Model, tea.Cmd) {
 	if m.revealTitle != "" && !now.Before(m.revealUntil) {
 		m.hideReveal()
 	}
+	if m.secretShown && !now.Before(m.secretShownUntil) {
+		m.secretShown = false
+	}
 	if m.mode == modeView && m.revealTitle == "" { // the viewer closes when the value hides
 		m.mode, m.viewTop = modeBrowse, 0
 	}
@@ -383,7 +386,7 @@ func (m *model) lock() {
 		m.inputs[i].SetSuggestions(nil)
 	}
 	m.secret.Reset()
-	m.secretShown = false
+	m.secretShown, m.secretShownUntil = false, time.Time{}
 	m.pwInput.SetValue("")
 	m.pwConfirm.SetValue("")
 	m.unlocking, m.unlockErr = false, ""
@@ -663,7 +666,7 @@ func (m *model) openForm(editTitle string, meta store.SecretMeta) {
 	m.inputs[fieldUsername].SetValue(meta.Username)
 	m.inputs[fieldCategory].SetSuggestions(m.categories)
 	m.secret.Reset()
-	m.secretShown = false
+	m.secretShown, m.secretShownUntil = false, time.Time{}
 	m.secret.Placeholder = secretPlaceholder
 	if editTitle != "" {
 		m.secret.Placeholder = secretKeepPlaceholder
@@ -698,6 +701,9 @@ func (m model) updateForm(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	m.discardKey = ""
 	inSecret := m.focusIndex == fieldSecret
 
+	if m.secretShown {
+		m.secretShownUntil = m.nowOr().Add(m.cfg.RevealTTL)
+	}
 	switch msg.String() {
 	case "ctrl+c":
 		if m.formDirty() && armed != "ctrl+c" {
@@ -745,6 +751,9 @@ func (m model) updateForm(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m.saveForm()
 	case "ctrl+r":
 		m.secretShown = !m.secretShown
+		if m.secretShown {
+			m.secretShownUntil = m.nowOr().Add(m.cfg.RevealTTL)
+		}
 		return m, nil
 	case "ctrl+g":
 		val, err := gen.Generate(gen.Charsets[m.genSet], gen.Lengths[m.genLen])
@@ -754,6 +763,7 @@ func (m model) updateForm(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 		m.secret.SetValue(val)
 		m.secretShown = true // show what was generated
+		m.secretShownUntil = m.nowOr().Add(m.cfg.RevealTTL)
 		m.setFocus(fieldSecret)
 		return m, nil
 	case "ctrl+l":

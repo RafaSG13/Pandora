@@ -168,6 +168,9 @@ func updateSharing(fn func(*sharing) error) (*sharing, error) {
 	if err != nil {
 		return nil, err
 	}
+	if _, err := openRecords(vf, key); err != nil {
+		return nil, err
+	}
 	s, err := vf.sharing(key)
 	if err != nil {
 		return nil, err
