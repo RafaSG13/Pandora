@@ -158,7 +158,7 @@ type model struct {
 	// secretShownUntil is when a visible form secret is masked again; any key
 	// in the form renews it.
 	secretShownUntil time.Time
-	focusIndex  int
+	focusIndex       int
 
 	// Unsaved-edit guard: the field values when the form opened, and the key
 	// ("esc" or "ctrl+c") pressed once on an edited form; the same key again confirms.

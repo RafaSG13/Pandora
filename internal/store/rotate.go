@@ -9,16 +9,22 @@ import (
 	"github.com/zalando/go-keyring"
 )
 
-// RotationCleanupError reports that the key was rotated and the vault is
-// complete, but some old data could not be removed. Show it as a warning.
-type RotationCleanupError struct {
+// PasswordCleanupError reports that the master password was changed and the
+// vault is complete, but some old data could not be removed (a backup that
+// still holds the old wrapping, old keyring entries, the audit log). Show it
+// as a warning.
+type PasswordCleanupError struct {
 	// Problems describes what is left behind; it never contains a value.
 	Problems []string
 }
 
-func (e *RotationCleanupError) Error() string {
-	return "data key rotated, but some old data could not be removed: " + strings.Join(e.Problems, "; ")
+func (e *PasswordCleanupError) Error() string {
+	return "master password changed, but some old data could not be removed: " + strings.Join(e.Problems, "; ")
 }
+
+// dropOld removes old keyring entries after a rotation. A variable so tests
+// can make it fail.
+var dropOld = dropValue
 
 // RotateKey changes the master password to newPw and replaces the data key
 // with a fresh random one. Unlike ChangePassword, anyone who kept an old copy
@@ -29,13 +35,21 @@ func (e *RotationCleanupError) Error() string {
 // records and the share state; re-encrypts every current and previous value
 // into fresh keyring entries (values whose entry was already missing keep
 // their reference, `doctor` reports them; a value that does not decrypt aborts
-// the rotation); and writes the new vault.json (new KDF salt, new wrapped
-// key). Until that write nothing referenced by the old vault changes, so any
-// earlier failure removes the new entries and leaves the vault untouched.
-// After the write it replaces vault.json.bak, switches an unlocked session to
-// the new key, re-encrypts the audit log and deletes the old keyring entries;
-// failures there are returned as *RotationCleanupError. The share identity and
-// peers are unchanged, so peers need nothing.
+// the rotation); stages the re-encrypted audit log; and writes the new
+// vault.json (new KDF salt, new wrapped key) and vault.json.bak, together with
+// the list of old keyring entries still to remove. Until that write nothing
+// referenced by the old vault changes, so any earlier failure removes the new
+// entries and leaves the vault untouched. After the write it switches an
+// unlocked session to the new key, installs the audit log and deletes the old
+// keyring entries; failures there are returned as *PasswordCleanupError, and
+// entries that could not be removed stay in the vault's pending list until
+// `pandora doctor --fix` removes them.
+//
+// The share identity is replaced by a fresh one, because a copy of the old
+// vault plus the old password could otherwise decrypt future shares and forge
+// signed ones. The peers are kept; they have to add this vault again. The new
+// share key is returned (also together with a *PasswordCleanupError), or ""
+// when the vault had no share identity.
 func RotateKey(oldPw, newPw string) (newShareKey string, err error) {
 	release, err := lockVault()
 	if err != nil {
