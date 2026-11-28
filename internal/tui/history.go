@@ -9,6 +9,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 
 	"github.com/RafaSG13/Pandora/internal/store"
+	"github.com/RafaSG13/Pandora/internal/termsafe"
 )
 
 // historyState is the previous-values screen (modeHistory) for one secret.
@@ -129,7 +130,7 @@ func (m model) renderHistory() string {
 	case h.shown && h.err != nil:
 		value = lipgloss.NewStyle().Foreground(danger).Render(truncate(fmt.Sprintf("✗ %v", h.err), inner))
 	case h.shown:
-		first, _, multi := strings.Cut(h.value, "\n")
+		first, _, multi := strings.Cut(termsafe.Sanitize(h.value), "\n")
 		if multi {
 			first += g.ellipsis
 		}

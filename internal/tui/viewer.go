@@ -7,6 +7,8 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+
+	"github.com/RafaSG13/Pandora/internal/termsafe"
 )
 
 // The viewer (modeView) shows the whole revealed value of one secret, wrapped
@@ -40,7 +42,7 @@ func (m model) viewerRows() int { return max(1, m.height-10) }
 // viewerLines is the value wrapped to the viewer's text width, the same way
 // the detail card wraps it.
 func (m model) viewerLines() []string {
-	return strings.Split(textStyle.Width(max(1, m.viewerWidth()-8)).Render(m.revealValue), "\n")
+	return strings.Split(textStyle.Width(max(1, m.viewerWidth()-8)).Render(termsafe.Sanitize(m.revealValue)), "\n")
 }
 
 // updateViewer handles the keys of the viewer. Every key renews the reveal

@@ -4,6 +4,8 @@ import (
 	"flag"
 	"regexp"
 	"strings"
+
+	"github.com/RafaSG13/Pandora/internal/termsafe"
 )
 
 // dotenvBare matches values that need no quoting in a dotenv file.
@@ -19,11 +21,12 @@ var dotenvEscaper = strings.NewReplacer(
 	"\n", `\n`,
 	"\r", `\r`,
 	"$", `\$`,
+	"`", "\\`",
 )
 
 // dotenvValue renders a value for a KEY=value line: bare when it only holds
-// safe characters, otherwise double-quoted with \\, \", \n, \r and \$ escaped
-// (no parser then expands variables or splits the line).
+// safe characters, otherwise double-quoted with \\, \", \n, \r, \$ and \` escaped
+// (no parser or shell then expands variables, runs commands or splits the line).
 func dotenvValue(v string) string {
 	if dotenvBare.MatchString(v) {
 		return v
@@ -72,6 +75,10 @@ func (a *app) cmdEnv(args []string) error {
 	for _, inj := range injections {
 		a.audit("env", inj.title)
 	}
-	_, err = a.out.Write([]byte(b.String()))
+	out := b.String()
+	if a.isOutTTY() { // only possible with --force
+		out = termsafe.Sanitize(out)
+	}
+	_, err = a.out.Write([]byte(out))
 	return err
 }

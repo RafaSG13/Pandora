@@ -155,6 +155,9 @@ type model struct {
 	inputs      []textinput.Model
 	secret      textarea.Model
 	secretShown bool
+	// secretShownUntil is when a visible form secret is masked again; any key
+	// in the form renews it.
+	secretShownUntil time.Time
 	focusIndex  int
 
 	// Unsaved-edit guard: the field values when the form opened, and the key

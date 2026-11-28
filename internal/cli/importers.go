@@ -146,7 +146,7 @@ func readDotenvValue(text string, i int) (value string, next int, err error) {
 					b.WriteByte('\r')
 				case 't':
 					b.WriteByte('\t')
-				case '\\', '"', '$':
+				case '\\', '"', '$', '`':
 					b.WriteByte(text[p])
 				default:
 					b.WriteByte('\\')

@@ -423,7 +423,7 @@ function script:Get-PandoraCandidates([string]$Exe, [string]$Kind) {
 
 function script:New-PandoraResult([string]$Text, [string]$Tooltip) {
     $completion = $Text
-    if ($Text -match '[^\w.\-/:=@+,]') { $completion = "'" + $Text.Replace("'", "''") + "'" }
+    if ($Text -match '[^\w.\-/:=@+,]') { $completion = "'" + ($Text -replace "['‘’‚‛]", '$0$0') + "'" }
     if (-not $Tooltip) { $Tooltip = $Text }
     return [System.Management.Automation.CompletionResult]::new($completion, $Text, 'ParameterValue', $Tooltip)
 }

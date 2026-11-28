@@ -9,6 +9,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 
 	"github.com/RafaSG13/Pandora/internal/store"
+	"github.com/RafaSG13/Pandora/internal/termsafe"
 )
 
 // formBaseHeight is the terminal height at which the form, with a one-row
@@ -123,7 +124,8 @@ func revealBlock(value string, width, rows int) string {
 // revealBlockStyled is revealBlock with the text drawn in style, which the
 // detail card also uses for its messages inside the value box.
 func revealBlockStyled(value string, style lipgloss.Style, width, rows int) string {
-	lines := strings.Split(style.Width(max(1, width)).Render(value), "\n")
+	// Values come from imports and peers: draw control characters inert.
+	lines := strings.Split(style.Width(max(1, width)).Render(termsafe.Sanitize(value)), "\n")
 	if len(lines) > rows {
 		keep := lines[:rows-1]
 		note := fmt.Sprintf("%s +%d lines", g.ellipsis, len(lines)-len(keep))
