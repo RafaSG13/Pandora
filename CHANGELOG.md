@@ -4,11 +4,16 @@ All notable changes are documented here. The format follows [Keep a Changelog](h
 
 ## [Unreleased]
 
+### Fixed
+- Release: the release notes and the build-provenance attestation are published even when the Homebrew formula step fails.
+
 ## [0.7.0] - 2026-11-28
 
 This release adds peer sharing and `passwd --rotate-key`, and fixes the findings of a security review (see Security below).
 
 **Upgrade note.** Going back to 0.6.0 and saving anything there drops the share identity (peers must be added again) and the list of old keyring entries a key rotation left behind (those entries then stay in the keyring, unreferenced). Before downgrading, run `pandora export --values` to keep a backup. After `passwd --rotate-key`, peers must remove this vault and add it again.
+
+**Attestation.** The 0.7.0 archives have no build-provenance attestation: the release job stopped before that step. Check them against `checksums.txt` instead.
 
 ### Added
 - Process hardening: core dumps are disabled on Unix, and on Linux the process is non-dumpable (`/proc/<pid>/{mem,environ}` and same-user ptrace are refused).
