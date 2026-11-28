@@ -13,7 +13,7 @@ This release adds peer sharing and `passwd --rotate-key`, and fixes the findings
 
 **Upgrade note.** Going back to 0.6.0 and saving anything there drops the share identity (peers must be added again) and the list of old keyring entries a key rotation left behind (those entries then stay in the keyring, unreferenced). Before downgrading, run `pandora export --values` to keep a backup. After `passwd --rotate-key`, peers must remove this vault and add it again.
 
-**Attestation.** The 0.7.0 archives have no build-provenance attestation: the release job stopped before that step. Check them against `checksums.txt` instead.
+**Attestation.** The release job stopped before the build-provenance step, so the 0.7.0 archives were attested afterwards by a separate workflow. That attestation shows the archives match `checksums.txt` and were signed by this repository's CI; it does not prove they were built in that run. Verify with `gh attestation verify <archive> --repo RafaSG13/Pandora`.
 
 ### Added
 - Process hardening: core dumps are disabled on Unix, and on Linux the process is non-dumpable (`/proc/<pid>/{mem,environ}` and same-user ptrace are refused).
