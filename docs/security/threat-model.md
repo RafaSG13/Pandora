@@ -53,7 +53,7 @@ Pandora is designed to **reduce accidental exposure**, not to defend against a c
 
 ## Known limitations
 
-- `ChangePassword` re-wraps the same data key. Someone who knew the old password and kept an old copy of `vault.json` can still open that old copy. Rotating the data key would require re-encrypting every keyring value. Right after `passwd`, `vault.json.bak` also still holds the old wrapping, until the next write replaces it.
+- `pandora passwd` re-wraps the same data key. Someone who knew the old password and kept an old copy of `vault.json` can still use it to decrypt the current keyring values. Use `pandora passwd --rotate-key` after a suspected password leak: it generates a new data key and re-encrypts every value, history version and audit line, so an old copy of `vault.json` opens nothing current. It cannot undo what an attacker already decrypted or copied. Both forms replace `vault.json.bak` right away, so it never keeps the old wrapping. A running interface whose key was rotated by another process locks itself and asks for the password again.
 - A change made by another process is detected by polling the size and modification time of `vault.json` once per second. On a file system with one-second timestamps, a same-size change within the same second could go unnoticed; `r` always reloads.
 - The write lock is advisory: it protects against other Pandora processes, not against something editing `vault.json` or the keyring by hand. On a network share, locking may not exclude other machines.
 - The keyring library cannot enumerate entries, so `pandora doctor` finds vault entries without a value but not keyring entries without a vault record.

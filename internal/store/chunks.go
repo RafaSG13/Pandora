@@ -84,15 +84,25 @@ func chunksField(n int) int {
 // getValue reads and decrypts the value of r. A missing entry returns
 // keyring.ErrNotFound.
 func getValue(r record) (string, error) {
+	sealed, err := readSealed(r.ID, r.chunkCount())
+	if err != nil {
+		return "", err
+	}
+	return openValue(r.ID, sealed)
+}
+
+// readSealed concatenates the n keyring entries of record id without
+// decrypting them. A missing entry returns keyring.ErrNotFound.
+func readSealed(id string, n int) (string, error) {
 	var sealed strings.Builder
-	for k := range r.chunkCount() {
-		part, err := keyring.Get(ServiceName, chunkAccount(r.ID, k))
+	for k := range n {
+		part, err := keyring.Get(ServiceName, chunkAccount(id, k))
 		if err != nil {
 			return "", err
 		}
 		sealed.WriteString(part)
 	}
-	return openValue(r.ID, sealed.String())
+	return sealed.String(), nil
 }
 
 // hasValue reports whether every keyring entry of r exists. Errors other than

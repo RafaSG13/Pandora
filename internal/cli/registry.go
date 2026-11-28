@@ -189,7 +189,11 @@ func commands() []command {
 			},
 			run: (*app).cmdDoctor,
 		},
-		{name: "passwd", summary: "Change the master password", run: (*app).cmdPasswd},
+		{
+			name: "passwd", summary: "Change the master password (--rotate-key also replaces the data key)",
+			flags: []flagSpec{{names: []string{"rotate-key"}, help: "also replace the data key and re-encrypt every value"}},
+			run:   (*app).cmdPasswd,
+		},
 		{
 			name: "gen", summary: "Generate random secrets (printed to stdout, not stored)",
 			flags: []flagSpec{

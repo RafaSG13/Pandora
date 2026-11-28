@@ -270,6 +270,9 @@ func (m model) tick() (tea.Model, tea.Cmd) {
 	if m.lockAfter > 0 && !m.locked() && now.Sub(m.lastActive) >= m.lockAfter {
 		m.lock()
 	}
+	if !m.locked() && !store.IsUnlocked() { // the store dropped the session during an operation
+		m.lockForKeyChange()
+	}
 	cmds := []tea.Cmd{tickCmd()}
 	if c := m.reloadIfChangedElsewhere(); c != nil {
 		cmds = append(cmds, c)
@@ -293,11 +296,26 @@ func (m *model) reloadIfChangedElsewhere() tea.Cmd {
 		return nil
 	}
 	if err := m.reload(""); err != nil {
+		if errors.Is(err, store.ErrKeyChanged) {
+			m.lockForKeyChange()
+			return nil
+		}
 		m.notify(fmt.Sprintf("✗ Could not reload: %v", err), true)
 		return nil
 	}
 	m.notify(fmt.Sprintf("✓ Reloaded — changed elsewhere (%s)", count(m.total)), false)
 	return m.startOrphanCheck()
+}
+
+// keyChangedMsg is shown on the unlock screen when the data key was rotated by
+// another process. It is short enough for the 60-column unlock modal.
+const keyChangedMsg = "Key changed elsewhere: unlock again"
+
+// lockForKeyChange locks the app and tells the user why. lock resets
+// unlockErr, so the message is set after it.
+func (m *model) lockForKeyChange() {
+	m.lock()
+	m.unlockErr = keyChangedMsg
 }
 
 // startOrphanCheck begins the background check for entries whose keyring value

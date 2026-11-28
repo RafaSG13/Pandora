@@ -31,7 +31,7 @@ Pandora never encrypts your data directly with the master password.
 2. The master password is stretched with **Argon2id** into a **wrapping key**, which seals the data key. The sealed data key is stored in `vault.json` as `wrapped_key`.
 3. The data key encrypts the metadata, every value, the share identity and the audit log.
 
-Changing the master password (`pandora passwd`) only re-wraps the data key, so no value in the keyring needs to be rewritten. The trade-off is described under [known limitations](../security/threat-model.md#known-limitations).
+Changing the master password (`pandora passwd`) only re-wraps the data key, so no value in the keyring needs to be rewritten (`--rotate-key` also replaces the key). The trade-off is described under [known limitations](../security/threat-model.md#known-limitations).
 
 ## The session
 

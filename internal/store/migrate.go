@@ -174,7 +174,7 @@ func MigrateLegacy(password string) error {
 		undo()
 		return err
 	}
-	setSession(key)
+	setSession(key, vf.WrappedKey)
 
 	var left []string
 	for _, it := range items {
