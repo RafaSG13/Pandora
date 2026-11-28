@@ -58,6 +58,8 @@ func newModelFor(t *testing.T, createVault bool, w, h int) tea.Model {
 	clipboardLog = nil
 	origWrite, origSecret, origRead, origSchedule := writeClipboard, writeSecretClipboard, readClipboard, scheduleClipboardClear
 	clearScheduled = nil
+	origX11 := onX11
+	onX11 = func() bool { return false }
 	scheduleClipboardClear = func(value string, after time.Duration) error {
 		clearScheduled = append(clearScheduled, scheduledClear{value, after})
 		return nil
@@ -73,6 +75,7 @@ func newModelFor(t *testing.T, createVault bool, w, h int) tea.Model {
 	}
 	t.Cleanup(func() {
 		writeClipboard, writeSecretClipboard, readClipboard, scheduleClipboardClear = origWrite, origSecret, origRead, origSchedule
+		onX11 = origX11
 	})
 
 	// Keep the developer's NO_COLOR / TERM out of the tests; New applies them.

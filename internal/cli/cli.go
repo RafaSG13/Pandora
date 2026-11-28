@@ -70,6 +70,8 @@ type app struct {
 	clearLater func(value string, after time.Duration) error
 	// clearIfHolds empties the clipboard when it still holds the value with this SHA-256.
 	clearIfHolds func([sha256.Size]byte) (bool, error)
+	// onX11 reports an X11 session, where the clipboard cannot be concealed.
+	onX11 func() bool
 	// sleep waits; tests replace it.
 	sleep func(time.Duration)
 	// readHidden prompts on stderr and reads a line from the terminal without echo.
@@ -131,6 +133,7 @@ func newApp(stdin io.Reader, stdout, stderr io.Writer) *app {
 	a.copySecret = secretclip.Write
 	a.clearLater = secretclip.ClearLater
 	a.clearIfHolds = secretclip.ClearIfHolds
+	a.onX11 = secretclip.OnX11
 	a.sleep = time.Sleep
 	a.readHidden = func(prompt string) (string, error) {
 		f, ok := a.in.(*os.File)

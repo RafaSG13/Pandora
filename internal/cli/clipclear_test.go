@@ -74,3 +74,14 @@ func TestGetCopySchedulesTheClipboardClear(t *testing.T) {
 		t.Error("stderr leaks the value")
 	}
 }
+
+func TestGetCopyWarnsOnX11Only(t *testing.T) {
+	isolate(t)
+	mustSave(t, "tok", "", "s3cret")
+	copied := func(string) error { return nil }
+	_, _, onX := harness{clip: copied, x11: true}.run(t, "get", "--copy", "tok")
+	_, _, off := harness{clip: copied}.run(t, "get", "--copy", "tok")
+	if !strings.Contains(onX, "X11") || strings.Contains(off, "X11") {
+		t.Errorf("X11 warning: on X11 %q, elsewhere %q", onX, off)
+	}
+}

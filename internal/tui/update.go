@@ -31,6 +31,7 @@ var (
 	writeSecretClipboard = secretclip.Write
 
 	scheduleClipboardClear = secretclip.ClearLater
+	onX11                  = secretclip.OnX11
 )
 
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -413,7 +414,11 @@ func (m *model) copySelected(title string) {
 	// The helper outlives the TUI; its failure is harmless because the
 	// in-process deadline still clears the clipboard while the TUI runs.
 	_ = scheduleClipboardClear(val, m.cfg.ClipboardTTL)
-	m.notify("✓ Copied to clipboard", false)
+	if onX11() {
+		m.notify("✓ Copied. X11: any app can read it", false)
+	} else {
+		m.notify("✓ Copied to clipboard", false)
+	}
 	m.audit("copy", title)
 }
 

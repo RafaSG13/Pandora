@@ -23,6 +23,8 @@ The interface locks itself after 5 idle minutes (`lock_minutes`; `0` disables it
 - Copies are cleared after 15 seconds (`clipboard_seconds`), or right away with `x`, but only if the clipboard still holds what Pandora copied.
 - On macOS and Windows copies are marked so clipboard history skips them. On Linux there is no such convention. If you run a clipboard manager, check whether it records everything.
 - Clearing survives quitting: a detached helper does it, so `q` right after `c`, and `pandora get --copy`, both clear on schedule (still only if the clipboard is unchanged).
+- **The concealment marker is a request, not a protection.** A clipboard manager that ignores it records the secret, normally unencrypted on disk and sometimes synced to the cloud. Clearing the clipboard does **not** remove that copy: only the manager can. Copy a test value and check whether your manager shows it; if it does, exclude your terminal in the manager or stop copying (use `pandora run`, or `get` into a pipe). If a secret already got recorded, delete it from the manager's history by hand.
+- **X11 cannot conceal anything.** Any program connected to the same X server can read the clipboard, record keystrokes (including your master password) and take screenshots, with no special privileges. Pandora warns when it copies on X11. Prefer a Wayland session, and keep `clipboard_seconds` short if you must copy. `run` and `get` avoid the clipboard, but are not safe from malware running as your user either: it can read the environment of a `run` child.
 
 ## Prefer `run` to files, and the prompt to the environment
 

@@ -13,6 +13,7 @@ This release adds peer sharing and `passwd --rotate-key`, and fixes the findings
 ### Added
 - Process hardening: core dumps are disabled on Unix, and on Linux the process is non-dumpable (`/proc/<pid>/{mem,environ}` and same-user ptrace are refused).
 - Wayland copies are marked sensitive through `wl-copy --sensitive` (clipboard managers such as Klipper skip them); without it, copying falls back to the plain write.
+- Copying on X11 (the interface toast and `pandora get --copy`) warns that X11 cannot conceal clipboard entries and any local program can read them.
 - **Clipboard clearing survives quitting.** A detached helper clears a copied secret after `clipboard_seconds` if the clipboard still holds it, both after quitting the interface early and for `pandora get --copy` (which previously never cleared). The helper gets only a SHA-256, over a pipe.
 - Vault writes are fsynced (file and directory) before and after the rename.
 - **`pandora passwd --rotate-key`** replaces the data key as well as the password and re-encrypts every value, history version and audit line, so an old copy of `vault.json` with the old password no longer opens current values. A running interface whose key was rotated by another process locks itself and asks for the password.

@@ -60,6 +60,8 @@ Pandora is designed to **reduce accidental exposure**, not to defend against a c
 - The write lock is advisory: it protects against other Pandora processes, not against something editing `vault.json` or the keyring by hand. On a network share, locking may not exclude other machines.
 - The keyring library cannot enumerate entries, so `pandora doctor` finds vault entries without a value but not keyring entries without a vault record.
 - Values are text up to 32 KB. There is no binary value type.
+- A clipboard manager that ignores the concealment marker keeps its own copy of what you copied. Clearing the system clipboard does not touch that history.
+- On X11 every program of your session can read the clipboard and keystrokes, whatever Pandora does. The CLI and the interface warn when they copy there. Pandora cannot fix this from inside your user account; use Wayland or a separate user, container or sandbox for untrusted programs.
 - The clipboard helper is a second short-lived process. If it cannot start, or the machine sleeps or shuts down before the deadline, the copy stays on the clipboard until something replaces it.
 - The concealed clipboard marker helps only with managers that honour it. On macOS each copy starts `osascript` (about 100 ms); if it fails, the copy falls back to an unmarked write.
 - Removing keyring entries is not secure erasure on SSD or APFS.

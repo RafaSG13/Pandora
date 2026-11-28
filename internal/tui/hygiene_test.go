@@ -441,3 +441,13 @@ func TestSessionDroppedByTheStoreLocksTheApp(t *testing.T) {
 		t.Error("the message does not fit the 60×18 unlock screen")
 	}
 }
+
+func TestCopyOnX11WarnsInTheToast(t *testing.T) {
+	m := add(newTestModel(t), "a", "X", "val")
+	onX11 = func() bool { return true }
+	m = press(m, "c")
+	if got := m.(model).statusMsg; !strings.Contains(got, "X11") {
+		t.Errorf("toast %q does not mention X11", got)
+	}
+	fitsWindow(t, "X11 copy toast", m)
+}

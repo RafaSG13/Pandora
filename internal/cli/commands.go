@@ -130,6 +130,9 @@ func (a *app) cmdGet(args []string) error {
 		if err := a.copySecret(value); err != nil {
 			return fmt.Errorf("copy to clipboard: %w", err)
 		}
+		if a.onX11() {
+			fmt.Fprintln(a.err, "pandora: warning: X11 cannot conceal clipboard entries and any local program can read the clipboard; clipboard managers record it. Prefer 'pandora run' or 'get' into a pipe")
+		}
 		ttl := a.loadConfig().ClipboardTTL
 		if err := a.clearLater(value, ttl); err != nil {
 			fmt.Fprintf(a.err, "pandora: copied to the clipboard; could not schedule clearing it: %v\n", err)
