@@ -79,3 +79,17 @@ QA vX.Y.Z — <date>
 ```
 
 Anything that fails and needs code becomes a new item in [ROADMAP.md](ROADMAP.md).
+
+## Results log
+
+### QA 0.7.0 (523f4c8) — 2026-11-28
+
+- macOS 27.2.1 (automated pty driver; manual terminals user-reported): keyring ✅ (locked-keychain row not tested)  clipboard ✅ (Maccy not tested)  terminal ✅  artefacts ✅ (v0.6.0 artefacts)
+- Linux, Windows: not tested.
+- Not tested: locked keychain (`security lock-keychain` returned 0 but reads still worked without a dialog, and the keychain could not be locked by hand), Linux without Secret Service, Windows clipboard, Linux clipboard fallback, tmux, Maccy.
+- Findings:
+  - `pandora add` and `pandora import` need an existing vault ("no vault yet: run pandora in a terminal to create one"). Create the test vault in the TUI first; the keyring rows above that use the CLI assume this.
+  - The export file is armored (`-----BEGIN AGE ENCRYPTED FILE-----`), not raw `age-encryption.org/v1`.
+  - At 100 columns the `config.json` toast is truncated (`must be an i...`); it is complete at 140 columns.
+  - The TUI uses mouse mode 1002 and disables `?1002l`/`?1006l` on exit (not `?1000`); the terminal is restored.
+  - The Keychain Access manual deletion step was not performed; the deletion was verified with `security delete-generic-password` instead.
