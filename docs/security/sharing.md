@@ -87,3 +87,4 @@ The payload is then parsed and validated like any import (control characters, si
 - **No forward secrecy for files.** Anyone who later obtains a recipient's identity can open every share file they kept for it.
 - **No revocation list and no replay protection.** A valid share can be imported again. Removing a peer (`pandora peer rm`) stops you accepting new files from it.
 - An older Pandora that rewrites the vault **drops the share identity**, so peers must be added again. See the [vault format](vault-format.md#compatibility-rules).
+- **`pandora passwd --rotate-key` replaces your share identity.** Your peers are kept, but they hold your old key: they must remove this vault and add it again (`pandora id` shows the new key and fingerprint). Files they encrypted for the old identity can no longer be opened.

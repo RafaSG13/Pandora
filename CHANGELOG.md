@@ -10,7 +10,6 @@ All notable changes are documented here. The format follows [Keep a Changelog](h
 - **Clipboard clearing survives quitting.** A detached helper clears a copied secret after `clipboard_seconds` if the clipboard still holds it, both after quitting the interface early and for `pandora get --copy` (which previously never cleared). The helper gets only a SHA-256, over a pipe.
 - Vault writes are fsynced (file and directory) before and after the rename.
 - **`pandora passwd --rotate-key`** replaces the data key as well as the password and re-encrypts every value, history version and audit line, so an old copy of `vault.json` with the old password no longer opens current values. A running interface whose key was rotated by another process locks itself and asks for the password.
-- Vault writes are fsynced (file and directory) before and after the rename.
 - **Documentation site** (MkDocs Material, in `docs/`, published to GitHub Pages): getting started, how Pandora works, threat model, cryptography, vault format, sharing, hardening, guides and a full reference. `docs/reference/cli-flags.md` is generated from the command table by `go run ./scripts/docsgen`, and a test fails when it is stale or when `configuration.md` misses a setting or key action. The README is shorter and links to it.
 - **Sharing secrets between machines, without a network.** `pandora id` prints this vault's share key (a post-quantum age key plus an Ed25519 signing key, stored encrypted in `vault.json`). `pandora peer add|list|rm` manages trusted peers after you compare fingerprints. `pandora export --values --to PEER [-s TITLE]` encrypts only the chosen secrets for that peer and signs them; `pandora import FILE --values` opens it with no passphrase and refuses files not signed by a trusted peer or not made for this vault. Moving the file (AirDrop, scp, USB) is up to you. An older Pandora that rewrites the vault drops the identity, so peers must be added again.
 - Interface, lock: `L` locks at once (rebindable as `lock`): everything is masked and the master password is asked for, without waiting for the idle timeout.
@@ -31,6 +30,25 @@ All notable changes are documented here. The format follows [Keep a Changelog](h
 ### Changed
 - Interface, start-up: the terminal's background colour is asked for before the interface takes over the keyboard, not during its first frame, where the reply could not be read. Set `background` to `light` or `dark` to skip the question.
 - Interface: the footer shows `enter apply · esc cancel` while a filter is typed and `esc clear filter` once it is applied; the detail pane says when nothing matches; at 60×18 the toast is one line so it does not cover the value box; the detail card drops its notes and then its metadata rows, never the value box, when the terminal is short.
+- `pandora passwd --rotate-key` also replaces the share identity (a new share key; the peers are kept). Peers must remove this vault and add it again; `passwd` prints the new fingerprint. An old copy of the vault plus the old password could otherwise open future shares and sign as you.
+- Revealed values (detail card, viewer, history) and the output of `get` and `env --force` show control characters in caret notation (`ESC` as `^[`) when the output is a terminal. Pipes and files get the bytes unchanged, as does the clipboard.
+- `pandora env` escapes backticks, so sourcing its output in a shell cannot run commands; `import` reads the escape back.
+- Titles, categories, user names, notes and tags reject bidirectional controls and zero-width characters (the zero-width joiner stays allowed for emoji).
+- `pandora doctor` reports old keyring entries a key rotation could not remove; `--fix` removes them.
+
+### Security
+- A damaged `vault.json` is never written over the good `vault.json.bak`: `passwd`, `peer add|rm` and `id` decrypt the vault first and stop with the corruption error.
+- `passwd --rotate-key` records the old keyring entries it could not delete in an encrypted list inside `vault.json`, removes the leftover pieces of values that were already missing, and re-encrypts the audit log before the commit instead of after it, so a crash can no longer leave current values under the old key or lose the log.
+- Writing a share identity or an audit line with a stale session (another process rotated the key) is refused.
+- `vault.json.bak` and `vault.json.corrupt` are written atomically and fsynced; `vault.json.corrupt` is deleted by the next password change, because it may hold the old wrapping.
+- Escape sequences in imported or shared values can no longer run when a value is revealed (OSC window-title, clipboard and cursor sequences).
+- `PANDORA_MASTER_PASSWORD` and `PANDORA_PASSPHRASE` are removed from Pandora's own environment at start, so the clipboard helpers (`wl-copy`, `xclip`, `osascript`) and the clipboard-clearing helper no longer inherit them; on Windows the filter for `run` ignores case.
+- Ctrl-C at a password prompt restores the terminal's echo.
+- `import` caps the scrypt work factor of an encrypted file, and `PANDORA_PASSPHRASE` warns on import too.
+- The visible secret in the add/edit form is masked again after `reveal_seconds` of no key presses.
+- The PowerShell completion quotes titles with Unicode single quotes correctly.
+- The migration from the plain-text `metadata.json` validates user names, tags and dates.
+- CI runs the race detector and `govulncheck`, actions are pinned by commit SHA, Dependabot is on, and release archives carry a build-provenance attestation (`gh attestation verify <archive> --repo RafaSG13/Pandora`).
 
 ## [0.6.0] - 2026-11-23
 

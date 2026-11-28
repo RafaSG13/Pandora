@@ -20,7 +20,7 @@ Pandora is designed to **reduce accidental exposure**, not to defend against a c
 | **Another machine** you share secrets with | Partly | Shares are signed by the sender and encrypted for the recipient. See [Sharing](sharing.md). |
 | **Malware or another process running as your user** | **No** | It can read the keyring (subject to OS prompts) and log your keystrokes. On Linux Pandora is non-dumpable, so `/proc/<pid>/{mem,environ}` and same-user ptrace are refused, and on every Unix core dumps are disabled; macOS and Windows have no such protection here. |
 | An attacker with **root or physical access to an unlocked session** | **No** | Out of scope. |
-| An attacker who can **modify the Pandora binary** | **No** | Verify downloads against `checksums.txt`. |
+| An attacker who can **modify the Pandora binary** | **No** | Verify downloads with `gh attestation verify` (build provenance) and against `checksums.txt`. The binaries are not code-signed by Apple or Microsoft. |
 
 ## What Pandora does
 
@@ -31,7 +31,8 @@ Pandora is designed to **reduce accidental exposure**, not to defend against a c
 - Never logs, prints or transmits values and never opens network connections.
 - Writes the vault atomically (the new file and its directory are fsynced before and after the rename) with owner-only permissions (`0600` file, `0700` directory on macOS and Linux; Windows relies on the user profile's ACLs).
 - Encrypts names, categories, notes, dates and values under a key only your master password unlocks, and stores keyring entries under random IDs.
-- Rejects control characters in titles, categories and notes, so an imported file cannot inject terminal escape sequences.
+- Rejects control characters and invisible formatting characters (bidirectional overrides, zero-width spaces) in titles, categories and notes, so an imported file cannot inject terminal escape sequences or pass off one title as another.
+- Draws revealed values, history values and `get`/`env` output on a terminal with control characters in caret notation (`ESC` as `^[`), because values from an import or a peer could carry escape sequences. Output to a pipe or file stays byte for byte.
 - Treats the vault file as **untrusted input**: KDF parameters are bounded before any key derivation, and a corrupt or tampered vault is reported, never overwritten.
 
 ## What Pandora does not do
@@ -53,7 +54,8 @@ Pandora is designed to **reduce accidental exposure**, not to defend against a c
 
 ## Known limitations
 
-- `pandora passwd` re-wraps the same data key. Someone who knew the old password and kept an old copy of `vault.json` can still use it to decrypt the current keyring values. Use `pandora passwd --rotate-key` after a suspected password leak: it generates a new data key and re-encrypts every value, history version and audit line, so an old copy of `vault.json` opens nothing current. It cannot undo what an attacker already decrypted or copied. Both forms replace `vault.json.bak` right away, so it never keeps the old wrapping. A running interface whose key was rotated by another process locks itself and asks for the password again.
+- `pandora passwd` re-wraps the same data key. Someone who knew the old password and kept an old copy of `vault.json` can still use it to decrypt the current keyring values. Use `pandora passwd --rotate-key` after a suspected password leak: it generates a new data key and re-encrypts every value, history version and audit line, so an old copy of `vault.json` opens nothing current. It also replaces your share identity (the peers are kept, but they have to add you again), because the old identity in an old copy would open future shares and forge signed ones. It cannot undo what an attacker already decrypted or copied. Both forms replace `vault.json.bak` right away, so it never keeps the old wrapping. A running interface whose key was rotated by another process locks itself and asks for the password again.
+- If a rotation cannot delete some old keyring entries, they are recorded (encrypted) in `vault.json` and `pandora doctor --fix` removes them. Until then they hold values sealed under the old data key, which the old password and an old copy of `vault.json` can open.
 - A change made by another process is detected by polling the size and modification time of `vault.json` once per second. On a file system with one-second timestamps, a same-size change within the same second could go unnoticed; `r` always reloads.
 - The write lock is advisory: it protects against other Pandora processes, not against something editing `vault.json` or the keyring by hand. On a network share, locking may not exclude other machines.
 - The keyring library cannot enumerate entries, so `pandora doctor` finds vault entries without a value but not keyring entries without a vault record.

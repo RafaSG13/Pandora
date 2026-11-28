@@ -22,12 +22,13 @@ flowchart TD
     WK -->|"seal / open, AAD pandora-v2-key"| WRAP["wrapped_key in vault.json"]
     WRAP --> DK["Data key (32 B, random)"]
     DK -->|"AAD pandora-v2-meta"| META["Records: titles, categories, notes, dates"]
+    DK -->|"AAD pandora-v2-pending"| PEND["Old keyring entries a rotation still has to remove"]
     DK -->|"AAD pandora-v2-sharing"| SHR["Share identity and peers"]
     DK -->|"AAD pandora-audit"| AUD["audit.log lines"]
     DK -->|"AAD = record ID"| VAL["Values in the OS keyring"]
 ```
 
-The data key is random and independent of the password. It is generated once with `crypto/rand` when the vault is created, and it does not change when you change your master password. `pandora passwd --rotate-key` replaces it: a new key re-encrypts every value (under new keyring IDs, since the ID is the AAD), the records, the sharing data and the audit log.
+The data key is random and independent of the password. It is generated once with `crypto/rand` when the vault is created, and it does not change when you change your master password. `pandora passwd --rotate-key` replaces it: a new key re-encrypts every value (under new keyring IDs, since the ID is the AAD), the records, the sharing data and the audit log. It also generates a **new share identity** (the peers are kept), so an old copy of the vault cannot open future shares or sign as you.
 
 ## Password stretching
 
@@ -54,6 +55,7 @@ The **associated data** (AAD) binds a ciphertext to its purpose, so one cannot b
 | `pandora-v2-key` | The wrapped data key |
 | `pandora-v2-meta` | The records array |
 | `pandora-v2-sharing` | The share identity and trusted peers |
+| `pandora-v2-pending` | The list of old keyring entries a key rotation could not remove yet |
 | `pandora-audit` | One audit-log line |
 | the record's 32-hex ID | One secret value (and each history version) |
 
