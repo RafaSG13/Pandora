@@ -26,6 +26,7 @@ jobs:
       - name: Test
         run: go vet ./... && go test -race ./...
       - uses: goreleaser/goreleaser-action@e435ccd777264be153ace6237001ef4d979d3a7a # v6.4.0
+        id: goreleaser
         with:
           version: "~> v2"
           args: release --clean
@@ -34,14 +35,19 @@ jobs:
           # Fine-grained token on RafaSG13/homebrew-tap with contents:write and pull_requests:write
           # (the formula arrives as a PR, main is protected); empty skips the formula.
           HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+      # The attestation and the notes run whenever the archives were built, even if a later
+      # GoReleaser step (the Homebrew PR) failed, so a tap problem cannot leave a release
+      # without notes or provenance. The job still fails then, so the problem stays visible.
       # Signed provenance for every archive, verifiable with
       # `gh attestation verify <archive> --repo RafaSG13/Pandora`.
       - uses: actions/attest-build-provenance@e8998f949152b193b063cb0ec769d69d929409be # v2.4.0
+        if: ${{ !cancelled() && hashFiles('dist/checksums.txt') != '' }}
         with:
           subject-checksums: dist/checksums.txt
       # Passing --release-notes to GoReleaser left the v0.1.0 body empty (its changelog
       # is disabled), so the notes are set explicitly after the release exists.
       - name: Publish release notes
+        if: ${{ !cancelled() && hashFiles('dist/checksums.txt') != '' }}
         run: gh release edit "${GITHUB_REF_NAME}" --notes-file "${RUNNER_TEMP}/notes.md"
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
