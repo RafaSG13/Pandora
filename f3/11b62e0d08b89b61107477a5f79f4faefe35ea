@@ -1,0 +1,38 @@
+CHANGELOG.md
+  h_e81853c41416fb 16
+docs/security/hardening.md
+  h_e81853c41416fb 26-27
+docs/security/threat-model.md
+  h_e81853c41416fb 63-64
+internal/cli/cli.go
+  h_e81853c41416fb 73-74,136
+internal/cli/cli_test.go
+  h_e81853c41416fb 55,106
+internal/cli/clipclear_test.go
+  h_e81853c41416fb 77-87
+internal/cli/commands.go
+  h_e81853c41416fb 133-135
+internal/secretclip/session_other.go
+  h_e81853c41416fb 1-22
+internal/secretclip/session_other_test.go
+  h_e81853c41416fb 1-24
+internal/secretclip/session_stub.go
+  h_e81853c41416fb 1-6
+internal/tui/hygiene_test.go
+  h_e81853c41416fb 425,445-453
+internal/tui/update.go
+  h_e81853c41416fb 34,417-421
+internal/tui/update_test.go
+  h_e81853c41416fb 61-62,78
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.6",
+  "base_commit_sha": "f311b62e0d08b89b61107477a5f79f4faefe35ea",
+  "prompts": {},
+  "humans": {
+    "h_e81853c41416fb": {
+      "author": "RafaSG13 <rafasrrg13@gmail.com>"
+    }
+  }
+}
